@@ -1,0 +1,42 @@
+name: CI
+
+# Windows only. The production host is Windows, and the failures worth catching here -- path
+# handling, the missing IANA tz database, subprocess and Playwright behaviour -- do not
+# reproduce on Linux.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  hermetic:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Types
+        run: uv run mypy
+
+      - name: Unit and fake tiers
+        run: uv run pytest -q
+
+      - name: End-to-end (fake Principle, task and web application as separate processes)
+        run: |
+          uv run playwright install --with-deps chromium
+          uv run pytest -m e2e -q
+
+      - name: Code budget
+        run: uv run python -m tests.test_budget
+
+# The integration tier is deliberately absent: it needs staging credentials, and CI stays
+# hermetic. It is a release gate, run from a machine that holds them
+# (scripts/run_integration_tests.ps1).

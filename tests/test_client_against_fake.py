@@ -12,7 +12,15 @@ from tests.fake import FAKE_PRACTICE_ID, FakeStore, dispatch
 from tests.fake.server import FakeUnhandledParameterError, Request
 from tests.fake.store import FAKE_API_KEY
 
-WINDOW = {"from": "2026-09-28T00:00:00Z", "to": "2026-10-01T00:00:00Z"}
+# Wide enough to cover the whole seeded diary, whose slots are NZ business hours.
+WINDOW = {"from": "2026-09-27T00:00:00Z", "to": "2026-10-02T00:00:00Z"}
+
+
+def _page(row_id: str, next_offset: str) -> dict[str, object]:
+    return {
+        "data": [{"id": row_id}],
+        "meta": {"limit": 1, "total": 1, "nextOffsetId": next_offset},
+    }
 
 
 async def test_lists_practices_and_says_it_is_fake(fake_client: PrincipleClient) -> None:
@@ -52,24 +60,23 @@ async def test_pagination_returns_every_row_once(
 async def test_pagination_stops_when_the_cursor_repeats() -> None:
     """A server that returns the same nextOffsetId forever must not hang the client.
 
-    The spec's own PaginationMeta example has nextOffsetId equal to offsetId, and od_data
-    met non-advancing cursors on this API, so removing the guard would turn a scheduled
-    report into an unbounded loop against production.
+    The spec's own PaginationMeta example has nextOffsetId equal to offsetId, and od_data met
+    non-advancing cursors on this API, so removing the guard would turn a scheduled report
+    into an unbounded loop against production.
     """
+    pages = iter(["appointment-1", "appointment-2", "appointment-3"])
 
-    def always_the_same_cursor(request: httpx.Request) -> httpx.Response:
+    def stuck_cursor(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
             json={
-                "data": [{"id": "appointment-1"}],
-                "meta": {"limit": 1, "total": 9, "nextOffsetId": "stuck"},
+                "data": [{"id": next(pages)}],
+                "meta": {"limit": 1, "total": 1, "nextOffsetId": "stuck"},
             },
         )
 
     settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"))
-    async with PrincipleClient(
-        settings, transport=httpx.MockTransport(always_the_same_cursor)
-    ) as client:
+    async with PrincipleClient(settings, transport=httpx.MockTransport(stuck_cursor)) as client:
         rows = [
             row
             async for row in client.rows(
@@ -77,6 +84,35 @@ async def test_pagination_stops_when_the_cursor_repeats() -> None:
             )
         ]
     assert len(rows) == 2, "the walk must stop the first time a cursor repeats"
+
+
+async def test_pagination_refuses_when_the_cursor_restarts() -> None:
+    """A restarted walk must fail rather than double-count.
+
+    `nextOffsetId` is a createdAt, and Principle ignores a cursor it cannot place instead of
+    refusing it, so a stale cursor answers with page one again. Yielding those rows a second
+    time would inflate every number in the report, and a plausible wrong count is worse than
+    an error.
+    """
+    answers = iter(
+        [
+            _page("appointment-1", "c1"),
+            _page("appointment-1", "c2"),
+        ]
+    )
+
+    def restarts(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=next(answers))
+
+    settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"))
+    async with PrincipleClient(settings, transport=httpx.MockTransport(restarts)) as client:
+        with pytest.raises(PrincipleError, match="cursor restarted"):
+            _ = [
+                row
+                async for row in client.rows(
+                    "list_appointments", query={"practiceId": "p", **WINDOW}, page_size=1
+                )
+            ]
 
 
 async def test_window_is_half_open_and_intersecting(fake_client: PrincipleClient) -> None:
@@ -91,8 +127,9 @@ async def test_window_is_half_open_and_intersecting(fake_client: PrincipleClient
             "list_appointments",
             query={
                 "practiceId": FAKE_PRACTICE_ID,
-                "from": "2026-09-28T09:15:00Z",
-                "to": "2026-09-28T09:20:00Z",
+                # Five minutes inside the first slot (09:00-09:30 NZ = 20:00-20:30Z).
+                "from": "2026-09-27T20:05:00Z",
+                "to": "2026-09-27T20:10:00Z",
             },
         )
     ]

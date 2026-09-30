@@ -1,0 +1,10 @@
+{
+  "body": {
+    "error": "Unauthorised",
+    "message": "Please authenticate first",
+    "statusCode": 401
+  },
+  "capturedOn": "2026-09-30",
+  "source": "api.staging.principle.dental",
+  "status": 401
+}

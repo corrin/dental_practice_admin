@@ -4,9 +4,13 @@ version = "0.1.0"
 description = "Administrative application for Principle Dental at one dental practice"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "fastapi>=0.142.2",
     "httpx>=0.28,<0.29",
+    "jinja2>=3.1.6",
     "pydantic>=2.9,<3",
     "pydantic-settings>=2.6,<3",
+    "tzdata>=2026.4",
+    "uvicorn[standard]>=0.54.0",
 ]
 
 [project.scripts]
@@ -19,6 +23,8 @@ dev = [
     "pyyaml>=6.0,<7",
     "ruff>=0.7,<0.8",
     "mypy>=1.13,<2",
+    "pytest-playwright>=0.9.0",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [build-system]
@@ -35,10 +41,11 @@ asyncio_mode = "auto"
 # The default suite is hermetic: no credentials, no network, safe in CI. The integration
 # tier is a release gate run deliberately (scripts/run_integration_tests.ps1), never a
 # default, because it reaches the real staging tenant.
-addopts = "-m 'not integration and not ui' --strict-markers"
+addopts = "-m 'not integration and not ui and not e2e' --strict-markers"
 markers = [
     "integration: reaches the real Principle staging API; refuses rather than skips when unconfigured",
     "ui: drives the real Principle web UI with Playwright",
+    "e2e: runs the fake, the task and the web application as separate processes, in a browser",
 ]
 
 [tool.ruff]

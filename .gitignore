@@ -23,3 +23,19 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+
+# Recordings captured from a real Principle tenant are NOT distributed. They are derived from
+# real patient records, and no anonymiser should be trusted enough to publish its output under
+# health-privacy law. Each practice runs scripts/record_principle_wire.py against its own
+# staging tenant and keeps the result locally.
+#
+# Refusal recordings ARE committed: an error body is the API's own wording and carries no
+# patient data, and tests/fake/server.py needs them to refuse in words nobody invented.
+tests/recordings/*.json
+!tests/recordings/refusals/
+
+# Principle's published specification is fetched, never committed: it carries no licence, no
+# terms and no contact, so redistribution rights are unstated, and it cannot be sublicensed
+# under this project's AGPL-3.0. tests/spec/fingerprint.json is the derived description we do
+# commit (scripts/refresh_spec.py).
+tests/spec/principle-api.yml

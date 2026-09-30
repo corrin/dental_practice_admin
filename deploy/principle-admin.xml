@@ -1,0 +1,39 @@
+<!--
+  WinSW service definition. Copy alongside a WinSW release renamed principle-admin.exe, then
+  `principle-admin.exe install`.
+
+  %BASE% is the directory holding this file. Runtime data is deliberately NOT under it: a
+  release is replaced wholesale during an upgrade, and anything inside would go with it.
+-->
+<service>
+  <id>principle-admin</id>
+  <name>Principle admin</name>
+  <description>Staff pages and run history for Principle Dental administration.</description>
+
+  <executable>%BASE%\.venv\Scripts\python.exe</executable>
+  <arguments>-m uvicorn principle_admin.app:app --host 0.0.0.0 --port 8080</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+
+  <!-- Development reload is not part of a service: it watches the filesystem and restarts
+       mid-request. -->
+  <env name="PYTHONPATH" value="%BASE%\src" />
+  <env name="PRINCIPLE_ENVIRONMENT" value="production" />
+  <env name="PRINCIPLE_API_BASE_URL" value="https://api.principle.dental" />
+  <env name="PRINCIPLE_DATA_ROOT" value="C:\ProgramData\PrincipleAdmin" />
+
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <onfailure action="none" />
+  <resetfailure>1 hour</resetfailure>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+
+  <log mode="roll-by-size-time">
+    <sizeThreshold>10240</sizeThreshold>
+    <pattern>yyyyMMdd</pattern>
+    <autoRollAtTime>00:00:00</autoRollAtTime>
+    <keepFiles>30</keepFiles>
+  </log>
+  <logpath>C:\ProgramData\PrincipleAdmin\logs</logpath>
+</service>

@@ -1,0 +1,240 @@
+{
+  "note": "Derived from Principle's published specification: the operations this project calls, reduced to parameters and response shape. Not a copy of the document. specVersion is recorded but is not a change signal -- drift is detected by content.",
+  "operations": {
+    "list_appointments": {
+      "method": "GET",
+      "operationId": "listAppointmentsByDateRange",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "createdFrom",
+          "required": false,
+          "schema": "string/date-time"
+        },
+        {
+          "in": "query",
+          "name": "createdTo",
+          "required": false,
+          "schema": "string/date-time"
+        },
+        {
+          "in": "query",
+          "name": "from",
+          "required": true,
+          "schema": "string/date-time"
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "required": false,
+          "schema": "integer"
+        },
+        {
+          "in": "query",
+          "name": "offsetId",
+          "required": false,
+          "schema": "string"
+        },
+        {
+          "in": "query",
+          "name": "practiceId",
+          "required": true,
+          "schema": "string"
+        },
+        {
+          "in": "query",
+          "name": "practitionerId",
+          "required": false,
+          "schema": "string"
+        },
+        {
+          "in": "query",
+          "name": "status",
+          "required": false,
+          "schema": {
+            "enum": [
+              "arrived",
+              "cancelled",
+              "checkedIn",
+              "checkingOut",
+              "complete",
+              "confirmed",
+              "inProgress",
+              "scheduled",
+              "unscheduled"
+            ]
+          }
+        },
+        {
+          "in": "query",
+          "name": "to",
+          "required": true,
+          "schema": "string/date-time"
+        },
+        {
+          "in": "query",
+          "name": "updatedFrom",
+          "required": false,
+          "schema": "string/date-time"
+        },
+        {
+          "in": "query",
+          "name": "updatedTo",
+          "required": false,
+          "schema": "string/date-time"
+        }
+      ],
+      "path": "/v1/appointments",
+      "response": {
+        "properties": {
+          "data": [
+            {
+              "properties": {
+                "createdAt": "string/date-time",
+                "event": {
+                  "properties": {
+                    "from": "...",
+                    "to": "..."
+                  },
+                  "required": [
+                    "from",
+                    "to"
+                  ]
+                },
+                "id": "string",
+                "patientId": "string",
+                "practiceId": "string",
+                "practitionerId": "string",
+                "status": {
+                  "enum": [
+                    "arrived",
+                    "cancelled",
+                    "checkedIn",
+                    "checkingOut",
+                    "complete",
+                    "confirmed",
+                    "inProgress",
+                    "scheduled",
+                    "unscheduled"
+                  ]
+                },
+                "treatmentCategory": {
+                  "properties": {
+                    "id": "...",
+                    "name": "..."
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
+                },
+                "treatmentOptionId": "string",
+                "treatmentPlanId": "string",
+                "treatmentStepId": "string",
+                "treatments": [
+                  "..."
+                ],
+                "updatedAt": "string/date-time"
+              },
+              "required": [
+                "id",
+                "patientId",
+                "practiceId",
+                "practitionerId",
+                "status",
+                "treatmentOptionId",
+                "treatmentPlanId",
+                "treatmentStepId"
+              ]
+            }
+          ],
+          "meta": {
+            "properties": {
+              "limit": "integer",
+              "nextOffsetId": "string",
+              "offsetId": "string",
+              "total": "integer"
+            },
+            "required": [
+              "limit",
+              "total"
+            ]
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      }
+    },
+    "list_practices": {
+      "method": "GET",
+      "operationId": "listPractices",
+      "parameters": [],
+      "path": "/v1/practices",
+      "response": {
+        "properties": {
+          "data": [
+            {
+              "properties": {
+                "createdAt": "string/date-time",
+                "id": "string",
+                "name": "string",
+                "updatedAt": "string/date-time"
+              },
+              "required": [
+                "createdAt",
+                "id",
+                "name",
+                "updatedAt"
+              ]
+            }
+          ]
+        },
+        "required": [
+          "data"
+        ]
+      }
+    },
+    "list_practitioners": {
+      "method": "GET",
+      "operationId": "listPractitioners",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "practiceId",
+          "required": true,
+          "schema": "string"
+        }
+      ],
+      "path": "/v1/practices/{practiceId}/practitioners",
+      "response": {
+        "properties": {
+          "data": [
+            {
+              "properties": {
+                "createdAt": "string/date-time",
+                "id": "string",
+                "name": "string",
+                "treatmentOptions": [
+                  "..."
+                ],
+                "updatedAt": "string/date-time"
+              },
+              "required": [
+                "createdAt",
+                "id",
+                "name",
+                "treatmentOptions",
+                "updatedAt"
+              ]
+            }
+          ]
+        },
+        "required": []
+      }
+    }
+  },
+  "source": "https://api.principle.dental/assets/api.yml",
+  "specVersion": "1.1.0"
+}
