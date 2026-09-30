@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Chat{% endblock %}
+{% block body %}
+<p><a href="/">&larr; Tasks and runs</a></p>
+<h1>Ask about the diary</h1>
+<p class="quiet">Read-only. The assistant can look up appointments; it cannot change anything in
+Principle.</p>
+
+<openai-chatkit id="chat" data-automation-id="chatkit" style="display:block;height:32rem"></openai-chatkit>
+
+<noscript><p class="banner">Chat needs JavaScript.</p></noscript>
+
+<script src="https://cdn.platform.openai.com/deployments/chatkit/chatkit.js" async></script>
+<script>
+  // The component loads from OpenAI's CDN and verifies the serving domain, so this page is not
+  // usable offline however local the backend is.
+  customElements.whenDefined('openai-chatkit').then(() => {
+    document.getElementById('chat').setOptions({ api: { url: '/chatkit' } });
+  });
+</script>
+{% endblock %}

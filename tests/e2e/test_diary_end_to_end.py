@@ -11,104 +11,18 @@ test client.
 
 from __future__ import annotations
 
-import os
-import socket
 import subprocess
 import sys
-import time
-from collections.abc import Iterator
-from pathlib import Path
 
-import httpx
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.fake.store import FAKE_API_KEY, FAKE_PRACTICE_ID
+from tests.e2e.conftest import DIARY_DATE, EXPECTED_BOOKED, EXPECTED_CANCELLED, REPO
 
 pytestmark = pytest.mark.e2e
 
-REPO = Path(__file__).resolve().parent.parent.parent
 
-# The seeded diary's first day, in practice-local time.
-DIARY_DATE = "2026-09-28"
-EXPECTED_BOOKED = 8
-EXPECTED_CANCELLED = 2
-
-STARTUP_TIMEOUT = 45.0
-
-
-def _free_port() -> int:
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        return int(probe.getsockname()[1])
-
-
-def _serve(target: str, port: int, env: dict[str, str]) -> subprocess.Popen[bytes]:
-    return subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", target, "--host", "127.0.0.1", "--port", str(port)],
-        cwd=REPO,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-
-
-def _await_http(url: str, process: subprocess.Popen[bytes], expect_status: set[int]) -> None:
-    """Wait for a server to answer, failing with its own output rather than a bare timeout."""
-    deadline = time.monotonic() + STARTUP_TIMEOUT
-    last = "no response yet"
-    while time.monotonic() < deadline:
-        if process.poll() is not None:
-            output = process.stdout.read().decode(errors="replace") if process.stdout else ""
-            pytest.fail(f"{url} server exited with {process.returncode}:\n{output}")
-        try:
-            response = httpx.get(url, timeout=3)
-        except httpx.HTTPError as error:
-            last = str(error)
-        else:
-            if response.status_code in expect_status:
-                return
-            last = f"status {response.status_code}"
-        time.sleep(0.25)
-    pytest.fail(f"{url} was not ready within {STARTUP_TIMEOUT}s: {last}")
-
-
-@pytest.fixture(scope="module")
-def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
-    """The fake Principle and the web application, each in its own process."""
-    data_root = tmp_path_factory.mktemp("e2e-data")
-    fake_port = _free_port()
-    app_port = _free_port()
-
-    env = dict(os.environ)
-    env.update(
-        {
-            "PRINCIPLE_ENVIRONMENT": "fake",
-            "PRINCIPLE_API_BASE_URL": f"http://127.0.0.1:{fake_port}",
-            "PRINCIPLE_API_KEY": FAKE_API_KEY,
-            "PRINCIPLE_PRACTICE_ID": FAKE_PRACTICE_ID,
-            "PRINCIPLE_DATA_ROOT": str(data_root),
-            "PYTHONPATH": str(REPO),
-        }
-    )
-
-    fake = _serve("tests.fake.server:app", fake_port, env)
-    application = _serve("principle_admin.app:app", app_port, env)
-    try:
-        # The fake refuses an unauthenticated call, which is itself the readiness signal.
-        _await_http(f"http://127.0.0.1:{fake_port}/v1/practices", fake, {401, 403, 500})
-        _await_http(f"http://127.0.0.1:{app_port}/health", application, {200})
-        yield {**env, "APP_URL": f"http://127.0.0.1:{app_port}"}
-    finally:
-        for process in (application, fake):
-            process.terminate()
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                process.kill()
-
-
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def completed_run(spine: dict[str, str]) -> str:
     """Run the diary task as Task Scheduler will, over real HTTP to the fake."""
     finished = subprocess.run(

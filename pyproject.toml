@@ -4,9 +4,13 @@ version = "0.1.0"
 description = "Administrative application for Principle Dental at one dental practice"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "authlib>=1.8.0",
     "fastapi>=0.142.2",
     "httpx>=0.28,<0.29",
+    "itsdangerous>=2.2.0",
     "jinja2>=3.1.6",
+    "openai-agents>=0.22.3",
+    "openai-chatkit>=1.6.5",
     "pydantic>=2.9,<3",
     "pydantic-settings>=2.6,<3",
     "tzdata>=2026.4",
@@ -67,3 +71,9 @@ files = ["src", "tests", "scripts"]
 # as a top-level module and once through the installed package.
 mypy_path = "src"
 explicit_package_bases = true
+
+# authlib ships no type information. The OAuth surface we touch is three calls, all in
+# auth.py, and none of them is checkable from stubs that do not exist.
+[[tool.mypy.overrides]]
+module = ["authlib.*"]
+ignore_missing_imports = true

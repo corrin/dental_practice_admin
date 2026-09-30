@@ -1,88 +1,263 @@
-"""The 2,000-line budget, counted rather than hoped for.
+"""The 2,000-line budget, counted by category rather than by wc -l.
 
-ARCHITECTURE.md fixes the scope constraint at 2,000 lines of maintained Python, HTML,
-JavaScript and setup scripts, with tests and generated code reported separately. A number
-in prose drifts; this fails the build instead.
+ARCHITECTURE.md fixes the scope constraint at 2,000 lines. The number applies to **application
+code** -- the statements the practice must maintain in order to run the thing. Four other kinds
+of line are reported and not budgeted, because counting them against the limit would price
+exactly the work that makes the application maintainable:
+
+    application    executable statements under src/            <= 2,000
+    comments       comments and docstrings, anywhere            reported
+    deployment     install, service and verification scripts    reported
+    test harness   tests/ and the scripts that serve them       reported
+    documentation  Markdown                                     reported
+
+Comments are separated for a specific reason: a budget that counted them would reward deleting
+the sentence that records why a cursor guard exists, which is the most valuable line in the file.
 
 Run `uv run python -m tests.test_budget` for the breakdown.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import ast
+import io
+import re
+import tokenize
+from dataclasses import dataclass, field
 from pathlib import Path
 
 BUDGET = 2000
 
 ROOT = Path(__file__).resolve().parent.parent
 
-COUNTED_SUFFIXES = frozenset({".py", ".html", ".js", ".ps1", ".psm1"})
+CODE_SUFFIXES = frozenset({".py", ".html", ".js", ".ps1", ".psm1"})
 
-# Maintained application code, the thing the budget constrains.
-MAINTAINED = ("src", "deploy", "scripts")
-
-# Reported, never budgeted: the fake and the suite are how the application is trusted, and
-# ARCHITECTURE.md accounts for them separately.
-REPORTED = ("tests",)
+# scripts/ is test harness: the recorder captures test oracles, the fingerprinter writes a file a
+# test reads, and the runner runs tests. None of it executes in production.
+CATEGORIES: dict[str, tuple[str, ...]] = {
+    "application": ("src",),
+    "deployment": ("deploy",),
+    "test harness": ("tests", "scripts"),
+}
 
 SKIP_DIRS = frozenset({"__pycache__", ".venv", "node_modules", ".git", "recordings", "spec"})
 
-
-@dataclass(frozen=True)
-class Count:
-    """Non-blank counted lines, in total and per file."""
-
-    lines: int
-    files: dict[str, int]
+# Markdown outside the dependency tree.
+DOC_SUFFIXES = frozenset({".md"})
 
 
-def _count(roots: tuple[str, ...]) -> Count:
-    """Non-blank lines of counted source under these directories."""
-    files: dict[str, int] = {}
+@dataclass
+class Tally:
+    """Counted lines, split into code and prose."""
+
+    code: int = 0
+    comments: int = 0
+    per_file: dict[str, tuple[int, int]] = field(default_factory=dict)
+
+    def add(self, path: str, code: int, comments: int) -> None:
+        self.code += code
+        self.comments += comments
+        self.per_file[path] = (code, comments)
+
+
+def _fallback(source: str) -> tuple[int, int]:
+    """Counts for a file the tokeniser rejected.
+
+    Every non-blank line counts as code. A file that will not tokenise is broken, and reporting
+    a flattering number for it would hide that behind an accounting detail.
+    """
+    return sum(1 for line in source.splitlines() if line.strip()), 0
+
+
+def python_lines(source: str) -> tuple[int, int]:
+    """(code, comment) line counts for one Python file.
+
+    Docstrings count as comments, which is the whole point of the split: a module docstring
+    explaining why the fake refuses rather than guesses is documentation, not application code.
+    A line carrying both a statement and a trailing comment counts as code.
+    """
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return _fallback(source)
+
+    commented: set[int] = set()
+    code_lines: set[int] = set()
+    for token in tokens:
+        if token.type == tokenize.COMMENT:
+            commented.add(token.start[0])
+        elif token.type in _STRUCTURAL_TOKENS:
+            continue
+        else:
+            code_lines.update(range(token.start[0], token.end[0] + 1))
+
+    # A trailing comment does not turn its statement into prose, so only lines carrying nothing
+    # but a comment count as such.
+    comment_lines = commented - code_lines
+    for start, end in _docstring_ranges(source):
+        span = set(range(start, end + 1))
+        comment_lines |= span
+        code_lines -= span
+
+    blank = {
+        number for number, line in enumerate(source.splitlines(), start=1) if not line.strip()
+    }
+    return len(code_lines - blank), len(comment_lines - blank)
+
+
+_DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+def _docstring_ranges(source: str) -> list[tuple[int, int]]:
+    """Line spans of every docstring, so they are counted as prose."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    ranges: list[tuple[int, int]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, _DOCSTRING_OWNERS):
+            continue
+        body = getattr(node, "body", [])
+        if not body:
+            continue
+        first = body[0]
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+            and first.end_lineno is not None
+        ):
+            ranges.append((first.lineno, first.end_lineno))
+    return ranges
+
+
+# Tokens that occupy a line without being a statement.
+_STRUCTURAL_TOKENS = frozenset(
+    {tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.ENDMARKER}
+)
+
+HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+PS_BLOCK_COMMENT = re.compile(r"<#.*?#>", re.DOTALL)
+
+
+def markup_lines(source: str, suffix: str) -> tuple[int, int]:
+    """(code, comment) counts for a non-Python file, by stripping comment spans.
+
+    Approximate by nature -- a `//` inside a string literal reads as a comment -- and good enough
+    for an accounting report. The Python count, which carries almost all the lines, is exact.
+    """
+    total = sum(1 for line in source.splitlines() if line.strip())
+    pattern = {
+        ".html": HTML_COMMENT,
+        ".js": BLOCK_COMMENT,
+        ".ps1": PS_BLOCK_COMMENT,
+        ".psm1": PS_BLOCK_COMMENT,
+    }[suffix]
+    stripped = pattern.sub("", source)
+    single = "#" if suffix in {".ps1", ".psm1"} else "//"
+    kept = [
+        line
+        for line in stripped.splitlines()
+        if line.strip() and not line.strip().startswith(single)
+    ]
+    return len(kept), total - len(kept)
+
+
+def count(roots: tuple[str, ...]) -> Tally:
+    tally = Tally()
     for name in roots:
         base = ROOT / name
         if not base.exists():
             continue
         for path in sorted(base.rglob("*")):
-            if path.suffix not in COUNTED_SUFFIXES or not path.is_file():
+            if path.suffix not in CODE_SUFFIXES or not path.is_file():
                 continue
             if SKIP_DIRS & set(path.relative_to(ROOT).parts):
                 continue
-            text = path.read_text(encoding="utf-8").splitlines()
-            files[str(path.relative_to(ROOT)).replace("\\", "/")] = sum(
-                1 for line in text if line.strip()
+            source = path.read_text(encoding="utf-8")
+            code, comments = (
+                python_lines(source)
+                if path.suffix == ".py"
+                else markup_lines(source, path.suffix)
             )
-    return Count(lines=sum(files.values()), files=files)
+            tally.add(str(path.relative_to(ROOT)).replace("\\", "/"), code, comments)
+    return tally
+
+
+def documentation() -> int:
+    """Non-blank Markdown lines, excluding the vendored licence."""
+    total = 0
+    for path in sorted(ROOT.rglob("*")):
+        if path.suffix not in DOC_SUFFIXES or not path.is_file():
+            continue
+        if SKIP_DIRS & set(path.relative_to(ROOT).parts):
+            continue
+        total += sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+    return total
 
 
 def report() -> str:
-    maintained = _count(MAINTAINED)
-    reported = _count(REPORTED)
-    lines = [f"maintained {maintained.lines:>5} / {BUDGET}"]
-    lines += [f"  {path:<52} {count:>5}" for path, count in maintained.files.items()]
-    lines.append(f"tests and fake (reported, not budgeted) {reported.lines:>5}")
-    lines += [f"  {path:<52} {count:>5}" for path, count in reported.files.items()]
+    lines: list[str] = []
+    for label, roots in CATEGORIES.items():
+        tally = count(roots)
+        cap = f" / {BUDGET}" if label == "application" else ""
+        lines.append(f"{label:<14} code {tally.code:>5}{cap}   comments {tally.comments:>5}")
+        for path, (code, comments) in tally.per_file.items():
+            lines.append(f"  {path:<48} {code:>5} {comments:>5}")
+    lines.append(f"{'documentation':<14}             {documentation():>5}")
     return "\n".join(lines)
 
 
-def test_maintained_code_is_within_budget() -> None:
+def test_application_code_is_within_budget() -> None:
     """Exceeding the budget must break the build, not appear in a later review.
 
-    ARCHITECTURE.md is explicit that a feature which would exceed the limit should be
-    narrowed instead; that decision can only be made if the number is visible.
+    ARCHITECTURE.md is explicit that a feature which would exceed the limit should be narrowed
+    instead; that decision can only be made if the number is visible.
     """
-    maintained = _count(MAINTAINED)
-    assert maintained.lines <= BUDGET, f"maintained code is {maintained.lines} lines:\n{report()}"
+    application = count(CATEGORIES["application"])
+    assert application.code <= BUDGET, (
+        f"application code is {application.code} lines:\n{report()}"
+    )
 
 
-def test_the_suite_is_not_counted_against_the_application() -> None:
+def test_comments_are_not_counted_against_the_application() -> None:
+    """A budget that priced comments would reward deleting the explanations.
+
+    The hard-won lines in this codebase are prose: why the cursor guard exists, why the fake
+    refuses rather than guesses, why a practice day is not a UTC day. Counting them would make
+    removing them the cheapest way to pass this file.
+    """
+    application = count(CATEGORIES["application"])
+    assert application.comments > 0
+    assert application.code < application.code + application.comments
+
+
+def test_the_harness_is_not_counted_against_the_application() -> None:
     """The fake must never be an argument for cutting tested behaviour.
 
-    If the suite were budgeted, the cheapest way to pass this file would be to delete the
-    fake -- which is precisely backwards.
+    If the suite were budgeted, the cheapest way to pass would be to delete the fake, which is
+    precisely backwards.
     """
-    assert not (set(MAINTAINED) & set(REPORTED))
-    assert _count(REPORTED).lines > 0
+    assert not set(CATEGORIES["application"]) & set(CATEGORIES["test harness"])
+    assert count(CATEGORIES["test harness"]).code > 0
+
+
+def test_docstrings_count_as_comments_not_code() -> None:
+    """The classifier itself needs a regression test.
+
+    If docstrings were counted as code, the budget would silently tighten by several hundred
+    lines and the failure would look like a feature being too large.
+    """
+    source = (
+        '"""Module docstring.\n\nSecond line.\n"""\n\n\n'
+        'def f() -> int:\n    """One line."""\n'
+        "    # A comment.\n    return 1  # trailing\n"
+    )
+    code, comments = python_lines(source)
+    assert code == 2, f"expected `def` and `return` only, got {code}"
+    assert comments == 5, f"expected 4 docstring lines and 1 comment line, got {comments}"
 
 
 if __name__ == "__main__":

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from principle_admin.app import app, settings
-from principle_admin.config import Environment, Settings
+from principle_admin.app import app
+from principle_admin.config import Environment, Settings, current_settings
 from principle_admin.storage import Coverage, Outcome, Storage
 
 
@@ -70,50 +71,58 @@ def test_runs_are_listed_newest_first(store: Storage) -> None:
     assert next(run.run_id for run in store.recent_runs()) == second
 
 
+@dataclass
+class Pages:
+    """A test client and a separate handle for seeding rows it should then display."""
+
+    client: TestClient
+    store: Storage
+
+
 @pytest.fixture
-def pages(tmp_path: Path) -> Iterator[TestClient]:
-    """The application with its storage and settings pointed at a temporary directory."""
+def pages(tmp_path: Path) -> Iterator[Pages]:
+    """The application with its settings pointed at a temporary directory.
+
+    Only the settings are overridden. The real `storage` dependency then opens its own
+    connection per request, on the thread that serves it, which is what production does -- a
+    shared connection handed in here would pass tests that production cannot run.
+    """
     configured = Settings(environment=Environment.FAKE, data_root=tmp_path)
-    # Only the settings are overridden. The real `storage` dependency then opens its own
-    # connection per request, in the thread that serves it, which is what production does --
-    # a shared connection handed in here would pass tests that production cannot run.
-    app.dependency_overrides[settings] = lambda: configured
+    app.dependency_overrides[current_settings] = lambda: configured
     seeding = Storage(configured.database_path)
-    client = TestClient(app)
-    client.store = seeding
-    yield client
+    yield Pages(client=TestClient(app), store=seeding)
     app.dependency_overrides.clear()
     seeding.close()
 
 
-def test_the_fake_is_announced_on_every_page(pages: TestClient) -> None:
+def test_the_fake_is_announced_on_every_page(pages: Pages) -> None:
     """A page built from fake data must say so.
 
     Without the banner a development screenshot is indistinguishable from a real report, and
     ARCHITECTURE.md requires a fake run to be unmistakable.
     """
-    body = pages.get("/").text
+    body = pages.client.get("/").text
     assert 'data-automation-id="fake-banner"' in body
 
 
-def test_no_page_claims_a_next_run_time(pages: TestClient) -> None:
+def test_no_page_claims_a_next_run_time(pages: Pages) -> None:
     """Windows owns the schedule.
 
     A next-run time computed here would be a second schedule definition, and it would go on
     displaying a time after someone changed or disabled the real task.
     """
-    body = pages.get("/").text.lower()
+    body = pages.client.get("/").text.lower()
     assert "next run" not in body
     assert "next scheduled" not in body
 
 
-def test_a_partial_run_is_flagged_on_its_page(pages: TestClient) -> None:
+def test_a_partial_run_is_flagged_on_its_page(pages: Pages) -> None:
     """The warning must be on the page, not only in the summary string.
 
     A reader who skips the one-line summary and reads the practitioner table would
     otherwise take a partial day for a complete one.
     """
-    store: Storage = pages.store
+    store = pages.store
     run_id = store.start_run("daily_diary", "windows:test", "fake")
     store.finish_run(
         run_id,
@@ -122,14 +131,14 @@ def test_a_partial_run_is_flagged_on_its_page(pages: TestClient) -> None:
         "2026-09-28: 6 attending of 8 booked (PARTIAL: one practitioner unnamed)",
         detail={"coverageNote": "one practitioner unnamed", "byStatus": {}, "byPractitioner": []},
     )
-    body = pages.get(f"/runs/{run_id}").text
+    body = pages.client.get(f"/runs/{run_id}").text
     assert 'data-automation-id="not-complete-warning"' in body
     assert "one practitioner unnamed" in body
 
 
-def test_a_complete_run_carries_no_warning(pages: TestClient) -> None:
+def test_a_complete_run_carries_no_warning(pages: Pages) -> None:
     """The warning must be absent when it does not apply, or it stops meaning anything."""
-    store: Storage = pages.store
+    store = pages.store
     run_id = store.start_run("daily_diary", "windows:test", "fake")
     store.finish_run(
         run_id,
@@ -138,21 +147,21 @@ def test_a_complete_run_carries_no_warning(pages: TestClient) -> None:
         "2026-09-28: 6 attending of 8 booked",
         detail={"byStatus": {"scheduled": 8}, "byPractitioner": []},
     )
-    body = pages.get(f"/runs/{run_id}").text
+    body = pages.client.get(f"/runs/{run_id}").text
     assert 'data-automation-id="not-complete-warning"' not in body
 
 
-def test_an_unknown_run_is_a_404(pages: TestClient) -> None:
+def test_an_unknown_run_is_a_404(pages: Pages) -> None:
     """A mistyped run id must not render an empty report as a real one."""
-    assert pages.get("/runs/deadbeef").status_code == 404
+    assert pages.client.get("/runs/deadbeef").status_code == 404
 
 
-def test_health_reports_which_principle_it_is_talking_to(pages: TestClient) -> None:
+def test_health_reports_which_principle_it_is_talking_to(pages: Pages) -> None:
     """The environment must be in the payload.
 
     deploy/verify.ps1 reads this; a health endpoint reporting only "ok" would call a service
     healthy while it was pointed at the wrong Principle.
     """
-    payload = pages.get("/health").json()
+    payload = pages.client.get("/health").json()
     assert payload["status"] == "ok"
     assert payload["principle"] == "fake"

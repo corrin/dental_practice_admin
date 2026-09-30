@@ -20,7 +20,7 @@ from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PRODUCTION_API_HOSTS = frozenset({"api.principle.dental", "app.principle.dental"})
@@ -69,6 +69,20 @@ class Settings(BaseSettings):
     api_key: SecretStr = SecretStr("")
     practice_id: str = ""
 
+    # Staff sign-in. Google holds the credentials; this application holds only the list of
+    # people allowed in, so there is no password store to leak or reset.
+    session_secret: SecretStr = SecretStr("")
+    google_client_id: str = ""
+    google_client_secret: SecretStr = SecretStr("")
+
+    # Either mechanism admits a user: a named address, or any address at a Workspace domain.
+    # Both empty means nobody, which is why production refuses to start that way.
+    staff_emails: frozenset[str] = frozenset()
+    staff_domain: str = ""
+
+    openai_api_key: SecretStr = SecretStr("")
+    agent_model: str = "gpt-5"
+
     # Runtime data sits outside the source checkout on a real host (ARCHITECTURE.md,
     # Storage and configuration). Production and staging must not share a database or a
     # browser session file, so the environment name is part of the path.
@@ -88,6 +102,63 @@ class Settings(BaseSettings):
     def browser_state_path(self) -> Path:
         """Playwright storage_state for the automation-owned Principle session."""
         return self.data_dir / "principle.storage_state.json"
+
+    @field_validator("staff_emails", mode="before")
+    @classmethod
+    def _split_emails(cls, value: object) -> object:
+        """Accept a comma-separated list, lowercased.
+
+        Addresses arrive from an environment variable, and Google returns them in whatever case
+        the account was created with; comparing raw would let a capitalised address in or keep
+        a legitimate one out.
+        """
+        if isinstance(value, str):
+            return frozenset(part.strip().lower() for part in value.split(",") if part.strip())
+        return value
+
+    @field_validator("staff_domain", mode="before")
+    @classmethod
+    def _normalise_domain(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower().removeprefix("@")
+        return value
+
+    def admits(self, email: str, email_verified: bool) -> bool:
+        """Whether this address may sign in.
+
+        An unverified address is refused outright: Google will assert an `email` claim for an
+        account that has not proven it owns the address, and matching that against the
+        allowlist would let anyone who registers a lookalike address in.
+        """
+        if not email_verified:
+            return False
+        address = email.strip().lower()
+        if address in self.staff_emails:
+            return True
+        return bool(self.staff_domain) and address.endswith(f"@{self.staff_domain}")
+
+    def require_sign_in_configured(self) -> None:
+        """Refuse a real deployment that nobody can sign in to, or that anybody can.
+
+        An empty allowlist with no domain admits nobody, which is a broken deployment. A
+        missing session secret means cookies are unsigned, which is worse than no sign-in at
+        all: it looks protected and is not.
+        """
+        if self.environment is Environment.FAKE:
+            return
+        missing: list[str] = []
+        if not self.session_secret.get_secret_value():
+            missing.append("PRINCIPLE_SESSION_SECRET")
+        if not self.google_client_id:
+            missing.append("PRINCIPLE_GOOGLE_CLIENT_ID")
+        if not self.google_client_secret.get_secret_value():
+            missing.append("PRINCIPLE_GOOGLE_CLIENT_SECRET")
+        if not self.staff_emails and not self.staff_domain:
+            missing.append("PRINCIPLE_STAFF_EMAILS or PRINCIPLE_STAFF_DOMAIN")
+        if missing:
+            raise ConfigurationError(
+                f"environment={self.environment.value} needs {', '.join(missing)}"
+            )
 
     @model_validator(mode="after")
     def _environment_matches_host(self) -> Settings:
@@ -126,3 +197,12 @@ class Settings(BaseSettings):
             raise ConfigurationError(
                 f"environment={self.environment.value} needs {', '.join(missing)}"
             )
+
+
+def current_settings() -> Settings:
+    """Configuration for one request.
+
+    A FastAPI dependency so tests can override it. Anything reading `app.state` instead would
+    bypass that override and quietly test a different configuration from the one it set up.
+    """
+    return Settings()

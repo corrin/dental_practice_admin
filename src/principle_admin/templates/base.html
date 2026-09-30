@@ -29,6 +29,11 @@
   real patients, and no run on this page is evidence about the practice.
 </p>
 {% endif %}
+{% if staff %}
+<p class="quiet" style="float:right;font-size:.85rem" data-automation-id="staff-identity">
+  {{ staff.name }} &middot; <a href="/auth/logout">Sign out</a>
+</p>
+{% endif %}
 {% block body %}{% endblock %}
 </body>
 </html>
