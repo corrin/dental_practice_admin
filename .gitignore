@@ -1,0 +1,25 @@
+# Secrets and authenticated state: never in version control (ARCHITECTURE.md, Storage and
+# configuration). The browser storage_state is a live Principle session, not just a cookie.
+.env
+*.storage_state.json
+config.local.toml
+
+# Runtime data lives outside the checkout on a real host; these are the dev-machine copies.
+*.db
+*.db-wal
+*.db-shm
+logs/
+run/
+
+# Anything captured from staging before scrubbing. Recordings enter the repo only via
+# scripts/record_principle_wire.py, which scrubs at capture.
+*.raw.json
+screenshots/
+*.png
+
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
