@@ -6,9 +6,12 @@ The only authorised patient is {patient_name}.
 Never open or modify either Crash Test Dummy record.
 Do not send messages, change patient status, dismiss clinical alerts, or modify other fields.
 
-Discovery: open the workspace dropdown and select Massey Smiles Dental. Wait for the
+Discovery: search the workspace dropdown for Massey Smiles Dental. Select the option
+containing both the exact display name Massey Smiles Dental and slug massey-smiles-dental;
+several workspaces have similar names. Use the complete role=option element, for example
+[role="option"]:has-text("Massey Smiles Dental"):has-text("massey-smiles-dental"). Wait for the
 application sidebar. Click its Patients/person icon: use the rendered link ending in
-/patients. The correct workspace route is https://staging.principle.dental/massey-smiles/patients.
+/patients. The correct workspace route is {patients_url}.
 If the app instead shows Principle Platform or /principle-platform/ links after workspace
 selection, navigate to that correct URL before searching. Do not use the Search & Quick
 Actions dialog. Do not search or edit under the Principle Platform workspace.

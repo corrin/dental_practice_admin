@@ -16,11 +16,14 @@ from dotenv import dotenv_values
 from openai import OpenAI
 from openai.types.responses import ResponseInputParam
 from playwright.sync_api import Locator, Page, Route
+from scripts.address_via_browser import SLUG
 from scripts.check_staging import UI_URL, staging_browser
 
 from dental_practice_admin.config import Environment, Settings
 
 PATIENT = "Annette Dummy"
+WORKSPACE_PREFIX = f"/{SLUG}/"
+PATIENTS_URL = UI_URL + WORKSPACE_PREFIX + "patients"
 EXCLUDED = ("r6YoXCruTjwciIoidQy3", "NYiQ7JuG7SebVoDPzZZK")
 PROCEDURE = Path(__file__).with_name("browser_address_procedure.md")
 MAX_CALLS = 40
@@ -110,10 +113,10 @@ class BrowserTest:
         action, selector = args["action"], args["selector"]
         if action == "navigate":
             check_location(args["text"], self.patient_id)
-            if not urlsplit(args["text"]).path.startswith("/massey-smiles/"):
+            if not urlsplit(args["text"]).path.startswith(WORKSPACE_PREFIX):
                 raise ValueError("Navigation must remain in the Massey Smiles workspace")
             self.page.goto(args["text"], wait_until="domcontentloaded")
-            self.reloaded = True
+            self.reloaded = False
             return
         if action == "observe":
             self.page.wait_for_timeout(750)
@@ -130,7 +133,7 @@ class BrowserTest:
             if not re.fullmatch(r"[A-Za-z0-9]{20}", patient_id):
                 raise ValueError("Expected the patient ID from the URL")
             check_location(self.page.url, patient_id)
-            if not urlsplit(self.page.url).path.startswith("/massey-smiles/"):
+            if not urlsplit(self.page.url).path.startswith(WORKSPACE_PREFIX):
                 raise ValueError("Patient must be in the Massey Smiles workspace")
             body = self.page.locator("body").inner_text()
             if PATIENT not in body:
@@ -182,6 +185,7 @@ def run_phase(client: OpenAI, model: str, browser: BrowserTest, stats: dict[str,
     browser.reloaded = False
     history: Any = [{"role": "user", "content": (
         PROCEDURE.read_text(encoding="utf-8").replace("{patient_name}", PATIENT)
+        .replace("{patients_url}", PATIENTS_URL)
         + "\nCurrent phase: " + browser.phase
         + "\nExpected address value: " + json.dumps(browser.expected)
         + "\nOriginal address: " + json.dumps(browser.original)
@@ -271,7 +275,7 @@ def main() -> int:
         with staging_browser() as session:
             stats["stage"] = "login"
             session.page.set_default_timeout(30000)
-            session.login(email, password)
+            session.login(email, password, redirect_to=WORKSPACE_PREFIX + "patients")
             # Firestore Listen bodies can remain open; this experiment only observes rendered UI.
             session.page.remove_listener("response", session._observe)
             session.page.get_by_placeholder("Password", exact=True).wait_for(
