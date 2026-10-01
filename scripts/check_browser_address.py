@@ -226,6 +226,8 @@ def run_phase(client: OpenAI, model: str, browser: BrowserTest, stats: dict[str,
             if stats["diagnostic"]:
                 print(json.dumps({"selector": args["selector"], "url": browser.page.url}),
                       flush=True)
+                if args["action"] == "capture" and browser.complete:
+                    print(browser.observation()[0]["text"], flush=True)
             history.append({"type": "function_call_output", "call_id": call.call_id,
                             "output": outcome})
         if browser.complete:
@@ -236,16 +238,19 @@ def run_phase(client: OpenAI, model: str, browser: BrowserTest, stats: dict[str,
 
 
 def guard_navigation(route: Route) -> None:
-    """Restrict the main page; embedded authentication frames retain their normal flow."""
-    if (
-        route.request.is_navigation_request()
-        and route.request.frame == route.request.frame.page.main_frame
-    ):
-        try:
-            check_location(route.request.url)
-        except ValueError:
-            route.abort()
-            return
+    """Restrict documents to staging, allowing Firebase's embedded sign-in frame."""
+    if not route.request.is_navigation_request():
+        route.continue_()
+        return
+    embedded = route.request.frame != route.request.frame.page.main_frame
+    if embedded and urlsplit(route.request.url).netloc == "principle-staging.firebaseapp.com":
+        route.continue_()
+        return
+    try:
+        check_location(route.request.url)
+    except ValueError:
+        route.abort()
+        return
     route.continue_()
 
 
@@ -255,6 +260,9 @@ def main() -> int:
     parser.add_argument("--ui-env-file", type=Path, help="Defaults to --env-file")
     parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--diagnostic", action="store_true", help="Print UI text on model stop")
+    parser.add_argument(
+        "--discovery-only", action="store_true", help="Find and inspect, never save",
+    )
     args = parser.parse_args()
     settings_options: dict[str, Any] = {
         "_env_file": args.env_file, "environment": Environment.STAGING,
@@ -286,17 +294,21 @@ def main() -> int:
             stats["stage"] = "discovery"
             browser = BrowserTest(session.page)
             run_phase(client, settings.agent_model, browser, stats)
-            try:
-                browser.phase, browser.expected = "edit", browser.test_value
-                stats["stage"] = "edit"
-                run_phase(client, settings.agent_model, browser, stats)
-                stats["edit_verified"] = True
-            finally:
-                browser.phase, browser.expected = "restore", str(browser.original)
-                stats["stage"] = "restore"
-                session.page.reload(wait_until="domcontentloaded")
-                run_phase(client, settings.agent_model, browser, stats)
-                stats["restoration_verified"] = True
+            stats["discovery_verified"] = True
+            if args.discovery_only:
+                stats["discovery_only"] = True
+            else:
+                try:
+                    browser.phase, browser.expected = "edit", browser.test_value
+                    stats["stage"] = "edit"
+                    run_phase(client, settings.agent_model, browser, stats)
+                    stats["edit_verified"] = True
+                finally:
+                    browser.phase, browser.expected = "restore", str(browser.original)
+                    stats["stage"] = "restore"
+                    session.page.reload(wait_until="domcontentloaded")
+                    run_phase(client, settings.agent_model, browser, stats)
+                    stats["restoration_verified"] = True
     except Exception as error:
         stats["error_type"] = type(error).__name__
         if args.diagnostic:
@@ -308,6 +320,8 @@ def main() -> int:
         client.close()
     stats["elapsed_seconds"] = round(time.monotonic() - started, 1)
     print(json.dumps(stats, indent=2), flush=True)
+    if args.discovery_only:
+        return 0 if stats.get("discovery_verified") else 1
     return 0 if stats["edit_verified"] and stats["restoration_verified"] else 1
 
 

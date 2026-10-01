@@ -10,6 +10,13 @@ The local ignored `.env` supplies `PRINCIPLE_UI_EMAIL`, `PRINCIPLE_UI_PASSWORD`,
 `OPENAI_API_KEY`, and the application's existing model/endpoint settings.
 Chromium must be installed for Playwright. `--env-file` selects another configuration;
 `--ui-env-file` explicitly overrides only the browser credential source.
+Use `--discovery-only` to exercise login, patient selection and address capture without saving.
+
+The live round trip is not yet verified. Read-only discovery reaches the intended Annette
+record, whose display name includes a nickname; the exact-name capture check refuses it.
+The manual-entry form also opens its structured address fields blank. Before enabling
+an edit, capture the existing persisted address rather than treating those blank fields
+as the original address, and establish that the UI can restore it exactly.
 
 The target is Annette Dummy in Massey Smiles Dental staging. Both Crash Test Dummy IDs
 used by the other test session are excluded. Login is scripted; the OpenAI model then

@@ -61,6 +61,15 @@ def test_authentication_iframe_can_load_without_allowing_external_main_navigatio
     route.continue_.assert_not_called()
 
 
+def test_an_unrelated_external_iframe_is_refused() -> None:
+    route = MagicMock()
+    route.request.is_navigation_request.return_value = True
+    route.request.url = "https://unrelated.invalid/"
+    guard_navigation(route)
+    route.abort.assert_called_once()
+    route.continue_.assert_not_called()
+
+
 @pytest.mark.parametrize("identity", [
     "Crash Test Dummy\n28th Jan, 1980", "Blocking Dummy\n22nd Jan, 1992",
 ])

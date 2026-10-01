@@ -90,12 +90,13 @@ class StagingBrowser:
             raise ValueError("Login is required before using the token")
         return self._token
 
-    def login(self, email: str, password: str, redirect_to: str = "/") -> None:
+    def login(self, email: str, password: str, redirect_to: str | None = None) -> None:
         """Submit the login form and require Firebase to issue an authenticated token."""
-        self.page.goto(
-            f"{UI_URL}/login?redirectTo={quote(redirect_to, safe='')}",
-            wait_until="domcontentloaded",
-        )
+        if redirect_to is not None:
+            entry = f"{UI_URL}/login?redirectTo={quote(redirect_to, safe='')}"
+        else:
+            entry = UI_URL
+        self.page.goto(entry, wait_until="domcontentloaded")
         self.page.get_by_placeholder("Email", exact=True).fill(email)
         field = self.page.get_by_placeholder("Password", exact=True)
         field.fill(password)
