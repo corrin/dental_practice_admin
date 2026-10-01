@@ -28,3 +28,16 @@ than substituting another design.
 Patient privacy and unintended patient-facing actions are high-consequence failure modes. Preserve
 existing access controls, and be especially careful with changes that send messages or modify the
 patient-management system.
+
+## Keep work in a pull request
+
+Work that exists only on one machine gets lost. Get it into a GitHub pull request as early as
+possible, and keep it there.
+
+- Work on a branch, never on `main`. A worktree is fine.
+- Commit and push the plan, or the first change, as soon as it exists. Open a draft pull request
+  then.
+- Commit and push after every step that works. Never end a turn with unpushed commits.
+- Commit everything in the working tree. Don't stash, cherry-pick, rebase, or switch branches
+  over uncommitted work, and don't pick files selectively.
+- Mark the pull request ready when the work is done. Done means merged to `main`.
