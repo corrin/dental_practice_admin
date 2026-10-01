@@ -55,7 +55,7 @@ def test_principle_and_ai_do_not_choose_authentication(
 
 
 def test_explicit_developer_login_cannot_reach_production(credentials: None) -> None:
-    with pytest.raises(ConfigurationError, match="Production requires Google"):
+    with pytest.raises(ConfigurationError):
         run.configuration(arguments(principle=Environment.PRODUCTION, sign_in=SignIn.DEVELOPER))
 
 
@@ -73,7 +73,8 @@ def test_dotenv_choices_survive_without_cli_overrides(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setitem(Settings.model_config, "env_file", ".env")
     (tmp_path / ".env").write_text(
-        "ADMIN_SIGN_IN=developer\nOPENAI_BASE_URL=http://fake.invalid/v1\n"
+        "PRINCIPLE_ENVIRONMENT=fake\nADMIN_SIGN_IN=developer\n"
+        "OPENAI_BASE_URL=http://fake.invalid/v1\n"
     )
     before = dict(os.environ)
     settings = run.configuration(arguments())

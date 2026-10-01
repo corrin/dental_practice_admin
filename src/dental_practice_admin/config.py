@@ -205,10 +205,13 @@ class Settings(BaseSettings):
         missing session secret means cookies are unsigned, which is worse than no sign-in at
         all: it looks protected and is not.
         """
-        if self.environment is Environment.PRODUCTION and self.sign_in is not SignIn.GOOGLE:
+        # Staging is a migrated copy of the real practice, so only the fake holds data that may be
+        # served without sign-in.
+        if self.environment is not Environment.FAKE and self.sign_in is not SignIn.GOOGLE:
             raise ConfigurationError(
-                f"environment=production with sign_in={self.sign_in.value}: live patient records"
-                " would be served to anyone who found the address. Production requires Google."
+                f"environment={self.environment.value} with sign_in={self.sign_in.value}: patient"
+                " records would be served to anyone who found the address. Only the fake"
+                " Principle may run without Google."
             )
         if self.sign_in is not SignIn.GOOGLE:
             return

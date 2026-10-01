@@ -93,7 +93,7 @@ def test_developer_identity_is_explicit_visible_and_forbidden_in_production(tmp_
     settings = configured(tmp_path, Environment.PRODUCTION).model_copy(
         update={"sign_in": SignIn.DEVELOPER}
     )
-    with pytest.raises(ConfigurationError, match="Production requires Google"):
+    with pytest.raises(ConfigurationError):
         create_app(settings)
 
 

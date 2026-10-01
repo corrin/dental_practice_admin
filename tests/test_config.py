@@ -119,21 +119,25 @@ def test_openai_settings_use_the_names_openai_documents(
     assert settings.openai_base_url == "http://127.0.0.1:8899/v1"
 
 
-def test_production_refuses_developer_sign_in() -> None:
-    """Live patient records must never be served to an unauthenticated visitor.
+@pytest.mark.parametrize(
+    ("environment", "url"),
+    [(Environment.STAGING, STAGING_API_URL), (Environment.PRODUCTION, PRODUCTION_API_URL)],
+)
+def test_real_patient_data_refuses_developer_sign_in(environment: Environment, url: str) -> None:
+    """Patient records must never be served to an unauthenticated visitor.
 
-    Separating sign-in from the Principle environment created this combination, which the old
-    design made impossible. Without this guard, one environment variable is the difference between
-    a login page and an open door.
+    Staging counts: it is a migrated copy of the real practice. Separating sign-in from the
+    Principle environment created this combination. Without this guard, one environment variable
+    is the difference between a login page and an open door.
     """
     settings = _settings(
-        environment=Environment.PRODUCTION,
-        api_base_url=PRODUCTION_API_URL,
+        environment=environment,
+        api_base_url=url,
         sign_in=SignIn.DEVELOPER,
         api_key=SecretStr("k"),
         practice_id="p",
     )
-    with pytest.raises(ConfigurationError, match="Production requires Google"):
+    with pytest.raises(ConfigurationError):
         settings.require_sign_in_configured()
 
 
