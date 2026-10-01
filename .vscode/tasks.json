@@ -1,97 +1,14 @@
 {
-  // Run > Run Task. VS Code supervises: each service gets its own panel, each can be stopped and
-  // restarted on its own, and there is no bespoke process management to maintain.
-  //
-  // What runs behind the application -- real Google or the developer identity, real OpenAI or the
-  // simulation -- is decided in .env, not here. One place to look, and no task list that grows by
-  // the product of the options.
-  //
-  // Principle is the fake in all of these. Pointing a development run at real patient records is a
-  // deliberate act, not a menu item.
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "dev",
-      "detail": "Fake Principle on :8898, fake AI on :8899, the application on :8080.",
-      "dependsOn": ["fake Principle", "fake AI", "application"],
-      "dependsOrder": "parallel",
-      "problemMatcher": []
-    },
-    {
-      "label": "dev + tunnel",
-      "detail": "As 'dev', plus ngrok publishing https://massey-admin-dev.ngrok-free.app. Needed for Google sign-in and for ChatKit, which skips domain verification only on localhost.",
-      "dependsOn": ["fake Principle", "fake AI", "application", "tunnel"],
-      "dependsOrder": "parallel",
-      "problemMatcher": []
-    },
-    {
-      "label": "fake Principle",
+      "label": "Run",
+      "detail": "Staging Principle, Google sign-in, OpenAI, and ngrok.",
       "type": "process",
-      "hide": true,
-      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
-      "args": ["-m", "uvicorn", "tests.fake.server:app", "--port", "8898"],
-      "options": { "env": { "PYTHONPATH": "${workspaceFolder}" } },
-      "isBackground": true,
+      "command": "uv",
+      "args": ["run", "--locked", "python", "scripts/run.py"],
+      "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": [],
-      "presentation": { "panel": "dedicated", "group": "dev" }
-    },
-    {
-      "label": "fake AI",
-      "type": "process",
-      "hide": true,
-      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
-      "args": ["-m", "uvicorn", "tests.fake_ai.server:app", "--port", "8899"],
-      "options": { "env": { "PYTHONPATH": "${workspaceFolder}" } },
-      "isBackground": true,
-      "problemMatcher": [],
-      "presentation": { "panel": "dedicated", "group": "dev" }
-    },
-    {
-      "label": "application",
-      "type": "process",
-      "hide": true,
-      // --proxy-headers matches deploy/dental-practice-admin.xml and the test spine. Without it, behind
-      // ngrok or Caddy every absolute URL the application builds names 127.0.0.1 -- including the
-      // Google OAuth redirect, which Google matches exactly.
-      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
-      "args": [
-        "-m", "uvicorn", "dental_practice_admin.app:app",
-        "--port", "8080",
-        "--proxy-headers", "--forwarded-allow-ips", "127.0.0.1"
-      ],
-      "options": { "env": { "PYTHONPATH": "${workspaceFolder}/src" } },
-      "isBackground": true,
-      "problemMatcher": [],
-      "presentation": { "panel": "dedicated", "group": "dev" }
-    },
-    {
-      "label": "tunnel",
-      "type": "process",
-      "hide": true,
-      "command": "powershell",
-      "args": [
-        "-NoProfile", "-ExecutionPolicy", "Bypass",
-        "-File", "${workspaceFolder}/scripts/start_tunnel_when_ready.ps1"
-      ],
-      "isBackground": true,
-      "problemMatcher": [],
-      "presentation": { "panel": "dedicated", "group": "dev" }
-    },
-    {
-      "label": "seed example runs",
-      "detail": "Three days of diary runs, so the runs page has something on it. Run once the stack is up.",
-      "type": "shell",
-      "command": "uv run python -m dental_practice_admin.tasks diary --date 2026-09-28 --initiator vscode; uv run python -m dental_practice_admin.tasks diary --date 2026-09-29 --initiator vscode; uv run python -m dental_practice_admin.tasks diary --date 2026-09-30 --initiator vscode",
-      "problemMatcher": [],
-      "presentation": { "panel": "dedicated" }
-    },
-    {
-      "label": "release gate",
-      "detail": "Everything that must pass before a release, including the real Principle staging API.",
-      "type": "shell",
-      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release_gate.ps1",
-      "problemMatcher": [],
-      "group": "test",
       "presentation": { "panel": "dedicated" }
     }
   ]

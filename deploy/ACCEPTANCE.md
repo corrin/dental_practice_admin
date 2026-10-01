@@ -14,12 +14,13 @@ Run `scripts\verify.ps1` first; it must pass before any of this is worth doing.
       logon screen over a scheduled trigger. Confirm the run is recorded and its summary is
       useful. This is the check that catches a task configured "run only when logged on".
 - [ ] **The service account, not yours.** Confirm `verify.ps1` reports a designated account.
-      A service running as your own login stops working the day the password changes.
+      Check the data directory permissions for that account and complete an actual scheduled run;
+      an operator being able to write there does not prove the service account can.
 - [ ] **Wrong-Principle check.** Confirm the health endpoint reports `production` and the
       staff page shows no fake banner.
-- [ ] **VPN path.** From a machine connected the way staff connect, load the page and open a
-      run. Confirm the scheduled task also reaches Principle under the service identity,
-      which may route differently from an interactive session.
+- [ ] **Staff access.** From another machine, open the public HTTPS address, sign in with an
+      approved Google account, and open a run. Confirm an anonymous browser cannot read a run.
+      Confirm the scheduled task reaches Principle under its designated service identity.
 
 ## Restore and rollback, proven once
 

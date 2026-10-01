@@ -23,6 +23,11 @@
 </style>
 </head>
 <body>
+{% if request.app.state.settings.sign_in.value == 'developer' %}
+<p class="banner" data-automation-id="developer-login-banner">
+  <strong>GOOGLE LOGIN DISABLED.</strong> Anyone reaching this application has developer access.
+</p>
+{% endif %}
 {% if is_fake %}
 <p class="banner" data-automation-id="fake-banner">
   This application is pointed at the <strong>fake Principle</strong>. Nothing here describes
@@ -31,7 +36,7 @@
 {% endif %}
 {% if staff %}
 <p class="quiet" style="float:right;font-size:.85rem" data-automation-id="staff-identity">
-  {{ staff.name }} &middot; <a href="/auth/logout">Sign out</a>
+  {{ staff.name }}{% if not staff.is_fake %} &middot; <a href="/auth/logout">Sign out</a>{% endif %}
 </p>
 {% endif %}
 {% block body %}{% endblock %}

@@ -30,14 +30,15 @@ from typing import Annotated, Any, cast
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from dental_practice_admin.config import Settings, SignIn, current_settings
 from dental_practice_admin.storage import Storage
 
 GOOGLE_METADATA_URL = "https://accounts.google.com/.well-known/openid-configuration"
 
-# The local identity used when `environment=fake`. The address is in a reserved TLD so it can
+# The explicit developer identity. The address is in a reserved TLD so it can
 # never collide with a real account, and its presence in a production database would be
 # obvious rather than plausible.
 FAKE_STAFF = "dev@fake.invalid"
@@ -75,12 +76,7 @@ def build_oauth(settings: Settings) -> OAuth:
 
 
 def staff_from_session(request: Request, settings: Settings) -> StaffUser | None:
-    """The signed-in user, or None.
-
-    In `fake` there is no sign-in at all: a developer running locally, and every test, gets the
-    same local identity. This branch is guarded on the environment rather than on a flag so
-    that it cannot be switched on in production by configuration alone.
-    """
+    """The signed-in user, or the explicitly enabled developer identity."""
     if settings.sign_in is not SignIn.GOOGLE:
         return StaffUser(email=FAKE_STAFF, name="Development user")
     stored = _session(request).get(SESSION_USER_KEY)
@@ -89,17 +85,49 @@ def staff_from_session(request: Request, settings: Settings) -> StaffUser | None
     email, name = stored.get("email"), stored.get("name")
     if not isinstance(email, str) or not isinstance(name, str):
         return None
-    # Re-check the allowlist on every request. Revoking access must take effect immediately,
-    # not whenever the user's cookie happens to expire.
+    # A retained cookie must also satisfy the allowlist loaded at application startup.
     if not settings.admits(email, email_verified=True):
         return None
     return StaffUser(email=email, name=name)
 
 
+# PUBLIC WITHOUT GOOGLE: login establishes identity; health contains readiness metadata only.
+PUBLIC_REQUESTS = frozenset({("GET", "/auth/login"), ("GET", "/auth/callback"), ("GET", "/health")})
+
+
+class AccessControl:
+    """Deny anonymous access to every route, including routes added by a future feature.
+
+    Pure ASGI middleware preserves streamed responses. SessionMiddleware must wrap this layer.
+    """
+
+    def __init__(self, app: ASGIApp, settings: Settings) -> None:
+        self.app = app
+        self.settings = settings
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] in {"http", "websocket"}:
+            public = (scope.get("method"), scope["path"]) in PUBLIC_REQUESTS
+            if not public:
+                if scope["type"] == "websocket":
+                    await send({"type": "websocket.close", "code": 1008})
+                    return
+                request = Request(scope)
+                if staff_from_session(request, self.settings) is None:
+                    response: Response = JSONResponse(
+                        {"detail": "Sign in with an approved Google account."}, status_code=401
+                    )
+                    if request.method == "GET" and "text/html" in request.headers.get("accept", ""):
+                        response = RedirectResponse("/auth/login", status_code=303)
+                    await response(scope, receive, send)
+                    return
+        await self.app(scope, receive, send)
+
+
 def require_staff(
     request: Request, settings: Annotated[Settings, Depends(current_settings)]
 ) -> StaffUser:
-    """The signed-in user, or a refusal. Every staff-facing route depends on this."""
+    """The staff identity for handlers that need it; AccessControl protects every route."""
     user = staff_from_session(request, settings)
     if user is None:
         raise HTTPException(
@@ -135,7 +163,7 @@ def _session(request: Request) -> dict[str, Any]:
 async def login(
     request: Request, settings: Annotated[Settings, Depends(current_settings)]
 ) -> Response:
-    """Start the Google flow, or go straight in when running against the fake."""
+    """Start Google sign-in, or use the explicitly configured developer identity."""
     if settings.sign_in is not SignIn.GOOGLE:
         return RedirectResponse("/")
     oauth: OAuth = request.app.state.oauth
@@ -187,12 +215,7 @@ async def callback(
 async def logout(
     request: Request, settings: Annotated[Settings, Depends(current_settings)]
 ) -> Response:
-    """End the session. Google's own sign-in is untouched: this is not a Google logout.
-
-    Signing out of the fake environment is a no-op, because there was never a session: the
-    middleware that provides one is only installed outside `fake`. Reaching for
-    `request.session` unconditionally is what made this route hang instead of redirect.
-    """
+    """End this application's session; Google's own session is untouched."""
     if settings.sign_in is SignIn.GOOGLE:
         _session(request).pop(SESSION_USER_KEY, None)
     return RedirectResponse("/")

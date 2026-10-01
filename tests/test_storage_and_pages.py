@@ -8,9 +8,10 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
-from dental_practice_admin.app import app
-from dental_practice_admin.config import Environment, Settings, current_settings
+from dental_practice_admin.app import create_app
+from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 
 
@@ -103,11 +104,16 @@ def pages(tmp_path: Path) -> Iterator[Pages]:
     connection per request, on the thread that serves it, which is what production does -- a
     shared connection handed in here would pass tests that production cannot run.
     """
-    configured = Settings(environment=Environment.FAKE, data_root=tmp_path)
-    app.dependency_overrides[current_settings] = lambda: configured
+    configured = Settings(
+        environment=Environment.FAKE,
+        data_root=tmp_path,
+        sign_in=SignIn.DEVELOPER,
+        openai_api_key=SecretStr("fake-ai-key"),
+    )
+    app = create_app(configured)
     seeding = Storage(configured.database_path)
-    yield Pages(client=TestClient(app), store=seeding)
-    app.dependency_overrides.clear()
+    with TestClient(app) as client:
+        yield Pages(client=client, store=seeding)
     seeding.close()
 
 

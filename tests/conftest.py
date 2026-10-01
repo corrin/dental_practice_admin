@@ -39,6 +39,19 @@ def _never_production() -> None:
         )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_local_tests(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch, _never_production: None
+) -> None:
+    """Only explicit live tiers may read this machine's credentials or configuration."""
+    if request.node.get_closest_marker("integration") or request.node.get_closest_marker("llm"):
+        return
+    for name in list(os.environ):
+        if name.startswith(("ADMIN_", "PRINCIPLE_", "OPENAI_")):
+            monkeypatch.delenv(name)
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+
+
 @pytest.fixture
 def fake_store() -> Iterator[FakeStore]:
     """A seeded fake practice, one per test."""

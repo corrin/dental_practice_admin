@@ -183,6 +183,9 @@ class FakeAi:
                 break
 
         path = urlparse(str(scope.get("path", ""))).path
+        if path == "/health" and scope["method"] == "GET":
+            await self._json(send, {"status": "ok"})
+            return
         if not path.endswith("/responses") or scope["method"] != "POST":
             raise FakeAiUnhandledRequestError(
                 f"the fake AI serves POST /v1/responses, not {scope['method']} {path}"

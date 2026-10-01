@@ -36,6 +36,7 @@ def _isolated_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
 
 
 def _settings(**overrides: Any) -> Settings:
+    overrides.setdefault("environment", Environment.FAKE)
     return Settings(**overrides)
 
 

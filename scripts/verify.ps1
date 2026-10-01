@@ -1,138 +1,72 @@
 <#
 .SYNOPSIS
-  Checks that an installed dental_practice_admin can actually do its job on this host.
-
-.DESCRIPTION
-  The acceptance gate for a deployment. Every check is something that passes on a developer
-  machine and fails in service: the account the service runs as, whether the data directory
-  is writable by THAT account, whether Playwright's browser is installed somewhere it can
-  reach, and whether the scheduled task exists and is pointed at the installed interpreter.
-
-  Read-only. It starts nothing and changes nothing.
-
-.EXAMPLE
-  .\scripts\verify.ps1 -InstallRoot 'C:\Program Files\DentalPracticeAdmin'
+  Read-only production verification. Run on the practice host after installation or a reboot.
 #>
 [CmdletBinding()]
 param(
     [string]$InstallRoot = 'C:\Program Files\DentalPracticeAdmin',
-    [string]$DataRoot    = 'C:\ProgramData\DentalPracticeAdmin',
-    [string]$HealthUrl   = 'http://127.0.0.1:8080/health',
-    [string]$ServiceName = 'dental-practice-admin',
-    [string]$TaskPath    = '\Massey Smiles Admin\Daily diary'
+    [string]$DataRoot = 'C:\ProgramData\DentalPracticeAdmin',
+    [string]$HealthUrl = 'http://127.0.0.1:8080/health'
 )
-
-$ErrorActionPreference = 'Continue'
+$ErrorActionPreference = 'Stop'
 $script:Failures = @()
-
 function Check {
     param([string]$Name, [scriptblock]$Test)
     try {
         $detail = & $Test
-        Write-Host ("  PASS  {0}{1}" -f $Name, $(if ($detail) { " - $detail" } else { '' })) -ForegroundColor Green
+        Write-Host "PASS: $Name - $detail" -ForegroundColor Green
     } catch {
-        Write-Host ("  FAIL  {0} - {1}" -f $Name, $_.Exception.Message) -ForegroundColor Red
+        Write-Host "FAIL: $Name - $_" -ForegroundColor Red
         $script:Failures += $Name
     }
 }
 
-Write-Host "Verifying dental_practice_admin on $env:COMPUTERNAME" -ForegroundColor Cyan
-
-Check 'Service is installed and running' {
-    $service = Get-Service -Name $ServiceName -ErrorAction Stop
-    if ($service.Status -ne 'Running') { throw "status is $($service.Status)" }
-    "status $($service.Status)"
-}
-
-Check 'Service runs as a designated account, not LocalSystem' {
-    $account = (Get-CimInstance Win32_Service -Filter "Name='$ServiceName'").StartName
-    if (-not $account) { throw 'could not read the service account' }
-    if ($account -in @('LocalSystem', 'NT AUTHORITY\SYSTEM')) {
-        throw "runs as $account; it needs an account whose profile owns the Playwright browsers and the data directory"
+Check 'Application service is running as a designated account' {
+    $service = Get-CimInstance Win32_Service -Filter "Name='dental-practice-admin'"
+    if (-not $service -or $service.State -ne 'Running') { throw 'service is not running' }
+    if (-not $service.StartName -or $service.StartName -in @('LocalSystem', 'NT AUTHORITY\SYSTEM')) {
+        throw 'service needs a designated account'
     }
-    $account
+    $service.StartName
 }
-
-Check 'Data directory exists outside the release' {
-    if (-not (Test-Path $DataRoot)) { throw "$DataRoot does not exist" }
-    if ($DataRoot.StartsWith($InstallRoot, 'OrdinalIgnoreCase')) {
-        throw "$DataRoot sits inside $InstallRoot and an upgrade would delete the database"
+Check 'Runtime data is outside the release directory' {
+    $data = (Resolve-Path -LiteralPath $DataRoot).Path.TrimEnd('\') + '\'
+    $install = (Resolve-Path -LiteralPath $InstallRoot).Path.TrimEnd('\') + '\'
+    if ($data.StartsWith($install, 'OrdinalIgnoreCase')) { throw 'data sits inside the release' }
+    $data
+}
+Check 'Service opens its database and reports production' {
+    $health = Invoke-RestMethod -Uri $HealthUrl -TimeoutSec 15
+    if ($health.status -ne 'ok' -or $health.principle -ne 'production') {
+        throw 'service does not report healthy production configuration'
     }
-    $DataRoot
+    'production readiness confirmed under the running service identity'
 }
-
-Check 'Data directory is writable by the service account' {
-    # Written as the service account via its own service, not as the operator running this
-    # script: an Administrator can always write here and would learn nothing.
-    $probe = Join-Path $DataRoot 'verify-probe.tmp'
-    Set-Content -Path $probe -Value (Get-Date -Format o) -Encoding utf8 -ErrorAction Stop
-    Remove-Item $probe -Force
-    'operator can write; the service account is confirmed by the health check below'
-}
-
-Check 'Health endpoint answers and names its Principle' {
-    $response = Invoke-RestMethod -Uri $HealthUrl -TimeoutSec 15 -ErrorAction Stop
-    if ($response.status -ne 'ok') { throw "status $($response.status)" }
-    if (-not $response.principle) { throw 'health payload does not say which Principle it uses' }
-    "principle=$($response.principle) database=$($response.database)"
-}
-
-Check 'Health reports the intended Principle for this host' {
-    $response = Invoke-RestMethod -Uri $HealthUrl -TimeoutSec 15 -ErrorAction Stop
-    if ($response.principle -eq 'fake') {
-        throw 'the service is pointed at the fake Principle; it would serve invented data to staff'
+Check 'Daily diary is configured for unattended execution' {
+    $task = Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Daily diary'
+    if ($task.State -eq 'Disabled') { throw 'task is disabled' }
+    if ($task.Principal.LogonType -ne 'Password') { throw 'task needs an unattended Password logon' }
+    if ($task.Actions.Count -ne 1) { throw 'expected one diary action' }
+    $action = $task.Actions[0]
+    $expected = Join-Path $InstallRoot '.venv\Scripts\python.exe'
+    if ($action.Execute -ne $expected -or -not (Test-Path -LiteralPath $expected)) {
+        throw 'task does not use the installed interpreter'
     }
-    $response.principle
-}
-
-Check 'Scheduled task is registered and enabled' {
-    $task = Get-ScheduledTask -TaskPath (Split-Path $TaskPath -Parent).TrimEnd('\') + '\' `
-                              -TaskName (Split-Path $TaskPath -Leaf) -ErrorAction Stop
-    if ($task.State -eq 'Disabled') { throw 'the task is disabled' }
-    "state $($task.State)"
-}
-
-Check 'Scheduled task runs without an interactive logon' {
-    $task = Get-ScheduledTask -TaskPath (Split-Path $TaskPath -Parent).TrimEnd('\') + '\' `
-                              -TaskName (Split-Path $TaskPath -Leaf) -ErrorAction Stop
-    if ($task.Principal.LogonType -eq 'Interactive') {
-        throw 'LogonType is Interactive; the task will not fire on an unattended host'
+    if ($action.WorkingDirectory -ne $InstallRoot -or
+        $action.Arguments -ne '-m dental_practice_admin.tasks diary --initiator scheduler') {
+        throw 'task does not invoke the installed diary operation'
     }
-    "logon type $($task.Principal.LogonType)"
+    $info = $task | Get-ScheduledTaskInfo
+    if ($info.LastTaskResult -ne 0) { throw "last task result is $($info.LastTaskResult)" }
+    if ($info.LastRunTime -lt (Get-Date).AddHours(-26)) { throw 'scheduled task has not run within 26 hours' }
+    'registered action and last scheduler outcome verified'
 }
-
-Check 'Scheduled task points at the installed interpreter' {
-    $task = Get-ScheduledTask -TaskPath (Split-Path $TaskPath -Parent).TrimEnd('\') + '\' `
-                              -TaskName (Split-Path $TaskPath -Leaf) -ErrorAction Stop
-    $command = $task.Actions[0].Execute
-    if (-not (Test-Path $command)) { throw "$command does not exist" }
-    if (-not $command.StartsWith($InstallRoot, 'OrdinalIgnoreCase')) {
-        throw "$command is outside $InstallRoot, so an upgrade will not update it"
-    }
-    $command
-}
-
-Check 'A run has been recorded' {
+Check 'A recent complete production diary exists' {
+    $python = Join-Path $InstallRoot '.venv\Scripts\python.exe'
     $database = Join-Path $DataRoot 'production\dental_practice_admin.db'
-    if (-not (Test-Path $database)) { throw "no database at $database; no task has run yet" }
-    "database present ($([math]::Round((Get-Item $database).Length / 1KB)) KB)"
+    & $python "$PSScriptRoot\check_runs.py" $database
+    if ($LASTEXITCODE -ne 0) { throw 'no recent complete production diary' }
 }
-
-Check 'Playwright browsers are installed for the service account' {
-    # Only relevant once a browser routine exists; absent is reported, not fatal.
-    $account = (Get-CimInstance Win32_Service -Filter "Name='$ServiceName'").StartName
-    $cache = "$env:LOCALAPPDATA\ms-playwright"
-    if (-not (Test-Path $cache)) {
-        Write-Host "        note: no Playwright cache for the operator; check $account's profile when a browser task is added" -ForegroundColor Yellow
-        return 'not required yet'
-    }
-    (Get-ChildItem $cache -Directory | Select-Object -First 1).Name
-}
-
-Write-Host ''
-if ($script:Failures.Count -gt 0) {
-    Write-Host "$($script:Failures.Count) check(s) failed: $($script:Failures -join ', ')" -ForegroundColor Red
-    exit 1
-}
-Write-Host 'All checks passed.' -ForegroundColor Green
+if ($script:Failures.Count) { exit 1 }
+Write-Host 'Host checks passed. Reboot and restore evidence is recorded in deploy/ACCEPTANCE.md.'
 exit 0

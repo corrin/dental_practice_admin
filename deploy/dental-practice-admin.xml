@@ -13,12 +13,11 @@
   <executable>%BASE%\.venv\Scripts\python.exe</executable>
   <!-- --proxy-headers is load-bearing: Caddy terminates TLS, and without it every absolute URL
        this application builds names 127.0.0.1:8080, including the Google OAuth redirect. -->
-  <arguments>-m uvicorn dental_practice_admin.app:app --host 127.0.0.1 --port 8080 --proxy-headers --forwarded-allow-ips 127.0.0.1</arguments>
+  <arguments>-m uvicorn dental_practice_admin.app:create_app --factory --host 127.0.0.1 --port 8080 --proxy-headers --forwarded-allow-ips 127.0.0.1</arguments>
   <workingdirectory>%BASE%</workingdirectory>
 
   <!-- Development reload is not part of a service: it watches the filesystem and restarts
        mid-request. -->
-  <env name="PYTHONPATH" value="%BASE%\src" />
   <env name="PRINCIPLE_ENVIRONMENT" value="production" />
   <env name="PRINCIPLE_API_BASE_URL" value="https://api.principle.dental" />
   <env name="ADMIN_DATA_ROOT" value="C:\ProgramData\DentalPracticeAdmin" />

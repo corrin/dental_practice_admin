@@ -22,7 +22,7 @@ from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.requests import Request
 
@@ -83,19 +83,17 @@ class Settings(BaseSettings):
     )
 
     environment: Environment = Field(
-        default=Environment.FAKE, validation_alias="PRINCIPLE_ENVIRONMENT"
+        default=Environment.STAGING, validation_alias="PRINCIPLE_ENVIRONMENT"
     )
-    api_base_url: str = Field(default=FAKE_API_URL, validation_alias="PRINCIPLE_API_BASE_URL")
+    api_base_url: str = Field(default="", validation_alias="PRINCIPLE_API_BASE_URL")
     api_key: SecretStr = Field(default=SecretStr(""), validation_alias="PRINCIPLE_API_KEY")
     practice_id: str = Field(default="", validation_alias="PRINCIPLE_PRACTICE_ID")
 
     # Staff sign-in. Google holds the credentials; this application holds only the list of
     # people allowed in, so there is no password store to leak or reset.
     #
-    # `developer` is the default so the test suite and a local run need no OAuth round-trip. It is
-    # refused outright against production, below: there is no configuration in which live patient
-    # records are served to an unauthenticated visitor.
-    sign_in: SignIn = SignIn.DEVELOPER
+    # Developer identity requires an explicit opt-out and is forbidden against production.
+    sign_in: SignIn = SignIn.GOOGLE
     session_secret: SecretStr = SecretStr("")
     google_client_id: str = ""
     google_client_secret: SecretStr = SecretStr("")
@@ -119,11 +117,11 @@ class Settings(BaseSettings):
     # reads as empty.
     openai_api_key: SecretStr = Field(
         default=SecretStr(""),
-        validation_alias=AliasChoices("OPENAI_API_KEY", "ADMIN_OPENAI_API_KEY"),
+        validation_alias="OPENAI_API_KEY",
     )
     openai_base_url: str = Field(
         default="",
-        validation_alias=AliasChoices("OPENAI_BASE_URL", "ADMIN_OPENAI_BASE_URL"),
+        validation_alias="OPENAI_BASE_URL",
     )
     # Confirmed present on /v1/models. A default that names a retired model is a chat box that
     # breaks for staff on the day it is retired, so this is worth keeping current.
@@ -229,6 +227,12 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _environment_matches_host(self) -> Settings:
         """Refuse config whose declared environment disagrees with its host."""
+        if not self.api_base_url:
+            self.api_base_url = {
+                Environment.FAKE: FAKE_API_URL,
+                Environment.STAGING: STAGING_API_URL,
+                Environment.PRODUCTION: "https://api.principle.dental",
+            }[self.environment]
         host = api_host(self.api_base_url)
         production_host = is_production_host(self.api_base_url)
         if self.environment is Environment.PRODUCTION and not production_host:
@@ -264,11 +268,15 @@ class Settings(BaseSettings):
                 f"environment={self.environment.value} needs {', '.join(missing)}"
             )
 
+    def require_web_configured(self) -> None:
+        """Validate the complete web configuration before accepting requests."""
+        self.require_sign_in_configured()
+        self.require_credentials()
+        if not self.openai_api_key.get_secret_value():
+            raise ConfigurationError("Chat needs OPENAI_API_KEY")
 
-def current_settings() -> Settings:
-    """Configuration for one request.
 
-    A FastAPI dependency so tests can override it. Anything reading `app.state` instead would
-    bypass that override and quietly test a different configuration from the one it set up.
-    """
-    return Settings()
+def current_settings(request: Request) -> Settings:
+    """The configuration captured when this application starts; restart to change it."""
+    configured: Settings = request.app.state.settings
+    return configured

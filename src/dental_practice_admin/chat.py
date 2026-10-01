@@ -34,9 +34,9 @@ from openai import AsyncOpenAI
 
 from dental_practice_admin.auth import StaffUser
 from dental_practice_admin.chat_store import SqliteChatStore
-from dental_practice_admin.config import Settings
+from dental_practice_admin.config import ConfigurationError, Settings
 from dental_practice_admin.principle import PrincipleClient
-from dental_practice_admin.tasks import PRACTICE_TZ, daily_diary
+from dental_practice_admin.tasks import PRACTICE_TZ, DiaryReport, daily_diary
 
 # How much history the agent is given. Bounded because a year of chat is neither affordable nor
 # useful; the whole conversation stays in the store either way.
@@ -108,22 +108,21 @@ def build_tools(deps: ChatDeps) -> list[object]:
     return [diary_for_date, diary_for_tomorrow]
 
 
-async def _diary(deps: ChatDeps, day: date) -> object:
+async def _diary(deps: ChatDeps, day: date) -> DiaryReport:
     """The same operation the scheduled command runs, against the same client."""
     async with PrincipleClient(deps.settings, transport=deps.transport) as client:
         return await daily_diary(client, day)
 
 
-def _describe(report: object) -> str:
+def _describe(report: DiaryReport) -> str:
     """The report as text for the model, with coverage stated rather than implied."""
-    summary = getattr(report, "summary", None)
-    lines = [summary() if callable(summary) else str(report)]
-    for day in getattr(report, "by_practitioner", []):
+    lines = [report.summary()]
+    for day in report.by_practitioner:
         lines.append(
             f"- {day.name}: {day.attending} attending of {day.appointments} booked"
             f" ({day.first_from or '?'}-{day.last_to or '?'})"
         )
-    note = getattr(report, "coverage_note", None)
+    note = report.coverage_note
     if note:
         lines.append(
             f"INCOMPLETE: {note}. Say this in your reply; do not present it as a full day."
@@ -131,7 +130,7 @@ def _describe(report: object) -> str:
     return "\n".join(lines)
 
 
-def model_for(settings: Settings) -> Model | str:
+def model_for(settings: Settings) -> Model:
     """The model to run, built from configuration.
 
     An explicit client when a key is configured, so `.env` is authoritative; the SDK's own
@@ -140,7 +139,7 @@ def model_for(settings: Settings) -> Model | str:
     learns that it is simulated.
     """
     if not settings.openai_api_key.get_secret_value():
-        return settings.agent_model
+        raise ConfigurationError("Chat needs OPENAI_API_KEY")
     client = AsyncOpenAI(
         api_key=settings.openai_api_key.get_secret_value(),
         base_url=settings.openai_base_url or None,

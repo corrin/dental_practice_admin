@@ -3,10 +3,8 @@
 Shared by the end-to-end and smoke tiers: both need the same three processes, and starting a
 separate pair per tier would double the runtime to prove the same thing.
 
-Nothing here is a special test mode. `dental_practice_admin.app:app` is the production entry
-point, run
-the way WinSW runs it; only the configuration differs, pointing at the simulations instead of the
-real Principle and the real model.
+`dental_practice_admin.app:create_app --factory` is the production entry point. These fixtures
+configure simulated providers and explicitly opt out of Google login.
 """
 
 from __future__ import annotations
@@ -48,6 +46,7 @@ def _serve(target: str, port: int, env: dict[str, str]) -> subprocess.Popen[byte
             "-m",
             "uvicorn",
             target,
+            *(["--factory"] if target.endswith(":create_app") else []),
             "--host",
             "127.0.0.1",
             "--port",
@@ -101,6 +100,9 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
             "PRINCIPLE_API_KEY": FAKE_API_KEY,
             "PRINCIPLE_PRACTICE_ID": FAKE_PRACTICE_ID,
             "ADMIN_DATA_ROOT": str(data_root),
+            "ADMIN_SIGN_IN": "developer",
+            "ADMIN_PUBLIC_BASE_URL": "",
+            "ADMIN_CHATKIT_DOMAIN_KEY": "domain_pk_localhost",
             "PYTHONPATH": str(REPO),
             # OpenAI's own documented overrides, so the application needs no knowledge that its
             # model is simulated. No production code branches on being under test.
@@ -111,11 +113,11 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
 
     fake = _serve("tests.fake.server:app", fake_port, env)
     fake_ai = _serve("tests.fake_ai.server:app", fake_ai_port, env)
-    application = _serve("dental_practice_admin.app:app", app_port, env)
+    application = _serve("dental_practice_admin.app:create_app", app_port, env)
     try:
-        # Each fake refuses a call it does not serve, and the refusal is the readiness signal.
+        # Principle's authentication refusal proves its request handler is ready.
         _await_http(f"http://127.0.0.1:{fake_port}/v1/practices", fake, {401, 403, 500})
-        _await_http(f"http://127.0.0.1:{fake_ai_port}/v1/responses", fake_ai, {500})
+        _await_http(f"http://127.0.0.1:{fake_ai_port}/health", fake_ai, {200})
         _await_http(f"http://127.0.0.1:{app_port}/health", application, {200})
         yield {**env, "APP_URL": f"http://127.0.0.1:{app_port}"}
     finally:
@@ -125,5 +127,3 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
                 process.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 process.kill()
-
-

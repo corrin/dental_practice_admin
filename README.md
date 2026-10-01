@@ -47,6 +47,48 @@ so auth, paging and error handling are exercised for real everywhere.
 Configuration refuses to address production unless it says `PRINCIPLE_ENVIRONMENT=production`,
 and refuses to call itself production while addressing anything else.
 
+## Running the application
+
+Run `uv sync --locked` once, then use **Terminal > Run Task > Run** in VS Code.
+The ordinary setup is Principle staging, Google login, real OpenAI, and ngrok at
+`https://massey-admin-dev.ngrok-free.app`. The command is `uv run python scripts/run.py`.
+Stop it with Ctrl+C; the launcher stops its child processes. Only one local run uses port 8080.
+
+Keep credentials in the gitignored `.env`: `PRINCIPLE_API_KEY`, `PRINCIPLE_PRACTICE_ID`,
+`OPENAI_API_KEY`, `ADMIN_GOOGLE_CLIENT_ID`, `ADMIN_GOOGLE_CLIENT_SECRET`, `ADMIN_SESSION_SECRET`,
+and `ADMIN_STAFF_EMAILS` and/or `ADMIN_STAFF_DOMAIN`. Register the Google callback
+`https://massey-admin-dev.ngrok-free.app/auth/callback` and configure
+`ADMIN_CHATKIT_DOMAIN_KEY` for that hostname. Install ngrok and authenticate it through its own
+configuration. Fake Principle credentials are accepted only by the simulation, not staging.
+
+Google login protects every route except GET `/auth/login`, `/auth/callback`, and `/health`.
+Health exposes readiness metadata, not reports or filesystem paths. Settings are read once at
+startup; restart after changing credentials, access lists, or configuration.
+
+### Diagnostic commands
+
+Principle, sign-in, and AI are independent. These examples change only the choices named:
+
+```powershell
+uv run python scripts/run.py --preset fake --sign-in developer  # local fakes, NO GOOGLE LOGIN
+uv run python scripts/run.py --principle fake                  # Google and real AI, fake records
+uv run python scripts/run.py --ai fake                         # Google and staging records, fake AI
+uv run python scripts/run.py --preset production               # explicit live-data investigation
+```
+
+The fake preset selects the two simulations and local access; disabling Google still requires
+`--sign-in developer`. It creates one example report if fake history is empty. Production
+Principle always requires Google. A production investigation needs production credentials;
+the launcher never discovers or switches credentials for you.
+
+CLI selections override `.env` and the shell. For settings not selected on the command line,
+shell variables override `.env`. `PRINCIPLE_ENVIRONMENT` and `PRINCIPLE_API_BASE_URL` configure
+Principle; `ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL`, `OPENAI_API_KEY`, and
+`ADMIN_AGENT_MODEL` configure AI. Use only the `OPENAI_*` spellings for its key and endpoint.
+`ADMIN_PUBLIC_BASE_URL` overrides the access address for diagnostics. Presets are shortcuts,
+not restrictions on mixing providers. Developer identity is prominently announced and has no
+sign-out button because it does not establish a Google session.
+
 ## Running the tests
 
 ```powershell
@@ -54,11 +96,18 @@ uv sync
 uv run pytest                          # fake only: hermetic, fast, needs no credentials
 uv run pytest -m e2e                   # fake, task and web app as separate processes, in a browser
 uv run pytest -m integration           # the real staging API; refuses if unconfigured
+uv run pytest -m llm                   # bounded real OpenAI check with synthetic text; costs tokens
 uv run python -m scripts.code_size     # the 2,000-line budget, counted
 ```
 
 The integration tier needs `PRINCIPLE_API_KEY` and `PRINCIPLE_PRACTICE_ID` for a **staging**
 workspace. It is a release gate, deliberately absent from CI, which stays hermetic.
+
+`scripts/release_gate.ps1` runs the fixed release checks: installed imports, Caddy validation,
+lint, types, local tests, browser tests, Principle staging, and the synthetic real-model check.
+It requires Caddy, Playwright Chromium, network access, and staging/OpenAI credentials. Missing
+prerequisites fail the gate. Run individual test commands for diagnosis; partial checks do not
+certify a release. No release command exercises production records.
 
 ## Why the fake is built the way it is
 
@@ -116,16 +165,20 @@ tests/
   integration/           the staging tier and the specification drift check
   e2e/                   separate processes, real browser
 scripts/                 tools: the recorder, the fingerprinter, the release gate, verify.ps1
-.vscode/tasks.json       Run > Run Task: starts the stack, VS Code supervising each service
+.vscode/tasks.json       one Run entry; scripts/run.py starts the configured services
 deploy/                  what runs in production: Caddy, WinSW, Task Scheduler (budgeted)
 ```
 
 ## Deployment
 
 Windows, natively: one Uvicorn process under WinSW, tasks under Task Scheduler.
+The service invokes `dental_practice_admin.app:create_app --factory`; install the package with
+`uv sync --locked` in the release directory before starting it. Runtime configuration lives in
+the host's `.env` and the service environment, separately from the development checkout.
 
 `scripts/verify.ps1` is the gate — service identity, data directory outside the release, health
-endpoint naming which Principle it reached, scheduled task registered without interactive logon.
+endpoint naming its configured Principle, scheduled task registered without interactive logon,
+and a complete production diary recorded within the daily schedule's 26-hour allowance.
 `deploy/ACCEPTANCE.md` holds what only a person can sign off: the reboot, the unattended run and
 the restore drill.
 

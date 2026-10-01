@@ -12,21 +12,22 @@ Opening one per request costs nothing next to a page render.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Annotated
 
 from chatkit.server import StreamingResult
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from dental_practice_admin.auth import CurrentStaff, build_oauth
+from dental_practice_admin.auth import AccessControl, CurrentStaff, build_oauth
 from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
 from dental_practice_admin.chat_store import SqliteChatStore
-from dental_practice_admin.config import Environment, Settings, current_settings
+from dental_practice_admin.config import Environment, Settings, SignIn, current_settings
 from dental_practice_admin.storage import Storage, TaskRun
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -61,20 +62,17 @@ def storage(
         store.close()
 
 
-app = FastAPI(title="Massey Smiles Admin")
-app.include_router(auth_router)
+router = APIRouter()
 
 
-@app.on_event("startup")
-def _configure_sign_in() -> None:
-    """Refuse at startup a deployment nobody can sign in to, and register Google.
-
-    Failing here rather than on first request means a misconfigured service never reaches staff
-    at all, instead of serving a login page that can only ever refuse.
-    """
-    configured = current_settings()
-    configured.require_sign_in_configured()
-    if configured.environment is not Environment.FAKE:
+def create_app(configured: Settings | None = None) -> FastAPI:
+    """Resolve one configuration and protect all routes before accepting requests."""
+    configured = configured if configured is not None else Settings()
+    configured.require_web_configured()
+    app = FastAPI(title="Massey Smiles Admin")
+    app.state.settings = configured
+    app.add_middleware(AccessControl, settings=configured)
+    if configured.sign_in is SignIn.GOOGLE:
         app.state.oauth = build_oauth(configured)
         app.add_middleware(
             SessionMiddleware,
@@ -83,9 +81,16 @@ def _configure_sign_in() -> None:
             same_site="lax",
             max_age=SESSION_MAX_AGE_SECONDS,
         )
+    else:
+        logging.getLogger(__name__).warning(
+            "GOOGLE LOGIN DISABLED: anyone reaching this application has developer access"
+        )
+    app.include_router(auth_router)
+    app.include_router(router)
+    return app
 
 
-@app.get("/health")
+@router.get("/health")
 def health(
     request: Request, configured: Annotated[Settings, Depends(settings)]
 ) -> dict[str, object]:
@@ -96,18 +101,15 @@ def health(
     Google redirect will be built wrong.
     """
     store = Storage(configured.database_path)
-    runs = len(store.recent_runs(limit=1))
     store.close()
     return {
         "status": "ok",
         "principle": configured.environment.value,
-        "database": str(configured.database_path),
-        "hasRuns": bool(runs),
         "baseUrl": configured.public_origin(request),
     }
 
 
-@app.get("/", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
     staff: CurrentStaff,
@@ -128,7 +130,7 @@ def index(
     )
 
 
-@app.get("/chat", response_class=HTMLResponse)
+@router.get("/chat", response_class=HTMLResponse)
 def chat_page(
     request: Request,
     staff: CurrentStaff,
@@ -147,7 +149,7 @@ def chat_page(
     )
 
 
-@app.post("/chatkit")
+@router.post("/chatkit")
 async def chatkit(
     request: Request,
     staff: CurrentStaff,
@@ -190,9 +192,7 @@ async def chatkit(
     return Response(content=result.json, media_type="application/json")
 
 
-async def _closing(
-    result: StreamingResult, store: SqliteChatStore
-) -> AsyncIterator[str]:
+async def _closing(result: StreamingResult, store: SqliteChatStore) -> AsyncIterator[str]:
     """Stream the result, then close the store -- including when the client disconnects."""
     try:
         async for event in result:
@@ -201,10 +201,11 @@ async def _closing(
         store.close()
 
 
-@app.get("/runs/{run_id}", response_class=HTMLResponse)
+@router.get("/runs/{run_id}", response_class=HTMLResponse)
 def run_detail(
     request: Request,
     run_id: str,
+    staff: CurrentStaff,
     configured: Annotated[Settings, Depends(settings)],
     store: Annotated[Storage, Depends(storage)],
 ) -> HTMLResponse:
@@ -217,6 +218,7 @@ def run_detail(
         "run.html",
         {
             "run": run,
+            "staff": staff,
             "environment": configured.environment,
             "is_fake": configured.environment is Environment.FAKE,
         },
