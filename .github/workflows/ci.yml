@@ -20,6 +20,21 @@ jobs:
 
       - run: uv sync --frozen
 
+      - name: Locate Playwright browser cache
+        id: playwright-cache
+        shell: pwsh
+        run: |
+          $playwrightVersion = uv run python -c "from importlib.metadata import version; print(version('playwright'))"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "version=$playwrightVersion" >> $env:GITHUB_OUTPUT
+          "path=$env:LOCALAPPDATA\ms-playwright" >> $env:GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.playwright-cache.outputs.path }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-cache.outputs.version }}
+
       - name: Lint
         run: uv run ruff check .
 
