@@ -9,6 +9,7 @@ dependencies = [
     "httpx>=0.28,<0.29",
     "itsdangerous>=2.2.0",
     "jinja2>=3.1.6",
+    "jsonschema==4.26.0",
     "openai-agents>=0.22.3",
     "openai-chatkit>=1.6.5",
     "pydantic>=2.9,<3",
@@ -79,4 +80,8 @@ explicit_package_bases = true
 # auth.py, and none of them is checkable from stubs that do not exist.
 [[tool.mypy.overrides]]
 module = ["authlib.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["jsonschema.*"]
 ignore_missing_imports = true

@@ -35,6 +35,16 @@
 </p>
 {% endif %}
 {% if staff %}
+{% if interface_warnings %}
+<div class="banner" role="alert" data-automation-id="principle-interface-warning">
+  <strong>Principle may have changed.</strong> Some requests do not match this app's released
+  interface. A developer needs to check compatibility and release an update if required.
+  The app has not changed its interface automatically.
+  <ul>{% for warning in interface_warnings %}
+    <li>{{ warning.operation }} — {{ warning.reason }} (last seen {{ warning.last_seen }})</li>
+  {% endfor %}</ul>
+</div>
+{% endif %}
 <p class="quiet" style="float:right;font-size:.85rem" data-automation-id="staff-identity">
   {{ staff.name }}{% if not staff.is_fake %} &middot; <a href="/auth/logout">Sign out</a>{% endif %}
 </p>

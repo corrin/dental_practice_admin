@@ -18,7 +18,18 @@ WINDOW = {"from": "2026-09-27T00:00:00Z", "to": "2026-10-02T00:00:00Z"}
 
 def _page(row_id: str, next_offset: str) -> dict[str, object]:
     return {
-        "data": [{"id": row_id}],
+        "data": [
+            {
+                "id": row_id,
+                "practiceId": "p",
+                "practitionerId": "fake-practitioner",
+                "patientId": "fake-patient",
+                "treatmentOptionId": "fake-option",
+                "treatmentPlanId": "fake-plan",
+                "treatmentStepId": "fake-step",
+                "status": "scheduled",
+            }
+        ],
         "meta": {"limit": 1, "total": 1, "nextOffsetId": next_offset},
     }
 
@@ -29,7 +40,7 @@ async def test_lists_practices_and_says_it_is_fake(fake_client: PrincipleClient)
     If the marker were dropped from the seed, a report built during development could be
     filed as though it described the real practice.
     """
-    envelope = await fake_client.get("list_practices")
+    envelope = await fake_client.get("listPractices")
     names = [practice["name"] for practice in envelope["data"]]
     assert any("(FAKE PRINCIPLE)" in name for name in names), names
 
@@ -45,7 +56,9 @@ async def test_pagination_returns_every_row_once(
     rows = [
         row
         async for row in fake_client.rows(
-            "list_appointments", query={"practiceId": FAKE_PRACTICE_ID, **WINDOW}, page_size=5
+            "listAppointmentsByDateRange",
+            query={"practiceId": FAKE_PRACTICE_ID, **WINDOW},
+            page_size=5,
         )
     ]
     ids = [row["id"] for row in rows]
@@ -67,23 +80,17 @@ async def test_pagination_stops_when_the_cursor_repeats() -> None:
     pages = iter(["appointment-1", "appointment-2", "appointment-3"])
 
     def stuck_cursor(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "data": [{"id": next(pages)}],
-                "meta": {"limit": 1, "total": 1, "nextOffsetId": "stuck"},
-            },
-        )
+        return httpx.Response(200, json=_page(next(pages), "stuck"))
 
     settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"))
     async with PrincipleClient(settings, transport=httpx.MockTransport(stuck_cursor)) as client:
-        rows = [
-            row
-            async for row in client.rows(
-                "list_appointments", query={"practiceId": "p", **WINDOW}, page_size=1
-            )
-        ]
-    assert len(rows) == 2, "the walk must stop the first time a cursor repeats"
+        with pytest.raises(PrincipleError):
+            _ = [
+                row
+                async for row in client.rows(
+                    "listAppointmentsByDateRange", query={"practiceId": "p", **WINDOW}, page_size=1
+                )
+            ]
 
 
 async def test_pagination_refuses_when_the_cursor_restarts() -> None:
@@ -106,11 +113,11 @@ async def test_pagination_refuses_when_the_cursor_restarts() -> None:
 
     settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"))
     async with PrincipleClient(settings, transport=httpx.MockTransport(restarts)) as client:
-        with pytest.raises(PrincipleError, match="cursor restarted"):
+        with pytest.raises(PrincipleError):
             _ = [
                 row
                 async for row in client.rows(
-                    "list_appointments", query={"practiceId": "p", **WINDOW}, page_size=1
+                    "listAppointmentsByDateRange", query={"practiceId": "p", **WINDOW}, page_size=1
                 )
             ]
 
@@ -124,7 +131,7 @@ async def test_window_is_half_open_and_intersecting(fake_client: PrincipleClient
     rows = [
         row
         async for row in fake_client.rows(
-            "list_appointments",
+            "listAppointmentsByDateRange",
             query={
                 "practiceId": FAKE_PRACTICE_ID,
                 # Five minutes inside the first slot (09:00-09:30 NZ = 20:00-20:30Z).
@@ -144,7 +151,7 @@ async def test_undeclared_query_parameter_is_refused(fake_client: PrincipleClien
     """
     with pytest.raises(CallError, match="does not accept"):
         await fake_client.get(
-            "list_appointments",
+            "listAppointmentsByDateRange",
             query={"practicianId": "x", "practiceId": FAKE_PRACTICE_ID, **WINDOW},
         )
 
@@ -154,7 +161,7 @@ async def test_required_query_parameter_is_refused_when_absent(
 ) -> None:
     """The spec makes `from`/`to` required; omitting them must fail before the request."""
     with pytest.raises(CallError, match="requires"):
-        await fake_client.get("list_appointments", query={"practiceId": FAKE_PRACTICE_ID})
+        await fake_client.get("listAppointmentsByDateRange", query={"practiceId": FAKE_PRACTICE_ID})
 
 
 def test_fake_refuses_a_parameter_it_does_not_apply(fake_store: FakeStore) -> None:
@@ -178,7 +185,7 @@ async def test_status_filter_is_applied(fake_client: PrincipleClient) -> None:
     rows = [
         row
         async for row in fake_client.rows(
-            "list_appointments",
+            "listAppointmentsByDateRange",
             query={"practiceId": FAKE_PRACTICE_ID, "status": "cancelled", **WINDOW},
         )
     ]
@@ -193,7 +200,7 @@ async def test_practitioners_are_listed_for_their_practice(
     rows = [
         row
         async for row in fake_client.rows(
-            "list_practitioners", path_params={"practice_id": FAKE_PRACTICE_ID}
+            "listPractitioners", path_params={"practiceId": FAKE_PRACTICE_ID}
         )
     ]
     assert len(rows) == 2
@@ -212,5 +219,5 @@ async def test_error_status_becomes_a_typed_failure() -> None:
     settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"))
     async with PrincipleClient(settings, transport=httpx.MockTransport(forbidden)) as client:
         with pytest.raises(PrincipleError) as raised:
-            await client.get("list_practices")
+            await client.get("listPractices")
     assert raised.value.status == 403

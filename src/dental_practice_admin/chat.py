@@ -36,6 +36,7 @@ from dental_practice_admin.auth import StaffUser
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import ConfigurationError, Settings
 from dental_practice_admin.principle import PrincipleClient
+from dental_practice_admin.principle_tools import api_tools
 from dental_practice_admin.tasks import PRACTICE_TZ, DiaryReport, daily_diary
 
 # How much history the agent is given. Bounded because a year of chat is neither affordable nor
@@ -54,6 +55,10 @@ Be brief and concrete. Staff are busy and mid-task.
 When a report covers only part of what was asked, say so plainly and say what is missing. Never
 present a partial answer as a complete one. If a tool reports partial coverage, repeat that
 caveat in your reply.
+
+Use the diary tools for daily appointment reports. Generated API tools can return only a page
+or a limited search result. searchPatients cannot establish the total number of patients.
+Never turn page size or meta.total into a population count.
 
 You cannot change anything in Principle. If asked to, say so and describe what the person would
 do in Principle itself.
@@ -105,7 +110,7 @@ def build_tools(deps: ChatDeps) -> list[object]:
         tomorrow = datetime.now(tz=PRACTICE_TZ).date() + timedelta(days=1)
         return _describe(await _diary(deps, tomorrow))
 
-    return [diary_for_date, diary_for_tomorrow]
+    return [diary_for_date, diary_for_tomorrow, *api_tools(deps.settings, deps.transport)]
 
 
 async def _diary(deps: ChatDeps, day: date) -> DiaryReport:

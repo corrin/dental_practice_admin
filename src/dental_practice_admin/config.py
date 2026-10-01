@@ -51,6 +51,13 @@ PRINCIPLE_URLS = {
 }
 
 
+# Principle's web app, which uses the same Firestore the API reads. The fake has none.
+PRINCIPLE_WEB_URLS = {
+    Environment.STAGING: "https://staging.principle.dental",
+    Environment.PRODUCTION: "https://app.principle.dental",
+}
+
+
 def environment_suffix(environment: str) -> str:
     """The suffix identifying one Principle configuration section."""
     return "PROD" if environment == "production" else environment.upper()
