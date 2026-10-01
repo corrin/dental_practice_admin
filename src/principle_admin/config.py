@@ -95,7 +95,12 @@ class Settings(BaseSettings):
 
     # Either mechanism admits a user: a named address, or any address at a Workspace domain.
     # Both empty means nobody, which is why production refuses to start that way.
-    staff_emails: frozenset[str] = frozenset()
+    #
+    # A plain comma-separated string, not a set. pydantic-settings JSON-decodes complex types from
+    # environment and dotenv sources before any validator runs, so a `frozenset` field could only
+    # ever be set from Python -- PRINCIPLE_STAFF_EMAILS=someone@example.com failed to parse and the
+    # application refused to start. Use `allowed_emails` to read it.
+    staff_emails: str = ""
     staff_domain: str = ""
 
     openai_api_key: SecretStr = SecretStr("")
@@ -129,18 +134,16 @@ class Settings(BaseSettings):
         """Playwright storage_state for the automation-owned Principle session."""
         return self.data_dir / "principle.storage_state.json"
 
-    @field_validator("staff_emails", mode="before")
-    @classmethod
-    def _split_emails(cls, value: object) -> object:
-        """Accept a comma-separated list, lowercased.
+    @property
+    def allowed_emails(self) -> frozenset[str]:
+        """The allowlist, lowercased.
 
-        Addresses arrive from an environment variable, and Google returns them in whatever case
-        the account was created with; comparing raw would let a capitalised address in or keep
-        a legitimate one out.
+        Google returns an address in whatever case the account was created with, so comparing raw
+        would admit a capitalised address or refuse a legitimate one.
         """
-        if isinstance(value, str):
-            return frozenset(part.strip().lower() for part in value.split(",") if part.strip())
-        return value
+        return frozenset(
+            part.strip().lower() for part in self.staff_emails.split(",") if part.strip()
+        )
 
     @field_validator("staff_domain", mode="before")
     @classmethod
@@ -159,7 +162,7 @@ class Settings(BaseSettings):
         if not email_verified:
             return False
         address = email.strip().lower()
-        if address in self.staff_emails:
+        if address in self.allowed_emails:
             return True
         return bool(self.staff_domain) and address.endswith(f"@{self.staff_domain}")
 
@@ -195,7 +198,7 @@ class Settings(BaseSettings):
             missing.append("PRINCIPLE_GOOGLE_CLIENT_ID")
         if not self.google_client_secret.get_secret_value():
             missing.append("PRINCIPLE_GOOGLE_CLIENT_SECRET")
-        if not self.staff_emails and not self.staff_domain:
+        if not self.allowed_emails and not self.staff_domain:
             missing.append("PRINCIPLE_STAFF_EMAILS or PRINCIPLE_STAFF_DOMAIN")
         if missing:
             raise ConfigurationError(f"sign_in=google needs {', '.join(missing)}")

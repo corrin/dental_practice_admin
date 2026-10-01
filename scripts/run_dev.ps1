@@ -22,17 +22,19 @@
 .PARAMETER NoSeed
   Skip creating example diary runs.
 
-.PARAMETER Live
-  Use the real Google sign-in and the real OpenAI model instead of the simulations. Principle stays
-  the fake either way, so this exercises the gate and the model without a patient record being
-  involved -- which is the whole reason sign-in is configured separately from the environment.
+.PARAMETER GoogleSignIn
+  Use the real Google flow instead of the local developer identity. Independent of -RealAI, because
+  they are independent questions; a single switch for both would re-weld what config.py separates.
 
   Needs PRINCIPLE_GOOGLE_CLIENT_ID, PRINCIPLE_GOOGLE_CLIENT_SECRET, PRINCIPLE_SESSION_SECRET and
-  PRINCIPLE_STAFF_EMAILS (a .env file is read automatically), and OPENAI_API_KEY in the environment.
-  Chat then costs money per message.
+  PRINCIPLE_STAFF_EMAILS, all of which .env supplies.
 
-  Use it with -Tunnel: Google will not accept an ngrok redirect URI it has not been given, and it
-  will not redirect to a host it cannot reach.
+  Use it with -Tunnel: Google will not redirect to a host it cannot reach, and it will refuse a
+  redirect URI it has not been given.
+
+.PARAMETER RealAI
+  Call the real OpenAI API instead of the simulation. Needs OPENAI_API_KEY, and costs money per
+  message. Principle stays the fake regardless of either switch, so no patient record is involved.
 
 .PARAMETER Tunnel
   Also publish the application on a real HTTPS domain through ngrok, so the Google sign-in and
@@ -54,7 +56,8 @@ param(
     [int]$Port = 8080,
     [switch]$NoSeed,
     [switch]$Tunnel,
-    [switch]$Live,
+    [switch]$GoogleSignIn,
+    [switch]$RealAI,
     [string]$TunnelDomain = 'massey-admin-dev.ngrok-free.app',
     # Registered with OpenAI for $TunnelDomain. Public by construction -- ChatKit renders it into
     # the page -- and paired with the domain here because changing one without the other gives a
@@ -64,6 +67,22 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
+
+# Load .env into this process. pydantic-settings reads the PRINCIPLE_* names from the file itself,
+# but the OpenAI SDK looks OPENAI_API_KEY up in the environment, so without this -Live would find no
+# key in a file that plainly contains one. Existing environment variables win, as dotenv does.
+$envFile = Join-Path $repo '.env'
+if (Test-Path $envFile) {
+    foreach ($line in Get-Content $envFile) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith('#')) { continue }
+        $name, $value = $trimmed -split '=', 2
+        $name = $name.Trim()
+        if ($name -and -not (Get-Item "Env:$name" -ErrorAction SilentlyContinue)) {
+            Set-Item "Env:$name" $value.Trim()
+        }
+    }
+}
 
 function Get-FreePort {
     $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
@@ -83,15 +102,15 @@ $env:PRINCIPLE_API_KEY = 'fake-principle-key'
 $env:PRINCIPLE_PRACTICE_ID = 'fake-practice-0001'
 $env:PRINCIPLE_DATA_ROOT = Join-Path $env:LOCALAPPDATA 'PrincipleAdmin-dev'
 
-if ($Live) {
-    $env:PRINCIPLE_SIGN_IN = 'google'
-    # Leave OPENAI_BASE_URL and OPENAI_API_KEY alone so the SDK reaches the real API.
+$env:PRINCIPLE_SIGN_IN = if ($GoogleSignIn) { 'google' } else { 'developer' }
+
+if ($RealAI) {
+    # Leave OPENAI_BASE_URL unset so the SDK reaches the real API.
     Remove-Item Env:OPENAI_BASE_URL -ErrorAction SilentlyContinue
     if (-not $env:OPENAI_API_KEY -or $env:OPENAI_API_KEY -eq 'fake-openai-key') {
-        throw 'OPENAI_API_KEY is not set. -Live calls the real model and needs a real key.'
+        throw 'OPENAI_API_KEY is not set. -RealAI calls the real model and needs a real key.'
     }
 } else {
-    $env:PRINCIPLE_SIGN_IN = 'developer'
     # OpenAI's own documented overrides, so the application needs no knowledge it is simulated.
     $env:OPENAI_BASE_URL = "http://127.0.0.1:$aiPort/v1"
     $env:OPENAI_API_KEY = 'fake-openai-key'
@@ -133,12 +152,12 @@ function Wait-ForHttp {
 try {
     Write-Host 'Principle_admin, against the simulations' -ForegroundColor Cyan
     Start-Server 'tests.fake.server:app'    $principlePort 'fake Principle' | Out-Null
-    if (-not $Live) { Start-Server 'tests.fake_ai.server:app' $aiPort 'fake AI' | Out-Null }
+    if (-not $RealAI) { Start-Server 'tests.fake_ai.server:app' $aiPort 'fake AI' | Out-Null }
     Start-Server 'principle_admin.app:app'  $Port          'application'    | Out-Null
 
     # Each fake refuses a call it does not serve, and the refusal is the readiness signal.
     Wait-ForHttp "http://127.0.0.1:$principlePort/v1/practices" @(401, 403, 500) 'fake Principle'
-    if (-not $Live) { Wait-ForHttp "http://127.0.0.1:$aiPort/v1/responses" @(500) 'fake AI' }
+    if (-not $RealAI) { Wait-ForHttp "http://127.0.0.1:$aiPort/v1/responses" @(500) 'fake AI' }
     Wait-ForHttp "http://127.0.0.1:$Port/health"                @(200)           'application'
 
     if (-not $NoSeed) {
@@ -167,12 +186,10 @@ try {
         Write-Host '  that needs a Google OAuth client with /auth/callback on this exact origin.'
     }
     Write-Host ''
-    if ($Live) {
-        Write-Host '  Real Google sign-in and the real model. Principle is still the fake, so the'
-        Write-Host '  banner stays and no patient record is involved.' -ForegroundColor DarkGray
-    } else {
-        Write-Host '  Signed in as the local development user; simulated model; fake Principle.'
-    }
+    $who = if ($GoogleSignIn) { 'real Google sign-in' } else { 'local developer identity' }
+    $ai = if ($RealAI) { 'real OpenAI' } else { 'simulated AI' }
+    Write-Host "  $who, $ai, fake Principle."
+    Write-Host '  Principle is the fake regardless, so no patient record is involved.' -ForegroundColor DarkGray
     Write-Host '  Ctrl+C to stop.' -ForegroundColor DarkGray
 
     while ($true) {

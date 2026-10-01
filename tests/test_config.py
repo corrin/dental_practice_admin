@@ -76,6 +76,29 @@ def test_real_environment_refuses_missing_credentials() -> None:
         settings.require_credentials()
 
 
+def test_the_allowlist_can_be_set_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Configuration must survive arriving as environment variables, which is how it arrives.
+
+    Every other test here builds Settings from Python keyword arguments, which skips the
+    environment source entirely. That is how `staff_emails` shipped as a frozenset that
+    pydantic-settings tried to JSON-decode: PRINCIPLE_STAFF_EMAILS=someone@example.com raised at
+    startup, the application would not boot, and nobody could sign in.
+    """
+    monkeypatch.setenv("PRINCIPLE_STAFF_EMAILS", "One@Practice.NZ, two@practice.nz")
+    monkeypatch.setenv("PRINCIPLE_STAFF_DOMAIN", "@Example.COM")
+    monkeypatch.setenv("PRINCIPLE_SIGN_IN", "google")
+
+    settings = Settings()
+
+    assert settings.allowed_emails == {"one@practice.nz", "two@practice.nz"}
+    assert settings.admits("ONE@practice.nz", email_verified=True)
+    assert settings.admits("anyone@example.com", email_verified=True)
+    assert not settings.admits("stranger@elsewhere.com", email_verified=True)
+    assert settings.sign_in is SignIn.GOOGLE
+
+
 def test_production_refuses_developer_sign_in() -> None:
     """Live patient records must never be served to an unauthenticated visitor.
 
