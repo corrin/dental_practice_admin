@@ -109,6 +109,13 @@ Generic tools on that session, added in `chat.build_tools`:
   - state the mode order and why
   - ask which record is meant when a search finds several
   - include the docs index
+  - **check the translation, before and after.** This is the only safeguard: prompt text, no
+    mechanism.
+    - Before any change, state the record, the exact change, and the call or steps you will
+      use, then check that they match what the person asked.
+    - If the request could mean more than one thing, ask.
+    - After the change, read the record back and confirm it now matches the request. Say
+      plainly if it doesn't.
 - **`MAX_TURNS`:** raise to about 20 for multi-step tasks.
 
 ### 6. Delete the address proof of concept
