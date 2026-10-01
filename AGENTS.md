@@ -2,6 +2,10 @@
 
 Read [`docs/adr/README.md`](docs/adr/README.md) before non-trivial work. An ADR wins over habit.
 
+Before work that touches Principle's website or Firestore, read
+[`docs/principle/README.md`](docs/principle/README.md), and add what the task learned when it
+is done.
+
 ## Minimise ongoing maintenance
 
 This is an internal application for one six-person dental practice. Scale is not a concern.

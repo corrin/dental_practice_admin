@@ -258,6 +258,8 @@ tests/
 scripts/                 tools: the recorder, the fingerprinter, the release gate, verify.ps1
 .vscode/tasks.json       one Run entry; scripts/run.py starts the configured services
 deploy/                  what runs in production: Caddy, WinSW, Task Scheduler (budgeted)
+docs/adr/                rules for changing this codebase
+docs/principle/          what tasks have learned about Principle's website and Firestore
 ```
 
 ## Deployment
