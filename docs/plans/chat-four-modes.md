@@ -77,6 +77,12 @@ Generic tools on that session, added in `chat.build_tools`:
   - `firestore_query(collection, filters, select, limit)`: a `runQuery` under the
     workspace's org and brand.
   - `firestore_get(document_path)`
+  - `firestore_aggregate(collection, filters, function, field)`: Firestore's
+    `runAggregationQuery`, which computes count, sum or average on the server. This is what
+    makes reports work, for example "average lab fee".
+    - Lab data isn't in the API; the website has Labs and Lab Jobs pages backed by Firestore.
+    - The answer is exact over every matching record, not one page, and the model never does
+      the arithmetic.
   - `firestore_update(document_path, fields)`: an update with a field mask. Its description
     says `updatedAt`/`updatedBy` aren't stamped, and says to prefer the API.
 - **Scripted browser:** `browser_steps(steps)`.
@@ -124,6 +130,8 @@ it runs over, raise it rather than squeezing code.
     address four times, once per mode, asking for the mode explicitly each time.
   - Check each change, then restore the original address.
   - Then ask "which patients changed today?". It should list that patient.
+  - Then ask "create a report on the average lab fee". It should find the lab collection,
+    read a document to learn the fee field, and answer with `firestore_aggregate`.
 
 ## Delivery
 
