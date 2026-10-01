@@ -83,6 +83,13 @@ class StagingBrowser:
             with suppress(Exception):
                 self.documents.update(document_names(response.text()))
 
+    @property
+    def token(self) -> str:
+        """The Firebase ID token from the last login; it expires after an hour."""
+        if not self._token:
+            raise ValueError("Login is required before using the token")
+        return self._token
+
     def login(self, email: str, password: str) -> None:
         """Submit the login form and require Firebase to issue an authenticated token."""
         self.page.goto(UI_URL, wait_until="domcontentloaded")
