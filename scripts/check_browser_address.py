@@ -144,7 +144,7 @@ class BrowserTest:
         target = self.locator(selector)
         if action == "fill":
             if self.phase == "discovery":
-                if args["text"] not in (PATIENT, *PATIENT.split(), "Massey Smiles Dental"):
+                if args["text"] not in ("", PATIENT, *PATIENT.split(), "Massey Smiles Dental"):
                     raise ValueError("Only the target patient search is allowed")
             elif selector != self.address_selector or args["text"] != self.expected:
                 raise ValueError("Only the captured address field and expected value may be filled")
@@ -194,8 +194,8 @@ def run_phase(client: OpenAI, model: str, browser: BrowserTest, stats: dict[str,
         history.extend(item.model_dump(exclude_none=True) for item in response.output)
         calls = [item for item in response.output if item.type == "function_call"]
         if not calls:
-            print(json.dumps({"model_stop_reason": response.output_text}), flush=True)
             if stats["diagnostic"]:
+                print(json.dumps({"model_stop_reason": response.output_text}), flush=True)
                 print(browser.page.locator("body").aria_snapshot(), flush=True)
             raise RuntimeError("Model stopped without verified completion")
         for call in calls:
@@ -259,6 +259,8 @@ def main() -> int:
             stats["stage"] = "login"
             session.page.set_default_timeout(30000)
             session.login(email, password)
+            # Firestore Listen bodies can remain open; this experiment only observes rendered UI.
+            session.page.remove_listener("response", session._observe)
             session.page.get_by_placeholder("Password", exact=True).wait_for(
                 state="hidden", timeout=30000,
             )

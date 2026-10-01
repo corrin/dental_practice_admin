@@ -27,8 +27,11 @@ named records and operations; this skill does not authorise patient edits by its
 - Treat timeouts as evidence to investigate the current page, URL, overlays and selectors.
   Increasing a timeout does not correct a bad route or a closed dropdown.
 - Workspace selection can produce the duplicated path
-  `/principle-platform/principle-platform/schedule/timeline`. Inspect the landing route
-  and rendered navigation before interpreting empty patient-search results.
+  `/principle-platform/principle-platform/schedule/timeline` or
+  `/massey-smiles/massey-smiles/schedule/timeline`. The rendered Patients/person sidebar
+  link uses `/massey-smiles/patients`. Follow the visible Patients link rather than
+  constructing a route from the timeline URL. The global Search & Quick Actions dialog
+  returned no matches in these browser experiments; use the Patients page to investigate.
 - Search results can contain multiple patients with the same name. Bind the chosen
   patient to its record ID and visible identity; use DOB when supplied. Account for
   active/inactive filters. Never select a different record just to make a test pass.

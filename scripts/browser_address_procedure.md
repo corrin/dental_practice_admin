@@ -6,13 +6,19 @@ The only authorised patient is {patient_name}.
 Never open or modify either Crash Test Dummy record.
 Do not send messages, change patient status, dismiss clinical alerts, or modify other fields.
 
-Discovery: select the workspace, open the patient search, search for {patient_name},
-and inspect the matching patient's identity and date of birth. This patient is believed
-to be active. If the global search finds nothing, try the Patients page. A full-name
+Discovery: open the workspace dropdown and select Massey Smiles Dental. Wait for the
+application sidebar. Click its Patients/person icon: use the rendered link ending in
+/patients. Do not use the Search & Quick Actions dialog. The timeline landing URL can
+have a duplicated workspace prefix; the sidebar Patients link identifies the correct route.
+Use the Patients page's search control to find {patient_name}, and inspect the matching
+patient's identity and date of birth. This patient is believed to be active. A full-name
 search may not match; try the first or last name. Stop if more than one matching patient
-exists. Do not create a patient or use a different patient.
+exists. Do not create a patient or use a different patient. If three observations show
+the same unresolved loading state, stop and describe the obstruction.
 Open Profile and the address editing form. Call capture with the patient ID visible in
-the URL and a CSS selector for the first address-line input. Capture reads the actual
+the URL and a stable CSS selector for the first address-line input: prefer formcontrolname,
+name or placeholder over generated mat-input IDs that can change after reload. Reuse
+that same selector when filling or verifying the address. Capture reads the actual
 input value; do not supply or invent the original address yourself.
 
 Edit: replace only the captured first address line with the supplied test value.
