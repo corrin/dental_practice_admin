@@ -1,123 +1,20 @@
-"""Shared servers and browser configuration for the end-to-end tier.
-
-The fake Principle and the application each run in their own process, started once for the whole
-tier: every spec in it needs the same pair, and starting them per module would triple the runtime
-to prove the same thing.
-"""
+"""Browser configuration for the end-to-end tier."""
 
 from __future__ import annotations
 
-import os
-import socket
-import subprocess
-import sys
-import time
-from collections.abc import Iterator
-from pathlib import Path
-
-import httpx
 import pytest
 from playwright.sync_api import Playwright
 
-from tests.fake.store import FAKE_API_KEY, FAKE_PRACTICE_ID
-from tests.fake_ai import FAKE_AI_KEY
+from tests.servers import DIARY_DATE, EXPECTED_BOOKED, EXPECTED_CANCELLED, REPO, spine
 
 # The templates mark testable elements with `data-automation-id`; Playwright's default is
-# `data-testid`, so without this every get_by_test_id silently matches nothing and the
-# assertions fail with a page dump rather than a missing-attribute message.
+# `data-testid`, so without this every get_by_test_id silently matches nothing and the assertions
+# fail with a page dump rather than a missing-attribute message.
 TEST_ID_ATTRIBUTE = "data-automation-id"
+
+__all__ = ["DIARY_DATE", "EXPECTED_BOOKED", "EXPECTED_CANCELLED", "REPO", "spine"]
 
 
 @pytest.fixture(scope="session", autouse=True)
 def _use_automation_ids(playwright: Playwright) -> None:
     playwright.selectors.set_test_id_attribute(TEST_ID_ATTRIBUTE)
-
-
-REPO = Path(__file__).resolve().parent.parent.parent
-
-# The seeded diary's first day, in practice-local time.
-DIARY_DATE = "2026-09-28"
-EXPECTED_BOOKED = 8
-EXPECTED_CANCELLED = 2
-
-STARTUP_TIMEOUT = 45.0
-
-
-def _free_port() -> int:
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        return int(probe.getsockname()[1])
-
-
-def _serve(target: str, port: int, env: dict[str, str]) -> subprocess.Popen[bytes]:
-    return subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", target, "--host", "127.0.0.1", "--port", str(port)],
-        cwd=REPO,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-
-
-def _await_http(url: str, process: subprocess.Popen[bytes], expect_status: set[int]) -> None:
-    """Wait for a server to answer, failing with its own output rather than a bare timeout."""
-    deadline = time.monotonic() + STARTUP_TIMEOUT
-    last = "no response yet"
-    while time.monotonic() < deadline:
-        if process.poll() is not None:
-            output = process.stdout.read().decode(errors="replace") if process.stdout else ""
-            pytest.fail(f"{url} server exited with {process.returncode}:\n{output}")
-        try:
-            response = httpx.get(url, timeout=3)
-        except httpx.HTTPError as error:
-            last = str(error)
-        else:
-            if response.status_code in expect_status:
-                return
-            last = f"status {response.status_code}"
-        time.sleep(0.25)
-    pytest.fail(f"{url} was not ready within {STARTUP_TIMEOUT}s: {last}")
-
-
-@pytest.fixture(scope="session")
-def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
-    """The fake Principle and the web application, each in its own process."""
-    data_root = tmp_path_factory.mktemp("e2e-data")
-    fake_port = _free_port()
-    fake_ai_port = _free_port()
-    app_port = _free_port()
-
-    env = dict(os.environ)
-    env.update(
-        {
-            "PRINCIPLE_ENVIRONMENT": "fake",
-            "PRINCIPLE_API_BASE_URL": f"http://127.0.0.1:{fake_port}",
-            "PRINCIPLE_API_KEY": FAKE_API_KEY,
-            "PRINCIPLE_PRACTICE_ID": FAKE_PRACTICE_ID,
-            "PRINCIPLE_DATA_ROOT": str(data_root),
-            "PYTHONPATH": str(REPO),
-            # OpenAI's own documented overrides, so the application needs no knowledge that its
-            # model is simulated. No production code branches on being under test.
-            "OPENAI_BASE_URL": f"http://127.0.0.1:{fake_ai_port}/v1",
-            "OPENAI_API_KEY": FAKE_AI_KEY,
-        }
-    )
-
-    fake = _serve("tests.fake.server:app", fake_port, env)
-    fake_ai = _serve("tests.fake_ai.server:app", fake_ai_port, env)
-    application = _serve("principle_admin.app:app", app_port, env)
-    try:
-        # Each fake refuses a call it does not serve, and the refusal is the readiness signal.
-        _await_http(f"http://127.0.0.1:{fake_port}/v1/practices", fake, {401, 403, 500})
-        _await_http(f"http://127.0.0.1:{fake_ai_port}/v1/responses", fake_ai, {500})
-        _await_http(f"http://127.0.0.1:{app_port}/health", application, {200})
-        yield {**env, "APP_URL": f"http://127.0.0.1:{app_port}"}
-    finally:
-        for process in (application, fake_ai, fake):
-            process.terminate()
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                process.kill()
-
-

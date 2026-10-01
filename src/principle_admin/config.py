@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr = SecretStr("")
     agent_model: str = "gpt-5"
 
+    # Registered with OpenAI for the domain the chat page is served from, and required by the
+    # ChatKit component alongside the endpoint URL. Not a secret: it is rendered into the page.
+    chatkit_domain_key: str = "domain_pk_localhost"
+
     # Runtime data sits outside the source checkout on a real host (ARCHITECTURE.md,
     # Storage and configuration). Production and staging must not share a database or a
     # browser session file, so the environment name is part of the path.

@@ -14,8 +14,15 @@ Principle.</p>
 <script>
   // The component loads from OpenAI's CDN and verifies the serving domain, so this page is not
   // usable offline however local the backend is.
+  //
+  // `domainKey` is REQUIRED alongside `url` for a custom server -- it is not optional in
+  // CustomApiConfig, and omitting it fails validation with a bare "Invalid input at api" that
+  // names no missing field. It is registered per domain with OpenAI; see
+  // tests/smoke/ for the test that catches this going wrong again.
   customElements.whenDefined('openai-chatkit').then(() => {
-    document.getElementById('chat').setOptions({ api: { url: '/chatkit' } });
+    document.getElementById('chat').setOptions({
+      api: { url: '/chatkit', domainKey: {{ chatkit_domain_key | tojson }} },
+    });
   });
 </script>
 {% endblock %}

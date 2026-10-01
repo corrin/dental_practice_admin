@@ -79,7 +79,7 @@ def staff_from_session(request: Request, settings: Settings) -> StaffUser | None
     """
     if settings.environment is Environment.FAKE:
         return StaffUser(email=FAKE_STAFF, name="Development user")
-    stored = request.session.get(SESSION_USER_KEY)
+    stored = _session(request).get(SESSION_USER_KEY)
     if not isinstance(stored, dict):
         return None
     email, name = stored.get("email"), stored.get("name")
@@ -110,6 +110,21 @@ CurrentStaff = Annotated[StaffUser, Depends(require_staff)]
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _session(request: Request) -> dict[str, Any]:
+    """The signed cookie session.
+
+    Refuses clearly when `SessionMiddleware` is absent. Without this the framework's own assertion
+    surfaces as a request that never completes, and the caller sees a hang rather than a cause.
+    """
+    if "session" not in request.scope:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="SessionMiddleware is not installed; sign-in cannot work",
+        )
+    session: dict[str, Any] = request.session
+    return session
 
 
 @router.get("/login")
@@ -155,7 +170,15 @@ async def callback(
 
 
 @router.get("/logout")
-async def logout(request: Request) -> Response:
-    """End the session. Google's own sign-in is untouched: this is not a Google logout."""
-    request.session.pop(SESSION_USER_KEY, None)
+async def logout(
+    request: Request, settings: Annotated[Settings, Depends(current_settings)]
+) -> Response:
+    """End the session. Google's own sign-in is untouched: this is not a Google logout.
+
+    Signing out of the fake environment is a no-op, because there was never a session: the
+    middleware that provides one is only installed outside `fake`. Reaching for
+    `request.session` unconditionally is what made this route hang instead of redirect.
+    """
+    if settings.environment is not Environment.FAKE:
+        _session(request).pop(SESSION_USER_KEY, None)
     return RedirectResponse("/")

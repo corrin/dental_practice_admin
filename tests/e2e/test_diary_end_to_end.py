@@ -17,7 +17,7 @@ import sys
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import DIARY_DATE, EXPECTED_BOOKED, EXPECTED_CANCELLED, REPO
+from tests.servers import DIARY_DATE, EXPECTED_BOOKED, EXPECTED_CANCELLED, REPO
 
 pytestmark = pytest.mark.e2e
 

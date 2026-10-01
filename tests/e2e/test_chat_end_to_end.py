@@ -21,8 +21,8 @@ import json
 import httpx
 import pytest
 
-from tests.e2e.conftest import DIARY_DATE, EXPECTED_BOOKED
 from tests.fake_ai import MARKER
+from tests.servers import DIARY_DATE, EXPECTED_BOOKED
 
 pytestmark = pytest.mark.e2e
 

@@ -127,6 +127,7 @@ def chat_page(
         "chat.html",
         {
             "staff": staff,
+            "chatkit_domain_key": configured.chatkit_domain_key,
             "environment": configured.environment,
             "is_fake": configured.environment is Environment.FAKE,
         },
