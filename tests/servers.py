@@ -25,7 +25,8 @@ from tests.fake_ai import FAKE_AI_KEY
 
 REPO = Path(__file__).resolve().parent.parent
 
-# The seeded diary's first day, in practice-local time.
+# What `seed()` holds: the diary's first day, in practice-local time, and its size. Every tier
+# that reports on the seeded practice reads these, so a change to the seed fails them together.
 DIARY_DATE = "2026-09-28"
 EXPECTED_BOOKED = 8
 EXPECTED_CANCELLED = 2
