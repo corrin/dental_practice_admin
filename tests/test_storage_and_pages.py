@@ -175,7 +175,7 @@ def test_an_unknown_run_is_a_404(pages: Pages) -> None:
 def test_health_reports_which_principle_it_is_talking_to(pages: Pages) -> None:
     """The environment must be in the payload.
 
-    deploy/verify.ps1 reads this; a health endpoint reporting only "ok" would call a service
+    scripts/verify.ps1 reads this; a health endpoint reporting only "ok" would call a service
     healthy while it was pointed at the wrong Principle.
     """
     payload = pages.client.get("/health").json()

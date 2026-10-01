@@ -3,12 +3,12 @@
 Automated checks cover what a machine can check. These are the ones a person signs off,
 because they need a reboot, a second account, or a deliberate act of destruction.
 
-Run `deploy\verify.ps1` first; it must pass before any of this is worth doing.
+Run `scripts\verify.ps1` first; it must pass before any of this is worth doing.
 
 ## Before staff use it
 
 - [ ] **Reboot.** Restart the host. Without logging in, confirm the service came back
-      (`deploy\verify.ps1`) and that the staff page loads from another machine on the
+      (`scripts\verify.ps1`) and that the staff page loads from another machine on the
       practice network.
 - [ ] **A scheduled run with nobody logged in.** After the reboot, leave the host at the
       logon screen over a scheduled trigger. Confirm the run is recorded and its summary is

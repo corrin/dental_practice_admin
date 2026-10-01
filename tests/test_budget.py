@@ -1,18 +1,20 @@
 """The 2,000-line budget, counted by category rather than by wc -l.
 
-ARCHITECTURE.md fixes the scope constraint at 2,000 lines. The number applies to **application
-code** -- the statements the practice must maintain in order to run the thing. Four other kinds
-of line are reported and not budgeted, because counting them against the limit would price
-exactly the work that makes the application maintainable:
+ARCHITECTURE.md fixes the scope constraint at 2,000 lines, and the number applies to **application
+code** only. The reason is not accounting tidiness: application code is the only code that can make
+a dentist ring up saying it is broken. It is what runs while staff are using the thing.
 
-    application    executable statements under src/            <= 2,000
-    comments       comments and docstrings, anywhere            reported
-    deployment     install, service and verification scripts    reported
-    test harness   tests/ and the scripts that serve them       reported
-    documentation  Markdown                                     reported
+A test harness has never caused a phone call. Nor has a comment, nor a page of documentation. They
+are reported so their size is visible, and budgeted against nothing, because shrinking them does not
+make the practice's day go better:
 
-Comments are separated for a specific reason: a budget that counted them would reward deleting
-the sentence that records why a cursor guard exists, which is the most valuable line in the file.
+    application    src/ and deploy/ -- everything that runs in production   <= 2,000
+    comments       comments and docstrings, anywhere                       reported
+    tooling        tests/ and scripts/                                     reported
+    documentation  Markdown                                                reported
+
+Counting comments or tests would actively raise the phone-call rate, by rewarding the deletion of
+the sentence that records why a cursor guard exists and the test that proves it still works.
 
 Run `uv run python -m tests.test_budget` for the breakdown.
 """
@@ -30,14 +32,22 @@ BUDGET = 2000
 
 ROOT = Path(__file__).resolve().parent.parent
 
-CODE_SUFFIXES = frozenset({".py", ".html", ".js", ".ps1", ".psm1"})
+CODE_SUFFIXES = frozenset({".py", ".html", ".js", ".ps1", ".psm1", ".xml"})
 
-# scripts/ is test harness: the recorder captures test oracles, the fingerprinter writes a file a
-# test reads, and the runner runs tests. None of it executes in production.
+# Files whose name is the whole identification. The Caddyfile has no extension and is the most
+# phone-call-prone configuration in the repository; it was invisible to this counter until now.
+COUNTED_NAMES = frozenset({"Caddyfile"})
+
+# The split is by directory so there is no list of exceptions to keep correct.
+#
+#   deploy/   runs in production. A wrong reverse_proxy line or a missing uvicorn flag breaks the
+#             application for staff exactly as a wrong statement in src/ would, so it is budgeted.
+#   scripts/  tools, run by whoever is maintaining this. The recorder, the fingerprinter, the
+#             release gate, verify.ps1. None of it is running while staff use the application, so
+#             none of it can break for them.
 CATEGORIES: dict[str, tuple[str, ...]] = {
-    "application": ("src",),
-    "deployment": ("deploy",),
-    "test harness": ("tests", "scripts"),
+    "application": ("src", "deploy"),
+    "tooling": ("tests", "scripts"),
 }
 
 SKIP_DIRS = frozenset({"__pycache__", ".venv", "node_modules", ".git", "recordings", "spec"})
@@ -140,6 +150,8 @@ _STRUCTURAL_TOKENS = frozenset(
 HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 PS_BLOCK_COMMENT = re.compile(r"<#.*?#>", re.DOTALL)
+# The Caddyfile has only "#" comments, so nothing spans lines.
+HASH_ONLY = re.compile(r"(?!x)x")
 
 
 def markup_lines(source: str, suffix: str) -> tuple[int, int]:
@@ -151,12 +163,14 @@ def markup_lines(source: str, suffix: str) -> tuple[int, int]:
     total = sum(1 for line in source.splitlines() if line.strip())
     pattern = {
         ".html": HTML_COMMENT,
+        ".xml": HTML_COMMENT,
         ".js": BLOCK_COMMENT,
         ".ps1": PS_BLOCK_COMMENT,
         ".psm1": PS_BLOCK_COMMENT,
+        "": HASH_ONLY,
     }[suffix]
     stripped = pattern.sub("", source)
-    single = "#" if suffix in {".ps1", ".psm1"} else "//"
+    single = "#" if suffix in {".ps1", ".psm1", ""} else "//"
     kept = [
         line
         for line in stripped.splitlines()
@@ -172,7 +186,8 @@ def count(roots: tuple[str, ...]) -> Tally:
         if not base.exists():
             continue
         for path in sorted(base.rglob("*")):
-            if path.suffix not in CODE_SUFFIXES or not path.is_file():
+            counted = path.suffix in CODE_SUFFIXES or path.name in COUNTED_NAMES
+            if not counted or not path.is_file():
                 continue
             if SKIP_DIRS & set(path.relative_to(ROOT).parts):
                 continue
@@ -225,23 +240,36 @@ def test_application_code_is_within_budget() -> None:
 def test_comments_are_not_counted_against_the_application() -> None:
     """A budget that priced comments would reward deleting the explanations.
 
-    The hard-won lines in this codebase are prose: why the cursor guard exists, why the fake
-    refuses rather than guesses, why a practice day is not a UTC day. Counting them would make
-    removing them the cheapest way to pass this file.
+    No comment has ever caused a dentist to ring up. The hard-won lines in this codebase are prose:
+    why the cursor guard exists, why the fake refuses rather than guesses, why a practice day is not
+    a UTC day. Counting them would make removing them the cheapest way to pass this file.
     """
     application = count(CATEGORIES["application"])
     assert application.comments > 0
     assert application.code < application.code + application.comments
 
 
+def test_production_configuration_is_counted() -> None:
+    """A wrong line in the Caddyfile or the service definition breaks the application for staff.
+
+    Those files were invisible to this counter until the rule was stated properly: the budget is
+    for whatever can ring the phone, and `reverse_proxy` pointing at the wrong port rings it just as
+    loudly as a bad statement in src/.
+    """
+    counted = count(CATEGORIES["application"]).per_file
+    assert "deploy/Caddyfile" in counted
+    assert "deploy/principle-admin.xml" in counted
+
+
 def test_the_harness_is_not_counted_against_the_application() -> None:
     """The fake must never be an argument for cutting tested behaviour.
 
-    If the suite were budgeted, the cheapest way to pass would be to delete the fake, which is
-    precisely backwards.
+    The harness does not run while staff are using the application, so it cannot break for them.
+    If it were budgeted, the cheapest way to pass would be to delete the fake -- trading something
+    that cannot cause a phone call for something that can.
     """
-    assert not set(CATEGORIES["application"]) & set(CATEGORIES["test harness"])
-    assert count(CATEGORIES["test harness"]).code > 0
+    assert not set(CATEGORIES["application"]) & set(CATEGORIES["tooling"])
+    assert count(CATEGORIES["tooling"]).code > 0
 
 
 def test_docstrings_count_as_comments_not_code() -> None:

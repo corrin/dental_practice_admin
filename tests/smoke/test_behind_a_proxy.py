@@ -32,7 +32,7 @@ def test_health_reports_the_public_origin_not_the_socket(spine: dict[str, str]) 
 
     Removing `--proxy-headers` from the service definition, or reading the socket directly, breaks
     Google sign-in in production while every other test stays green. This is the cheapest place to
-    observe it, and `deploy/verify.ps1` can check the same field on the real host.
+    observe it, and `scripts/verify.ps1` can check the same field on the real host.
     """
     health = httpx.get(f"{spine['APP_URL']}/health", headers=CADDY_HEADERS, timeout=30).json()
     assert health["baseUrl"] == f"https://{PUBLIC_HOST}", (

@@ -4,8 +4,10 @@ An administrative tool for dental practices running [Principle
 Dental](https://principle.dental). Staff get a small web page of task results and a chat
 interface; Windows Task Scheduler runs the tasks.
 
-It is small on purpose — the whole application is budgeted at 2,000 lines, enforced by a test —
-because a tool a single practice has to maintain should be a tool one person can read.
+It is small on purpose — 2,000 lines, enforced by a test — because a tool a single practice has to
+maintain should be a tool one person can read. The budget counts what runs in production, which is
+the only code that can break for staff. Tests, comments and tooling are reported but not budgeted:
+none of them has ever caused a phone call.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and its constraints.
 
@@ -98,7 +100,7 @@ invented. See [tests/recordings/README.md](tests/recordings/README.md).
 ## Layout
 
 ```text
-src/principle_admin/     the application (budgeted: 2,000 lines)
+src/principle_admin/     the application (budgeted with deploy/: 2,000 lines)
   config.py              which Principle, and where local data lives
   principle.py           the API client and the catalogue of calls it may make
   tasks.py               business operations and the command Task Scheduler runs
@@ -110,18 +112,19 @@ tests/
   spec/                  the derived fingerprint of the operations we call
   integration/           the staging tier and the specification drift check
   e2e/                   separate processes, real browser
-scripts/                 the recorder, the spec fingerprinter, the integration runner
-deploy/                  WinSW, Task Scheduler, verify.ps1, ACCEPTANCE.md
+scripts/                 tools: the recorder, the fingerprinter, the release gate, verify.ps1
+deploy/                  what runs in production: Caddy, WinSW, Task Scheduler (budgeted)
 ```
 
 ## Deployment
 
 Windows, natively: one Uvicorn process under WinSW, tasks under Task Scheduler.
 
-`deploy/verify.ps1` is the gate — service identity, data directory outside the release, health
+`scripts/verify.ps1` is the gate — service identity, data directory outside the release, health
 endpoint naming which Principle it reached, scheduled task registered without interactive logon.
 `deploy/ACCEPTANCE.md` holds what only a person can sign off: the reboot, the unattended run and
 the restore drill.
 
-Staff access is expected to be restricted to the practice network or VPN. HTTPS termination and
-staff sign-in are not solved here; reuse your practice's existing infrastructure.
+Caddy fronts the application; `deploy/Caddyfile` is the configuration it runs. Access is open to
+the internet so staff can work from home, which makes the Google sign-in allowlist the only
+access control.

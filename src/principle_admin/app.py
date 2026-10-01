@@ -89,7 +89,7 @@ def _configure_sign_in() -> None:
 def health(
     request: Request, configured: Annotated[Settings, Depends(settings)]
 ) -> dict[str, object]:
-    """Readiness for deploy/verify.ps1.
+    """Readiness for scripts/verify.ps1.
 
     `baseUrl` is the origin this process believes staff reach it on. Behind Caddy it must be the
     public hostname; if it reports the socket, uvicorn is not honouring the proxy headers and the

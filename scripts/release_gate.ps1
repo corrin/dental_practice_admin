@@ -123,5 +123,5 @@ if ($script:Failed.Count -gt 0) {
     exit 1
 }
 Write-Host "All stages passed in ${elapsed}s." -ForegroundColor Green
-Write-Host 'Deployment still needs deploy\verify.ps1 on the host and deploy\ACCEPTANCE.md signed.'
+Write-Host 'Deployment still needs scripts\verify.ps1 on the host and deploy\ACCEPTANCE.md signed.'
 exit 0
