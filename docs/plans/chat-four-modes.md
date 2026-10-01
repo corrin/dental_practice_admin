@@ -84,7 +84,11 @@ Generic tools on that session, added in `chat.build_tools`:
     - The answer is exact over every matching record, not one page, and the model never does
       the arithmetic.
   - `firestore_update(document_path, fields)`: an update with a field mask. Its description
-    says `updatedAt`/`updatedBy` aren't stamped, and says to prefer the API.
+    says:
+    - `updatedAt`/`updatedBy` aren't stamped, so prefer the API.
+    - A direct write changes only stored data. Anything the web app does when a button is
+      pressed (automations, sends, recalculations) doesn't run, so actions like those go
+      through the browser modes.
 - **Scripted browser:** `browser_steps(steps)`.
   - Each step is one of `goto(path)`, `click(selector)`, `fill(selector, value)`,
     `select_option(text)`, `wait_for(selector)` and `read(selector)`.
@@ -95,7 +99,9 @@ Generic tools on that session, added in `chat.build_tools`:
   - **Kept:** `observation()` (URL, accessibility tree, visible inputs, screenshot),
     `run_phase`'s repeat and budget limits, and the stay-on-this-workspace URL check.
   - **Removed:** `capture`/`verify`, the fill whitelist, and the hardcoded patient.
-  - Returns a summary of what it did and saw.
+  - Returns a summary of what it did and saw, including the steps it took. A developer can
+    then record those steps in `browser_scripted/`, so the same task runs next time as the
+    faster, repeatable scripted mode.
 
 ### 5. `chat.py`
 - **`INSTRUCTIONS`:**
