@@ -1,0 +1,72 @@
+<#
+.SYNOPSIS
+  Read-only production verification. Run on the practice host after installation or a reboot.
+#>
+[CmdletBinding()]
+param(
+    [string]$InstallRoot = 'C:\Program Files\DentalPracticeAdmin',
+    [string]$DataRoot = 'C:\ProgramData\DentalPracticeAdmin',
+    [string]$HealthUrl = 'http://127.0.0.1:8080/health'
+)
+$ErrorActionPreference = 'Stop'
+$script:Failures = @()
+function Check {
+    param([string]$Name, [scriptblock]$Test)
+    try {
+        $detail = & $Test
+        Write-Host "PASS: $Name - $detail" -ForegroundColor Green
+    } catch {
+        Write-Host "FAIL: $Name - $_" -ForegroundColor Red
+        $script:Failures += $Name
+    }
+}
+
+Check 'Application service is running as a designated account' {
+    $service = Get-CimInstance Win32_Service -Filter "Name='dental-practice-admin'"
+    if (-not $service -or $service.State -ne 'Running') { throw 'service is not running' }
+    if (-not $service.StartName -or $service.StartName -in @('LocalSystem', 'NT AUTHORITY\SYSTEM')) {
+        throw 'service needs a designated account'
+    }
+    $service.StartName
+}
+Check 'Runtime data is outside the release directory' {
+    $data = (Resolve-Path -LiteralPath $DataRoot).Path.TrimEnd('\') + '\'
+    $install = (Resolve-Path -LiteralPath $InstallRoot).Path.TrimEnd('\') + '\'
+    if ($data.StartsWith($install, 'OrdinalIgnoreCase')) { throw 'data sits inside the release' }
+    $data
+}
+Check 'Service opens its database and reports production' {
+    $health = Invoke-RestMethod -Uri $HealthUrl -TimeoutSec 15
+    if ($health.status -ne 'ok' -or $health.principle -ne 'production') {
+        throw 'service does not report healthy production configuration'
+    }
+    'production readiness confirmed under the running service identity'
+}
+Check 'Daily diary is configured for unattended execution' {
+    $task = Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Daily diary'
+    if ($task.State -eq 'Disabled') { throw 'task is disabled' }
+    if ($task.Principal.LogonType -ne 'Password') { throw 'task needs an unattended Password logon' }
+    if ($task.Actions.Count -ne 1) { throw 'expected one diary action' }
+    $action = $task.Actions[0]
+    $expected = Join-Path $InstallRoot '.venv\Scripts\python.exe'
+    if ($action.Execute -ne $expected -or -not (Test-Path -LiteralPath $expected)) {
+        throw 'task does not use the installed interpreter'
+    }
+    if ($action.WorkingDirectory -ne $InstallRoot -or
+        $action.Arguments -ne '-m dental_practice_admin.tasks diary --initiator scheduler') {
+        throw 'task does not invoke the installed diary operation'
+    }
+    $info = $task | Get-ScheduledTaskInfo
+    if ($info.LastTaskResult -ne 0) { throw "last task result is $($info.LastTaskResult)" }
+    if ($info.LastRunTime -lt (Get-Date).AddHours(-26)) { throw 'scheduled task has not run within 26 hours' }
+    'registered action and last scheduler outcome verified'
+}
+Check 'A recent complete production diary exists' {
+    $python = Join-Path $InstallRoot '.venv\Scripts\python.exe'
+    $database = Join-Path $DataRoot 'production\dental_practice_admin.db'
+    & $python "$PSScriptRoot\check_runs.py" $database
+    if ($LASTEXITCODE -ne 0) { throw 'no recent complete production diary' }
+}
+if ($script:Failures.Count) { exit 1 }
+Write-Host 'Host checks passed. Reboot and restore evidence is recorded in deploy/ACCEPTANCE.md.'
+exit 0

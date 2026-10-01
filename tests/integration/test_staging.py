@@ -14,8 +14,8 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
-from principle_admin.config import Settings
-from principle_admin.principle import PrincipleClient, PrincipleError
+from dental_practice_admin.config import Settings
+from dental_practice_admin.principle import PrincipleClient, PrincipleError
 
 pytestmark = pytest.mark.integration
 

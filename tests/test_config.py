@@ -9,12 +9,13 @@ from typing import Any
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from principle_admin.config import (
+from dental_practice_admin.config import (
     FAKE_API_URL,
     STAGING_API_URL,
     ConfigurationError,
     Environment,
     Settings,
+    SignIn,
 )
 
 PRODUCTION_API_URL = "https://api.principle.dental"
@@ -24,16 +25,18 @@ PRODUCTION_API_URL = "https://api.principle.dental"
 def _isolated_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Build settings from the arguments alone.
 
-    A developer's .env or exported PRINCIPLE_* variables would otherwise decide what these
-    assertions are testing, and the failure would look like a bug in the guard.
+    A developer's .env or exported variables would otherwise decide what these assertions are
+    testing, and the failure would look like a bug in the guard. Both prefixes: ADMIN_ for this
+    application, PRINCIPLE_ for the patient management system.
     """
     for name in list(os.environ):
-        if name.startswith("PRINCIPLE_"):
+        if name.startswith(("ADMIN_", "PRINCIPLE_", "OPENAI_")):
             monkeypatch.delenv(name)
     monkeypatch.chdir(tmp_path)
 
 
 def _settings(**overrides: Any) -> Settings:
+    overrides.setdefault("environment", Environment.FAKE)
     return Settings(**overrides)
 
 
@@ -73,6 +76,103 @@ def test_real_environment_refuses_missing_credentials() -> None:
     settings = _settings(environment=Environment.STAGING, api_base_url=STAGING_API_URL)
     with pytest.raises(ConfigurationError, match="PRINCIPLE_API_KEY"):
         settings.require_credentials()
+
+
+def test_the_allowlist_can_be_set_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Configuration must survive arriving as environment variables, which is how it arrives.
+
+    Every other test here builds Settings from Python keyword arguments, which skips the
+    environment source entirely. That is how `staff_emails` shipped as a frozenset that
+    pydantic-settings tried to JSON-decode: ADMIN_STAFF_EMAILS=someone@example.com raised at
+    startup, the application would not boot, and nobody could sign in.
+    """
+    monkeypatch.setenv("ADMIN_STAFF_EMAILS", "One@Practice.NZ, two@practice.nz")
+    monkeypatch.setenv("ADMIN_STAFF_DOMAIN", "@Example.COM")
+    monkeypatch.setenv("ADMIN_SIGN_IN", "google")
+
+    settings = Settings()
+
+    assert settings.allowed_emails == {"one@practice.nz", "two@practice.nz"}
+    assert settings.admits("ONE@practice.nz", email_verified=True)
+    assert settings.admits("anyone@example.com", email_verified=True)
+    assert not settings.admits("stranger@elsewhere.com", email_verified=True)
+    assert settings.sign_in is SignIn.GOOGLE
+
+
+def test_openai_settings_use_the_names_openai_documents(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OPENAI_API_KEY must be read under that name, not ADMIN_OPENAI_API_KEY.
+
+    `env_prefix` applies to every field, so without an alias these read as empty however plainly
+    the environment sets them -- and the application quietly falls back to the SDK's own lookup,
+    which is the second source of truth this is meant to remove.
+    """
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:8899/v1")
+
+    settings = Settings()
+
+    assert settings.openai_api_key.get_secret_value() == "sk-test"
+    assert settings.openai_base_url == "http://127.0.0.1:8899/v1"
+
+
+@pytest.mark.parametrize(
+    ("environment", "url"),
+    [(Environment.STAGING, STAGING_API_URL), (Environment.PRODUCTION, PRODUCTION_API_URL)],
+)
+def test_real_patient_data_refuses_developer_sign_in(environment: Environment, url: str) -> None:
+    """Patient records must never be served to an unauthenticated visitor.
+
+    Staging counts: it is a migrated copy of the real practice. Separating sign-in from the
+    Principle environment created this combination. Without this guard, one environment variable
+    is the difference between a login page and an open door.
+    """
+    settings = _settings(
+        environment=environment,
+        api_base_url=url,
+        sign_in=SignIn.DEVELOPER,
+        api_key=SecretStr("k"),
+        practice_id="p",
+    )
+    with pytest.raises(ConfigurationError):
+        settings.require_sign_in_configured()
+
+
+def test_google_sign_in_refuses_missing_credentials() -> None:
+    """A deployment nobody can sign in to must fail at startup, not on the first visitor."""
+    settings = _settings(sign_in=SignIn.GOOGLE)
+    with pytest.raises(ConfigurationError, match="ADMIN_GOOGLE_CLIENT_ID"):
+        settings.require_sign_in_configured()
+
+
+def test_google_sign_in_works_against_the_fake_principle() -> None:
+    """The combination this separation exists for: a real gate with nothing real behind it.
+
+    If this were refused, Google sign-in could only ever be exercised with patient data already
+    exposed, which is the wrong order to find out the allowlist is wrong.
+    """
+    settings = _settings(
+        environment=Environment.FAKE,
+        sign_in=SignIn.GOOGLE,
+        session_secret=SecretStr("s"),
+        google_client_id="id",
+        google_client_secret=SecretStr("secret"),
+        staff_emails="someone@practice.nz",
+    )
+    settings.require_sign_in_configured()
+
+
+def test_the_fake_banner_follows_principle_not_sign_in() -> None:
+    """The banner answers "is this data real", which sign-in has nothing to do with.
+
+    Tying them together is what made the obvious workaround -- label it staging, point it at the
+    fake -- quietly remove the banner while the page still showed invented numbers.
+    """
+    settings = _settings(environment=Environment.FAKE, sign_in=SignIn.GOOGLE)
+    assert settings.environment is Environment.FAKE
 
 
 def test_fake_environment_needs_no_credentials() -> None:

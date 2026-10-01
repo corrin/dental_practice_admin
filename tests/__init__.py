@@ -1,1 +1,1 @@
-"""Tests for principle_admin."""
+"""Tests for dental_practice_admin."""

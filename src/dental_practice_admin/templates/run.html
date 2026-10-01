@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ run.task }} — {{ run.started_at[:19] }}{% endblock %}
+{% block body %}
+<p><a href="/">&larr; All runs</a></p>
+<h1 data-automation-id="run-title">{{ run.task }}</h1>
+
+{% if not run.is_trustworthy %}
+<p class="banner" data-automation-id="not-complete-warning">
+  This run is <strong>{{ run.outcome.value }}</strong> with <strong>{{ run.coverage.value }}</strong>
+  coverage. It does not describe the whole day and must not be read as though it did.
+  {% if run.detail and run.detail.coverageNote %}<br>{{ run.detail.coverageNote }}{% endif %}
+</p>
+{% endif %}
+
+<dl>
+  <dt>Run id</dt><dd class="mono" data-automation-id="run-id">{{ run.run_id }}</dd>
+  <dt>Initiator</dt><dd data-automation-id="run-initiator">{{ run.initiator }}</dd>
+  <dt>Principle</dt><dd data-automation-id="run-principle">{{ run.principle }}</dd>
+  <dt>Started</dt><dd class="mono">{{ run.started_at }}</dd>
+  <dt>Finished</dt><dd class="mono">{{ run.finished_at or '—' }}</dd>
+  <dt>Summary</dt><dd data-automation-id="run-summary">{{ run.summary }}</dd>
+</dl>
+
+{% if run.detail and run.detail.byPractitioner %}
+<h1>By practitioner</h1>
+<table data-automation-id="practitioner-table">
+  <tr><th>Practitioner</th><th>Booked</th><th>Attending</th><th>First</th><th>Last</th></tr>
+  {% for day in run.detail.byPractitioner %}
+  <tr data-automation-id="practitioner-row">
+    <td>{{ day.name }}</td>
+    <td>{{ day.appointments }}</td>
+    <td>{{ day.attending }}</td>
+    <td class="mono">{{ day.first_from or '' }}</td>
+    <td class="mono">{{ day.last_to or '' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{% if run.detail and run.detail.byStatus %}
+<h1>By status</h1>
+<table data-automation-id="status-table">
+  <tr><th>Status</th><th>Count</th></tr>
+  {% for status, count in run.detail.byStatus.items() %}
+  <tr><td>{{ status }}</td><td>{{ count }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

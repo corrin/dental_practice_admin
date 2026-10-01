@@ -13,14 +13,14 @@ from collections.abc import AsyncIterator, Iterator
 import pytest
 from pydantic import SecretStr
 
-from principle_admin.config import (
+from dental_practice_admin.config import (
     STAGING_API_URL,
     ConfigurationError,
     Environment,
     Settings,
     is_production_host,
 )
-from principle_admin.principle import PrincipleClient
+from dental_practice_admin.principle import PrincipleClient
 from tests.fake import FAKE_API_KEY, FAKE_PRACTICE_ID, FakeStore, seed, transport
 
 
@@ -37,6 +37,19 @@ def _never_production() -> None:
             f"PRINCIPLE_API_BASE_URL={configured!r} addresses production; "
             "no test may run against live patient records"
         )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_local_tests(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch, _never_production: None
+) -> None:
+    """Only explicit live tiers may read this machine's credentials or configuration."""
+    if request.node.get_closest_marker("integration") or request.node.get_closest_marker("llm"):
+        return
+    for name in list(os.environ):
+        if name.startswith(("ADMIN_", "PRINCIPLE_", "OPENAI_")):
+            monkeypatch.delenv(name)
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
 
 
 @pytest.fixture

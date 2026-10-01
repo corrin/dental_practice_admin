@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-16"?>
+<!--
+  Task Scheduler definition for the daily diary.
+
+  Register with:
+    schtasks /Create /XML deploy\daily-diary-task.xml /TN "Massey Smiles Admin\Daily diary" ^
+             /RU <service account> /RP *
+
+  Choices that matter here:
+    * RunOnlyIfLoggedOn false -- the practice host has no interactive session at 06:30.
+    * MultipleInstances IgnoreNew -- a slow run must not be overlapped by the next day's.
+    * StartWhenAvailable false -- a missed run is reported, not caught up. Yesterday's diary
+      delivered today is worse than no diary: it reads as today's.
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Reports the next day's appointments from Principle.</Description>
+    <URI>\Massey Smiles Admin\Daily diary</URI>
+  </RegistrationInfo>
+  <Triggers>
+    <CalendarTrigger>
+      <StartBoundary>2026-10-02T06:30:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
+    </CalendarTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>Password</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <StartWhenAvailable>false</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <ExecutionTimeLimit>PT30M</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Program Files\DentalPracticeAdmin\.venv\Scripts\python.exe</Command>
+      <Arguments>-m dental_practice_admin.tasks diary --initiator scheduler</Arguments>
+      <WorkingDirectory>C:\Program Files\DentalPracticeAdmin</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

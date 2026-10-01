@@ -28,11 +28,10 @@ from urllib.parse import parse_qs
 
 import httpx
 
-from tests.fake.store import FAKE_API_KEY, FakeStore, Page, UnknownOffsetError, seed
+from tests.fake.store import FAKE_API_KEY, SERVER_DEFAULT_LIMIT, FakeStore, Page, seed
 
 REFUSALS_DIR = Path(__file__).resolve().parent.parent / "recordings" / "refusals"
 
-DEFAULT_LIMIT = 100
 MAX_LIMIT = 500
 
 
@@ -105,7 +104,7 @@ def _refusal(name: str) -> Response:
 def _paging(request: Request) -> tuple[int, str | None]:
     limit = request.query.get("limit")
     if limit is None:
-        return DEFAULT_LIMIT, request.query.get("offsetId")
+        return SERVER_DEFAULT_LIMIT, request.query.get("offsetId")
     if not limit.isdigit() or not 1 <= int(limit) <= MAX_LIMIT:
         return _bad_request_limit(limit)
     return int(limit), request.query.get("offsetId")
@@ -116,6 +115,7 @@ def _bad_request_limit(limit: str) -> tuple[int, str | None]:
 
 
 def _envelope(page: Page, limit: int) -> dict[str, object]:
+    """The listing envelope. `total` is this page's row count, as Principle sends it."""
     meta: dict[str, object] = {"limit": limit, "total": page.total}
     if page.next_offset_id is not None:
         meta["nextOffsetId"] = page.next_offset_id
@@ -138,10 +138,9 @@ def list_practices(store: FakeStore, request: Request, _match: re.Match[str]) ->
 
 
 def list_practitioners(store: FakeStore, request: Request, match: re.Match[str]) -> Response:
-    _only(request, frozenset({"limit", "offsetId"}))
-    limit, offset = _paging(request)
-    page = store.practitioners(match.group("practice_id"), limit, offset)
-    return Response(200, _envelope(page, limit))
+    """Every practitioner, with no `meta`: the real endpoint is not paginated."""
+    _only(request, frozenset())
+    return Response(200, {"data": store.practitioners(match.group("practice_id"))})
 
 
 def list_appointments(store: FakeStore, request: Request, _match: re.Match[str]) -> Response:
@@ -149,9 +148,6 @@ def list_appointments(store: FakeStore, request: Request, _match: re.Match[str])
         request,
         frozenset({"practiceId", "practitionerId", "status", "from", "to", "limit", "offsetId"}),
     )
-    missing = {"practiceId", "from", "to"} - set(request.query)
-    if missing:
-        return _refusal("appointments_missing_required")
     limit, offset = _paging(request)
     page = store.appointments(
         practice_id=request.query["practiceId"],
@@ -193,10 +189,7 @@ def dispatch(store: FakeStore, request: Request) -> Response:
         match = pattern.match(request.path)
         if match is None or method != request.method:
             continue
-        try:
-            return handler(store, request, match)
-        except UnknownOffsetError:
-            return _refusal("unknown_offset")
+        return handler(store, request, match)
     raise FakeUnhandledRouteError(
         f"the fake Principle has no route for {request.method} {request.path}; "
         "add it to tests/fake/server.py, from a recording"

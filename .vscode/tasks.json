@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run",
+      "detail": "Staging Principle, Google sign-in, OpenAI, and ngrok.",
+      "type": "process",
+      "command": "uv",
+      "args": ["run", "--locked", "python", "scripts/run.py"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated" }
+    }
+  ]
+}

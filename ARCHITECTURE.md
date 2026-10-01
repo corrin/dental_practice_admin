@@ -1,24 +1,24 @@
-# Principle_admin architecture
+# dental_practice_admin architecture
 
-Status: Architecture baseline; application implementation has not started.
+Status: Implemented application skeleton. Real practice workflows and deployment acceptance remain to be completed.
 
 ## Purpose and constraints
 
-Principle_admin is a small Python application for administrative work in Principle Dental at one dental practice. Staff use a web browser for AI-assisted interactive work and ordinary task pages. Scheduled tasks run on an always-on practice Windows host.
+dental_practice_admin is a small Python application for administrative work in Principle Dental at one dental practice. Staff use a web browser for AI-assisted interactive work and ordinary task pages. Scheduled tasks run on an always-on practice Windows host.
 
-The architecture is planned upfront so that interactive and scheduled work share useful code without becoming a general-purpose automation platform.
+Interactive and scheduled work share ordinary Python operations. There is no general-purpose automation platform.
 
 Agreed constraints:
 
 - Keep the entire custom application under 2,000 lines of code. Prefer established libraries and operating-system facilities to custom infrastructure.
 - Run natively on Windows and remain maintainable by a small dental business.
-- Provide chat plus simple task/results pages, accessible on the practice network or VPN.
+- Provide chat plus simple task/results pages, accessible through the configured HTTPS hostname with Google sign-in.
 - Support both reading and updating Principle records.
 - Use ordinary Python and deterministic browser automation for scheduled work. Runtime AI is a last resort for a specific step that cannot reasonably be scripted.
 - Use the official Principle API, verified web backend calls, or browser automation according to the capability required.
 - Keep SMS_Bridge and the OpenDental migration investigation separate from this application.
 
-Proposed code-budget measurement: count maintained Python, HTML, JavaScript, and setup scripts. Report tests and reproducibly generated client code separately. Dependencies are excluded. Generated code must be reproducible and must not require manual edits. Confirm this accounting before implementation; generated output is not an excuse to hide maintenance work.
+The code budget counts executable application and deployment code. Tests, tooling, comments, and documentation are reported separately. The counter is scripts/code_size.py; tests/test_budget.py enforces it.
 
 The line limit is a scope constraint. If a feature would exceed it, narrow the feature or choose a better-fitting library rather than compress readable code.
 
@@ -120,11 +120,11 @@ Principle remains the source of truth for practice records. Do not mirror the en
 
 Use explicit paths for runtime data, configuration, credentials, browser sessions, and logs. Keep secrets and authenticated browser state out of version control. Use synthetic or redacted test fixtures.
 
-Staff authentication, conversation retention, backup retention, and detailed write permissions must be selected before staff deployment. Reuse an appropriate identity library or the practice's existing identity system rather than implement password management from scratch.
+Google sign-in is required by default at the application boundary. Only login, callback, and minimal readiness are public. Developer identity is an explicit, prominently announced diagnostic override forbidden with production Principle. Authentication is independent of the Principle and AI providers. Conversation retention, backup retention, and detailed write permissions remain deployment decisions.
 
 ## Windows deployment
 
-Run the web application with one Uvicorn process under WinSW. Configure automatic startup, bounded restart behaviour, and log rotation. Use the standard Windows-compatible asyncio implementation and verify Playwright subprocess execution with the pinned runtime. Development reload mode is not part of the service configuration.
+Run the web application factory, `dental_practice_admin.app:create_app --factory`, with one Uvicorn process under WinSW. Configuration is resolved and validated once per process; changes require a restart. Configure automatic startup, bounded restart behaviour, and log rotation. Use the standard Windows-compatible asyncio implementation and verify Playwright subprocess execution with the pinned runtime. Development reload mode is not part of the service configuration.
 
 Windows Task Scheduler invokes the installed Python interpreter with absolute paths and an explicit working directory. Configure jobs to run without an interactive login and prevent overlapping instances where the task requires it. Choose missed-run behaviour per task: catching up is not always appropriate for time-sensitive changes.
 
@@ -134,16 +134,16 @@ Target a Playwright-supported Windows version: current documentation lists Windo
 
 The PowerShell setup should install pinned dependencies, install the required browser, configure the service and tasks, and run a health check. Stop the service for updates, retain the previous working release, and keep runtime data outside the release directory. Back up SQLite through a consistent database backup mechanism.
 
-Staff access is restricted to the practice network or VPN. HTTPS termination and staff authentication are unresolved deployment choices; reuse existing practice infrastructure where suitable.
+Staff access is open to the internet so that staff can work from home without a VPN. Caddy on the practice server terminates HTTPS for `admin.massey-smiles.co.nz` and reverse-proxies `office.massey-smiles.co.nz` to SMS_Bridge on the reception machine; both names resolve to the one public address and are told apart by the Host header. The Google sign-in allowlist is therefore the only access control, and the strength of those accounts is the strength of the system.
 
-## Proposed repository layout
+## Repository layout
 
 ```text
-Principle_admin/
+dental_practice_admin/
   ARCHITECTURE.md
   README.md
   pyproject.toml
-  src/principle_admin/
+  src/dental_practice_admin/
     app.py                 # FastAPI routes and application composition
     chat.py                # ChatKit server and agent tools
     principle.py           # Documented API access and configuration
@@ -176,14 +176,14 @@ Run automated checks on Windows. Validate live behaviour against staging where a
 ## Decisions still required
 
 1. Two real initial workflows, ideally one interactive and one scheduled. The lunch-blocking example is illustrative, not an agreed requirement.
-2. The production Windows host, service identity, staff sign-in method, and HTTPS arrangement.
+2. The production Windows host and service identity; Google sign-in and Caddy HTTPS are selected.
 3. Whether the selected workflows need durable long-running interactive execution.
 4. Which web-only capabilities are needed and what backend or browser contracts have been verified.
-5. API-client generation feasibility against the current specification.
+5. Additional Principle calls required by the selected workflows; the current three-call HTTPX client and catalogue are implemented.
 6. Conversation/result retention, backups, and workflow-specific write permissions.
-7. Final code-budget accounting, particularly generated output, deployment scripts, and tests.
+7. Production reboot, unattended execution, and restore acceptance evidence.
 
-These decisions limit implementation readiness; they do not require expanding the architecture into a platform. The next implementation should deliver a complete small application around agreed workflows within the maintenance budget.
+These decisions limit staff deployment readiness. New workflows must fit the maintenance budget rather than expand the application into a platform.
 
 ## References
 

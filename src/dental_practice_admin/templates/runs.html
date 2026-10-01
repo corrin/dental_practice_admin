@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block body %}
+<p><a href="/chat" data-automation-id="chat-link">Ask about the diary &rarr;</a></p>
+<h1>Tasks</h1>
+<p class="quiet">Schedules are owned by Windows Task Scheduler. This page shows what each
+task is and what its runs found, not when it will next fire.</p>
+<table data-automation-id="task-list">
+  <tr><th>Task</th><th>Command</th><th>What it does</th></tr>
+  {% for task in tasks %}
+  <tr>
+    <td data-automation-id="task-name">{{ task.title }}</td>
+    <td><code>{{ task.command }}</code></td>
+    <td>{{ task.description }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h1>Recent runs</h1>
+{% if not runs %}
+<p class="quiet" data-automation-id="no-runs">No runs recorded yet.</p>
+{% else %}
+<table data-automation-id="run-list">
+  <tr><th>Started</th><th>Task</th><th>Principle</th><th>Outcome</th><th>Result</th></tr>
+  {% for run in runs %}
+  <tr data-automation-id="run-row">
+    <td class="mono">{{ run.started_at[:19] }}</td>
+    <td>{{ run.task }}</td>
+    <td>{{ run.principle }}</td>
+    <td>
+      <span class="tag {% if run.outcome.value == 'failed' %}failed{% elif not run.is_trustworthy %}partial{% endif %}"
+            data-automation-id="run-outcome">{{ run.outcome.value }}</span>
+      {% if run.coverage.value == 'partial' %}
+      <span class="tag partial" data-automation-id="run-coverage">partial</span>
+      {% endif %}
+    </td>
+    <td><a href="/runs/{{ run.run_id }}" data-automation-id="run-link">{{ run.summary or 'in progress' }}</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

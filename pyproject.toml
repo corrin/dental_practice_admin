@@ -1,16 +1,24 @@
 [project]
-name = "principle-admin"
+name = "dental-practice-admin"
 version = "0.1.0"
 description = "Administrative application for Principle Dental at one dental practice"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "authlib>=1.8.0",
+    "fastapi>=0.142.2",
     "httpx>=0.28,<0.29",
+    "itsdangerous>=2.2.0",
+    "jinja2>=3.1.6",
+    "openai-agents>=0.22.3",
+    "openai-chatkit>=1.6.5",
     "pydantic>=2.9,<3",
     "pydantic-settings>=2.6,<3",
+    "tzdata>=2026.4",
+    "uvicorn[standard]>=0.54.0",
 ]
 
 [project.scripts]
-principle-admin = "principle_admin.tasks:main"
+dental-practice-admin = "dental_practice_admin.tasks:main"
 
 [dependency-groups]
 dev = [
@@ -19,6 +27,8 @@ dev = [
     "pyyaml>=6.0,<7",
     "ruff>=0.7,<0.8",
     "mypy>=1.13,<2",
+    "pytest-playwright>=0.9.0",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [build-system]
@@ -26,7 +36,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/principle_admin"]
+packages = ["src/dental_practice_admin"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -35,10 +45,13 @@ asyncio_mode = "auto"
 # The default suite is hermetic: no credentials, no network, safe in CI. The integration
 # tier is a release gate run deliberately (scripts/run_integration_tests.ps1), never a
 # default, because it reaches the real staging tenant.
-addopts = "-m 'not integration and not ui' --strict-markers"
+addopts = "-m 'not integration and not ui and not e2e and not smoke and not llm' --strict-markers"
 markers = [
     "integration: reaches the real Principle staging API; refuses rather than skips when unconfigured",
     "ui: drives the real Principle web UI with Playwright",
+    "e2e: runs the fake, the task and the web application as separate processes, in a browser",
+    "smoke: loads every page in a real browser and fails on any console error; needs internet",
+    "llm: calls the real OpenAI API; costs money, proves the wire format",
 ]
 
 [tool.ruff]
@@ -56,7 +69,13 @@ ignore = ["D203", "D213", "D401", "D102", "D105", "D107"]
 python_version = "3.12"
 strict = true
 files = ["src", "tests", "scripts"]
-# src is the package root; without these mypy reads src/principle_admin/*.py twice, once
+# src is the package root; without these mypy reads src/dental_practice_admin/*.py twice, once
 # as a top-level module and once through the installed package.
 mypy_path = "src"
 explicit_package_bases = true
+
+# authlib ships no type information. The OAuth surface we touch is three calls, all in
+# auth.py, and none of them is checkable from stubs that do not exist.
+[[tool.mypy.overrides]]
+module = ["authlib.*"]
+ignore_missing_imports = true

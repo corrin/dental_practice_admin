@@ -18,7 +18,7 @@ from typing import Any
 
 import httpx
 
-from principle_admin.config import Settings
+from dental_practice_admin.config import Settings
 
 
 class PrincipleError(Exception):
@@ -71,8 +71,8 @@ CATALOGUE: tuple[Call, ...] = (
         name="list_practitioners",
         method="GET",
         path="/v1/practices/{practice_id}/practitioners",
-        query=_PAGING,
-        paginated=True,
+        # Observed 2026-10-01: this endpoint ignores `limit` and returns no `meta`. Declaring
+        # a paging parameter it disregards would be claiming a filter that does not work.
     ),
     Call(
         name="list_appointments",
@@ -177,9 +177,20 @@ class PrincipleClient:
     ) -> AsyncIterator[dict[str, Any]]:
         """Every row of a listing, following `meta.nextOffsetId` to the end.
 
-        An offsetId that repeats ends the walk. od_data hit non-advancing offsets on this
-        API, and the spec's own PaginationMeta example has nextOffsetId equal to offsetId,
-        so a client that trusts the cursor to advance loops forever.
+        Two guards, both earned against the real API (observed 2026-10-01):
+
+        A repeated cursor ends the walk. od_data hit non-advancing offsets here, and the
+        spec's own PaginationMeta example has nextOffsetId equal to offsetId, so a client
+        trusting the cursor to advance loops forever.
+
+        A repeated row id raises. `nextOffsetId` is a `createdAt`, not a record id, and a
+        cursor the server cannot place is ignored rather than refused -- so a stale cursor
+        mid-walk silently restarts from page one. Yielding those rows again would inflate
+        every count in the report, and a wrong number filed as a result is worse than a
+        failure.
+
+        `meta.total` is deliberately unused: it is the current page's row count, not the size
+        of the result set.
         """
         call = BY_NAME.get(name)
         if call is None:
@@ -191,6 +202,7 @@ class PrincipleClient:
             return
 
         seen: set[str] = set()
+        yielded: set[str] = set()
         offset: str | None = None
         for _ in range(max_pages):
             page_query = dict(query or {}, limit=page_size)
@@ -198,6 +210,17 @@ class PrincipleClient:
                 page_query["offsetId"] = offset
             envelope = await self.get(name, path_params=path_params, query=page_query)
             for row in envelope.get("data") or []:
+                identifier = row.get("id")
+                if isinstance(identifier, str):
+                    if identifier in yielded:
+                        raise PrincipleError(
+                            200,
+                            call.method,
+                            call.path,
+                            f"paging returned {identifier!r} twice after offsetId={offset!r};"
+                            " the cursor restarted and the rows cannot be counted",
+                        )
+                    yielded.add(identifier)
                 yield row
             meta = envelope.get("meta") or {}
             next_offset = meta.get("nextOffsetId") if isinstance(meta, dict) else None
