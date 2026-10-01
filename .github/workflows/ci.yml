@@ -35,7 +35,7 @@ jobs:
           uv run pytest -m e2e -q
 
       - name: Code budget
-        run: uv run python -m tests.test_budget
+        run: uv run python -m scripts.code_size
 
 # The integration tier is deliberately absent: it needs staging credentials, and CI stays
 # hermetic. It is a release gate, run from a machine that holds them

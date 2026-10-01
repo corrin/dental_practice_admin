@@ -5,12 +5,15 @@ features, "while I'm here" work -- need judgment, so no pattern can find them. A
 the same diff varies between runs, and a gate that fails at random gets bypassed with --no-verify.
 So this prints a score and findings, and always exits 0.
 
+Before the review it prints the application's size in lines and branches, and what the commit does
+to each, using the counter in scripts/code_size.py.
+
 The rubric is AGENTS.md itself, read at run time, so there is no second copy to keep in step.
 
 Run by the pre-commit hook only after scripts/scan_for_leaks.py passes: the diff is sent to
 Anthropic, and the leak scan is what makes that safe.
 
-    uv run python scripts/review_smells.py
+    uv run python -m scripts.review_smells
 """
 
 from __future__ import annotations
@@ -18,6 +21,8 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
+
+from scripts.code_size import CATEGORIES, counted, measure
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -41,6 +46,28 @@ Score: N/10  (10 = nothing the rules would object to)
 Report only what the diff itself shows. Do not speculate about code you cannot see."""
 
 
+def application_size(revision: str) -> tuple[int, int]:
+    """(code lines, branches) of application code at a revision; "" means the staged index."""
+    roots = CATEGORIES["application"]
+    listing = (
+        ["git", "ls-tree", "-r", "--name-only", revision, "--", *roots]
+        if revision
+        else ["git", "ls-files", "--", *roots]
+    )
+    paths = subprocess.run(
+        listing, capture_output=True, text=True, cwd=ROOT, check=True
+    ).stdout.splitlines()
+    lines = branched = 0
+    for path in filter(counted, paths):
+        source = subprocess.run(
+            ["git", "show", f"{revision}:{path}"], capture_output=True, cwd=ROOT, check=True
+        ).stdout.decode("utf-8")
+        code, _, branches = measure(path, source)
+        lines += code
+        branched += branches
+    return lines, branched
+
+
 def main() -> int:
     """Print the review, or why there is none. Always 0, so a commit is never refused here."""
     diff = subprocess.run(
@@ -49,6 +76,18 @@ def main() -> int:
     ).stdout
     if not diff.strip():
         return 0
+
+    try:
+        (lines_before, branches_before), (lines, branches) = (
+            application_size("HEAD"), application_size("")
+        )
+    except (subprocess.CalledProcessError, UnicodeDecodeError) as error:
+        print(f"Size report skipped: {error}")
+    else:
+        print(
+            f"Application code: {lines} lines ({lines - lines_before:+d}), "
+            f"{branches} branches ({branches - branches_before:+d})"
+        )
 
     claude = shutil.which("claude")
     if claude is None:

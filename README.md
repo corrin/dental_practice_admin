@@ -54,7 +54,7 @@ uv sync
 uv run pytest                          # fake only: hermetic, fast, needs no credentials
 uv run pytest -m e2e                   # fake, task and web app as separate processes, in a browser
 uv run pytest -m integration           # the real staging API; refuses if unconfigured
-uv run python -m tests.test_budget     # the 2,000-line budget, counted
+uv run python -m scripts.code_size     # the 2,000-line budget, counted
 ```
 
 The integration tier needs `PRINCIPLE_API_KEY` and `PRINCIPLE_PRACTICE_ID` for a **staging**

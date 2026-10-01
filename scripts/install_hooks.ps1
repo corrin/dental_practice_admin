@@ -21,7 +21,7 @@ $body = @'
 #!/bin/sh
 # Installed by scripts/install_hooks.ps1. See tests/test_no_leaked_data.py for the real gate.
 uv run python scripts/scan_for_leaks.py --staged || exit 1
-uv run python scripts/review_smells.py
+uv run python -m scripts.review_smells
 exit 0
 '@ -replace "`r`n", "`n"
 
