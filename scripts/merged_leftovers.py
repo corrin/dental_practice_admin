@@ -29,13 +29,14 @@ def main() -> int:
     """Print removal commands for merged leftovers, and warn about unsaved work."""
     git("fetch", "--prune", "--quiet")
     worktrees: dict[str, str] = {}
-    path = ""
+    paths: list[str] = []
     for line in git("worktree", "list", "--porcelain").splitlines():
         if line.startswith("worktree "):
-            path = line.removeprefix("worktree ")
+            paths.append(line.removeprefix("worktree "))
         elif line.startswith("branch refs/heads/"):
-            worktrees[line.removeprefix("branch refs/heads/")] = path
-    main_checkout = git("rev-parse", "--path-format=absolute", "--git-common-dir")
+            worktrees[line.removeprefix("branch refs/heads/")] = paths[-1]
+    # git lists the main checkout first; it cannot be removed as a worktree.
+    main_checkout = paths[0]
     for branch in git("branch", "--format=%(refname:short)").splitlines():
         if branch == "main":
             continue
@@ -44,7 +45,7 @@ def main() -> int:
             print(f"UNSAVED  {branch}: uncommitted changes in {path}")
         elif not in_main(branch):
             print(f"keep     {branch}: has work not in main")
-        elif path and not main_checkout.startswith(path):
+        elif path and path != main_checkout:
             print(f"merged   {branch}: git worktree remove {path}; git branch -D {branch}")
         elif path:
             print(f"merged   {branch}: checked out in the main checkout; switch to main first")
