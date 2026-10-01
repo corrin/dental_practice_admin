@@ -31,6 +31,10 @@ from principle_admin.storage import Storage, TaskRun
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
+# A signed-in session lasts a working day. Long enough that nobody signs in twice during a shift,
+# short enough that a laptop left at home is not signed in next week.
+SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
+
 # What the task list shows. A task exists here when a command implements it; the schedule
 # that fires it lives in Windows.
 CONFIGURED_TASKS = (
@@ -77,12 +81,20 @@ def _configure_sign_in() -> None:
             secret_key=configured.session_secret.get_secret_value(),
             https_only=True,
             same_site="lax",
+            max_age=SESSION_MAX_AGE_SECONDS,
         )
 
 
 @app.get("/health")
-def health(configured: Annotated[Settings, Depends(settings)]) -> dict[str, object]:
-    """Readiness for deploy/verify.ps1: which Principle, and is the database writable."""
+def health(
+    request: Request, configured: Annotated[Settings, Depends(settings)]
+) -> dict[str, object]:
+    """Readiness for deploy/verify.ps1.
+
+    `baseUrl` is the origin this process believes staff reach it on. Behind Caddy it must be the
+    public hostname; if it reports the socket, uvicorn is not honouring the proxy headers and the
+    Google redirect will be built wrong.
+    """
     store = Storage(configured.database_path)
     runs = len(store.recent_runs(limit=1))
     store.close()
@@ -91,6 +103,7 @@ def health(configured: Annotated[Settings, Depends(settings)]) -> dict[str, obje
         "principle": configured.environment.value,
         "database": str(configured.database_path),
         "hasRuns": bool(runs),
+        "baseUrl": configured.public_origin(request),
     }
 
 

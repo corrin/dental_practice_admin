@@ -72,6 +72,9 @@ function Stage {
 Write-Host "Release gate for Principle_admin" -ForegroundColor White
 
 Stage 'Dependencies are locked and installed' { uv sync --frozen }
+if (Get-Command caddy -ErrorAction SilentlyContinue) {
+    Stage 'Caddy configuration' { caddy validate --config deploy\Caddyfile --adapter caddyfile }
+}
 Stage 'Lint'                                  { uv run ruff check . }
 Stage 'Types'                                 { uv run mypy }
 Stage 'Hermetic suite (fake Principle, fake AI)' { uv run pytest -q }

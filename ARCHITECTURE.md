@@ -134,7 +134,7 @@ Target a Playwright-supported Windows version: current documentation lists Windo
 
 The PowerShell setup should install pinned dependencies, install the required browser, configure the service and tasks, and run a health check. Stop the service for updates, retain the previous working release, and keep runtime data outside the release directory. Back up SQLite through a consistent database backup mechanism.
 
-Staff access is restricted to the practice network or VPN. HTTPS termination and staff authentication are unresolved deployment choices; reuse existing practice infrastructure where suitable.
+Staff access is open to the internet so that staff can work from home without a VPN. Caddy on the practice server terminates HTTPS for `admin.massey-smiles.co.nz` and reverse-proxies `office.massey-smiles.co.nz` to SMS_Bridge on the reception machine; both names resolve to the one public address and are told apart by the Host header. The Google sign-in allowlist is therefore the only access control, and the strength of those accounts is the strength of the system.
 
 ## Proposed repository layout
 

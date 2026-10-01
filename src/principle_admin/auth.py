@@ -30,6 +30,7 @@ from fastapi.responses import RedirectResponse
 from starlette.responses import Response
 
 from principle_admin.config import Environment, Settings, current_settings
+from principle_admin.storage import Storage
 
 GOOGLE_METADATA_URL = "https://accounts.google.com/.well-known/openid-configuration"
 
@@ -135,7 +136,10 @@ async def login(
     if settings.environment is Environment.FAKE:
         return RedirectResponse("/")
     oauth: OAuth = request.app.state.oauth
-    redirect = await oauth.google.authorize_redirect(request, str(request.url_for("callback")))
+    # Built from the public origin, not from `url_for` alone: behind Caddy the latter names the
+    # internal host and port, and Google matches the registered redirect URI exactly.
+    callback = f"{settings.public_origin(request)}{request.url_for('callback').path}"
+    redirect = await oauth.google.authorize_redirect(request, callback)
     return cast("Response", redirect)
 
 
@@ -162,10 +166,17 @@ async def callback(
                 "Ask whoever administers Principle_admin to add it."
             ),
         )
+    address = email.strip().lower()
     request.session[SESSION_USER_KEY] = {
-        "email": email.strip().lower(),
+        "email": address,
         "name": str(claims.get("name") or email),
     }
+
+    storage = Storage(settings.database_path)
+    try:
+        storage.record_sign_in(address, request.client.host if request.client else None)
+    finally:
+        storage.close()
     return RedirectResponse("/")
 
 

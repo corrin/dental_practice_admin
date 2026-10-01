@@ -11,7 +11,9 @@
   <description>Staff pages and run history for Principle Dental administration.</description>
 
   <executable>%BASE%\.venv\Scripts\python.exe</executable>
-  <arguments>-m uvicorn principle_admin.app:app --host 0.0.0.0 --port 8080</arguments>
+  <!-- --proxy-headers is load-bearing: Caddy terminates TLS, and without it every absolute URL
+       this application builds names 127.0.0.1:8080, including the Google OAuth redirect. -->
+  <arguments>-m uvicorn principle_admin.app:app --host 127.0.0.1 --port 8080 --proxy-headers --forwarded-allow-ips 127.0.0.1</arguments>
   <workingdirectory>%BASE%</workingdirectory>
 
   <!-- Development reload is not part of a service: it watches the filesystem and restarts

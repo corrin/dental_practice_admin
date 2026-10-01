@@ -22,6 +22,7 @@ from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from starlette.requests import Request
 
 PRODUCTION_API_HOSTS = frozenset({"api.principle.dental", "app.principle.dental"})
 
@@ -87,6 +88,10 @@ class Settings(BaseSettings):
     # ChatKit component alongside the endpoint URL. Not a secret: it is rendered into the page.
     chatkit_domain_key: str = "domain_pk_localhost"
 
+    # The origin staff reach, when it cannot be read from the request -- for example a scheduled
+    # task building a link. Behind a proxy the request carries it; set this only to override.
+    public_base_url: str = ""
+
     # Runtime data sits outside the source checkout on a real host (ARCHITECTURE.md,
     # Storage and configuration). Production and staging must not share a database or a
     # browser session file, so the environment name is part of the path.
@@ -140,6 +145,17 @@ class Settings(BaseSettings):
         if address in self.staff_emails:
             return True
         return bool(self.staff_domain) and address.endswith(f"@{self.staff_domain}")
+
+    def public_origin(self, request: Request) -> str:
+        """The scheme and host staff actually reach, with no trailing slash.
+
+        `request.base_url` already reflects `X-Forwarded-Proto` and `X-Forwarded-Host` when uvicorn
+        runs with `--proxy-headers`; without that flag it reports the socket, which is the bug this
+        exists to make visible. An explicit `public_base_url` overrides both.
+        """
+        if self.public_base_url:
+            return self.public_base_url.rstrip("/")
+        return str(request.base_url).rstrip("/")
 
     def require_sign_in_configured(self) -> None:
         """Refuse a real deployment that nobody can sign in to, or that anybody can.

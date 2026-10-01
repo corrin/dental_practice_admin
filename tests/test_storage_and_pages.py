@@ -71,6 +71,22 @@ def test_runs_are_listed_newest_first(store: Storage) -> None:
     assert next(run.run_id for run in store.recent_runs()) == second
 
 
+def test_sign_ins_are_recorded_newest_first(store: Storage) -> None:
+    """Who signed in, and when.
+
+    Caddy's access log has addresses, not people. If this record were dropped, "which staff member
+    opened this, and when" would be unanswerable after the fact.
+    """
+    store.record_sign_in("nurse@practice.nz", "203.0.113.7")
+    store.record_sign_in("reception@practice.nz", None)
+    recorded = store.recent_sign_ins()
+    assert [email for _at, email, _ip in recorded] == [
+        "reception@practice.nz",
+        "nurse@practice.nz",
+    ]
+    assert recorded[1][2] == "203.0.113.7"
+
+
 @dataclass
 class Pages:
     """A test client and a separate handle for seeding rows it should then display."""

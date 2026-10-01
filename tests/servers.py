@@ -42,7 +42,21 @@ def _free_port() -> int:
 
 def _serve(target: str, port: int, env: dict[str, str]) -> subprocess.Popen[bytes]:
     return subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", target, "--host", "127.0.0.1", "--port", str(port)],
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            target,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            # The same flags deploy/principle-admin.xml uses. A spine that started uvicorn
+            # differently from the service would test an arrangement nothing ever runs.
+            "--proxy-headers",
+            "--forwarded-allow-ips",
+            "127.0.0.1",
+        ],
         cwd=REPO,
         env=env,
         stdout=subprocess.PIPE,

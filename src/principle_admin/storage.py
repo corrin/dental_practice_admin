@@ -36,6 +36,13 @@ CREATE TABLE IF NOT EXISTS task_runs (
     detail       TEXT
 );
 CREATE INDEX IF NOT EXISTS task_runs_recent ON task_runs(started_at DESC);
+
+CREATE TABLE IF NOT EXISTS sign_ins (
+    at          TEXT NOT NULL,
+    staff_email TEXT NOT NULL,
+    remote_ip   TEXT
+);
+CREATE INDEX IF NOT EXISTS sign_ins_recent ON sign_ins(at DESC);
 """
 
 
@@ -158,6 +165,26 @@ class Storage:
                     run_id,
                 ),
             )
+
+    def record_sign_in(self, staff_email: str, remote_ip: str | None) -> None:
+        """Note that someone signed in.
+
+        Separate from Caddy's access log because it names the person rather than an address, which
+        is what "was anything accessed, and by whom" actually needs.
+        """
+        with self._write() as db:
+            db.execute(
+                "INSERT INTO sign_ins (at, staff_email, remote_ip) VALUES (?, ?, ?)",
+                (now(), staff_email, remote_ip),
+            )
+
+    def recent_sign_ins(self, limit: int = 50) -> list[tuple[str, str, str | None]]:
+        return [
+            (row["at"], row["staff_email"], row["remote_ip"])
+            for row in self.db.execute(
+                "SELECT * FROM sign_ins ORDER BY at DESC LIMIT ?", (limit,)
+            )
+        ]
 
     def recent_runs(self, limit: int = 50) -> list[TaskRun]:
         return [
