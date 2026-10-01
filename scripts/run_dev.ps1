@@ -42,7 +42,11 @@ param(
     [int]$Port = 8080,
     [switch]$NoSeed,
     [switch]$Tunnel,
-    [string]$TunnelDomain = 'massey-admin-dev.ngrok-free.app'
+    [string]$TunnelDomain = 'massey-admin-dev.ngrok-free.app',
+    # Registered with OpenAI for $TunnelDomain. Public by construction -- ChatKit renders it into
+    # the page -- and paired with the domain here because changing one without the other gives a
+    # chat box that silently refuses to start.
+    [string]$TunnelDomainKey = 'domain_pk_6abdbc9826848196996cb8f8fc75f39d08cc1a0f97eb9339'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -68,6 +72,10 @@ $env:PRINCIPLE_DATA_ROOT = Join-Path $env:LOCALAPPDATA 'PrincipleAdmin-dev'
 # OpenAI's own documented overrides, so the application needs no knowledge that it is simulated.
 $env:OPENAI_BASE_URL = "http://127.0.0.1:$aiPort/v1"
 $env:OPENAI_API_KEY = 'fake-openai-key'
+
+# ChatKit skips domain verification on localhost and enforces it everywhere else, so the tunnel
+# needs the key registered for its origin or the chat box never starts.
+if ($Tunnel) { $env:PRINCIPLE_CHATKIT_DOMAIN_KEY = $TunnelDomainKey }
 
 $processes = @()
 function Start-Server {
@@ -131,8 +139,8 @@ try {
     if ($Tunnel) {
         Write-Host ''
         Write-Host "  Public           https://$TunnelDomain/" -ForegroundColor Green
-        Write-Host '  Register that exact origin with Google (OAuth redirect /auth/callback) and'
-        Write-Host '  with OpenAI (ChatKit domain allowlist) before sign-in or chat will work there.'
+        Write-Host '  Chat works here: the origin is registered with OpenAI. Sign-in does not yet --'
+        Write-Host '  that needs a Google OAuth client with /auth/callback on this exact origin.'
     }
     Write-Host ''
     Write-Host '  Signed in as the local development user; there is no Google round-trip in `fake`.'
