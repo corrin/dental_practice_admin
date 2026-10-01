@@ -21,4 +21,15 @@ uv sync --frozen
 #    `uv tool install` puts it on PATH as a plain `codespell` command.
 uv tool install codespell >/dev/null 2>&1 || uv tool upgrade codespell >/dev/null 2>&1 || true
 
+# 4. Wire git auth for pushing to this repo, if the dental PAT secret is present.
+#    OpenHands' single provider token belongs to another project and cannot write here;
+#    the `dental_admin_github_pat` custom secret (Settings > Secrets) is this repo's own
+#    credential. Point `origin` at it so plain `git push` works. Guarded so this is a
+#    no-op anywhere the secret is absent (local clones, CI) -- those keep their own origin.
+if [ -n "${dental_admin_github_pat:-}" ]; then
+  git remote set-url origin \
+    "https://x-access-token:${dental_admin_github_pat}@github.com/corrin/dental_practice_admin.git"
+  echo "setup.sh: origin wired to dental_admin_github_pat for pushes."
+fi
+
 echo "setup.sh ready: $(uv run python --version); ruff/mypy/pytest via 'uv run', codespell on PATH."

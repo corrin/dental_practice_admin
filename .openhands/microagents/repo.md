@@ -31,3 +31,28 @@ CI (`.github/workflows/ci.yml`) is **Windows-only by design** (path/tz/Playwrigh
 that doesn't reproduce on Linux). The Linux-safe equivalent you can run here is the
 `ruff` / `mypy` / `pytest -q` subset above; the integration tier needs staging credentials
 and is a release gate, not a CI/agent step.
+
+## Opening a pull request (important)
+
+The built-in "push" / "create PR" action uses OpenHands' single provider token, which on
+this instance belongs to another project and has **no write access here** — so the native
+button cannot push or open PRs for this repo. Use this repo's own credential instead: the
+`dental_admin_github_pat` custom secret (OpenHands Settings > Secrets), which `setup.sh`
+already wires into `origin`.
+
+Workflow (never work on `main` — see `AGENTS.md`):
+
+1. Create a feature branch, make the change, commit.
+2. Open the PR with a single command:
+
+   ```bash
+   dental_admin_github_pat="${dental_admin_github_pat}" bash .openhands/open-pr.sh "Your PR title"
+   ```
+
+   It pushes the current branch with the dental PAT and opens the PR (base `main`), printing
+   the PR URL. The leading `dental_admin_github_pat=...` keeps the secret reference on the
+   command line so it is available regardless of how OpenHands injects secrets.
+
+Fallback if the helper is unavailable: `setup.sh` already pointed `origin` at the secret, so
+`git push -u origin <branch>` works; then open the PR from the "Create a pull request" URL
+GitHub prints.
