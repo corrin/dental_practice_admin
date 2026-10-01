@@ -23,7 +23,7 @@ import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 from chatkit.store import Store
 from chatkit.types import Page, ThreadItem, ThreadMetadata
@@ -51,8 +51,6 @@ CREATE INDEX IF NOT EXISTS chat_items_by_thread ON chat_items(thread_id, created
 """
 
 ITEM_ADAPTER: TypeAdapter[ThreadItem] = TypeAdapter(ThreadItem)
-
-T = TypeVar("T")
 
 
 class ThreadNotFoundError(Exception):
@@ -267,7 +265,7 @@ def _dump(model: Any) -> str:
     return json.dumps(model.model_dump(mode="json"))
 
 
-def _page(items: list[T], rows: list[sqlite3.Row], key: str, limit: int) -> Page[T]:
+def _page[T](items: list[T], rows: list[sqlite3.Row], key: str, limit: int) -> Page[T]:
     """Trim the extra row fetched to detect `has_more`, and name the next cursor."""
     has_more = len(rows) > limit
     kept = items[:limit]
