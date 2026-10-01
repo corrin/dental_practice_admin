@@ -1,5 +1,7 @@
 # AGENTS.md
 
+Read [`docs/adr/README.md`](docs/adr/README.md) before non-trivial work. An ADR wins over habit.
+
 ## Minimise ongoing maintenance
 
 This is an internal application for one six-person dental practice. Scale is not a concern.
