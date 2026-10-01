@@ -15,6 +15,7 @@ from principle_admin.config import (
     ConfigurationError,
     Environment,
     Settings,
+    SignIn,
 )
 
 PRODUCTION_API_URL = "https://api.principle.dental"
@@ -73,6 +74,58 @@ def test_real_environment_refuses_missing_credentials() -> None:
     settings = _settings(environment=Environment.STAGING, api_base_url=STAGING_API_URL)
     with pytest.raises(ConfigurationError, match="PRINCIPLE_API_KEY"):
         settings.require_credentials()
+
+
+def test_production_refuses_developer_sign_in() -> None:
+    """Live patient records must never be served to an unauthenticated visitor.
+
+    Separating sign-in from the Principle environment created this combination, which the old
+    design made impossible. Without this guard, one environment variable is the difference between
+    a login page and an open door.
+    """
+    settings = _settings(
+        environment=Environment.PRODUCTION,
+        api_base_url=PRODUCTION_API_URL,
+        sign_in=SignIn.DEVELOPER,
+        api_key=SecretStr("k"),
+        practice_id="p",
+    )
+    with pytest.raises(ConfigurationError, match="Production requires Google"):
+        settings.require_sign_in_configured()
+
+
+def test_google_sign_in_refuses_missing_credentials() -> None:
+    """A deployment nobody can sign in to must fail at startup, not on the first visitor."""
+    settings = _settings(sign_in=SignIn.GOOGLE)
+    with pytest.raises(ConfigurationError, match="PRINCIPLE_GOOGLE_CLIENT_ID"):
+        settings.require_sign_in_configured()
+
+
+def test_google_sign_in_works_against_the_fake_principle() -> None:
+    """The combination this separation exists for: a real gate with nothing real behind it.
+
+    If this were refused, Google sign-in could only ever be exercised with patient data already
+    exposed, which is the wrong order to find out the allowlist is wrong.
+    """
+    settings = _settings(
+        environment=Environment.FAKE,
+        sign_in=SignIn.GOOGLE,
+        session_secret=SecretStr("s"),
+        google_client_id="id",
+        google_client_secret=SecretStr("secret"),
+        staff_emails="someone@practice.nz",
+    )
+    settings.require_sign_in_configured()
+
+
+def test_the_fake_banner_follows_principle_not_sign_in() -> None:
+    """The banner answers "is this data real", which sign-in has nothing to do with.
+
+    Tying them together is what made the obvious workaround -- label it staging, point it at the
+    fake -- quietly remove the banner while the page still showed invented numbers.
+    """
+    settings = _settings(environment=Environment.FAKE, sign_in=SignIn.GOOGLE)
+    assert settings.environment is Environment.FAKE
 
 
 def test_fake_environment_needs_no_credentials() -> None:

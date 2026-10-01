@@ -22,6 +22,18 @@
 .PARAMETER NoSeed
   Skip creating example diary runs.
 
+.PARAMETER Live
+  Use the real Google sign-in and the real OpenAI model instead of the simulations. Principle stays
+  the fake either way, so this exercises the gate and the model without a patient record being
+  involved -- which is the whole reason sign-in is configured separately from the environment.
+
+  Needs PRINCIPLE_GOOGLE_CLIENT_ID, PRINCIPLE_GOOGLE_CLIENT_SECRET, PRINCIPLE_SESSION_SECRET and
+  PRINCIPLE_STAFF_EMAILS (a .env file is read automatically), and OPENAI_API_KEY in the environment.
+  Chat then costs money per message.
+
+  Use it with -Tunnel: Google will not accept an ngrok redirect URI it has not been given, and it
+  will not redirect to a host it cannot reach.
+
 .PARAMETER Tunnel
   Also publish the application on a real HTTPS domain through ngrok, so the Google sign-in and
   ChatKit paths can be exercised the way they will run in production, and so someone else can try
@@ -42,6 +54,7 @@ param(
     [int]$Port = 8080,
     [switch]$NoSeed,
     [switch]$Tunnel,
+    [switch]$Live,
     [string]$TunnelDomain = 'massey-admin-dev.ngrok-free.app',
     # Registered with OpenAI for $TunnelDomain. Public by construction -- ChatKit renders it into
     # the page -- and paired with the domain here because changing one without the other gives a
@@ -69,9 +82,20 @@ $env:PRINCIPLE_API_BASE_URL = "http://127.0.0.1:$principlePort"
 $env:PRINCIPLE_API_KEY = 'fake-principle-key'
 $env:PRINCIPLE_PRACTICE_ID = 'fake-practice-0001'
 $env:PRINCIPLE_DATA_ROOT = Join-Path $env:LOCALAPPDATA 'PrincipleAdmin-dev'
-# OpenAI's own documented overrides, so the application needs no knowledge that it is simulated.
-$env:OPENAI_BASE_URL = "http://127.0.0.1:$aiPort/v1"
-$env:OPENAI_API_KEY = 'fake-openai-key'
+
+if ($Live) {
+    $env:PRINCIPLE_SIGN_IN = 'google'
+    # Leave OPENAI_BASE_URL and OPENAI_API_KEY alone so the SDK reaches the real API.
+    Remove-Item Env:OPENAI_BASE_URL -ErrorAction SilentlyContinue
+    if (-not $env:OPENAI_API_KEY -or $env:OPENAI_API_KEY -eq 'fake-openai-key') {
+        throw 'OPENAI_API_KEY is not set. -Live calls the real model and needs a real key.'
+    }
+} else {
+    $env:PRINCIPLE_SIGN_IN = 'developer'
+    # OpenAI's own documented overrides, so the application needs no knowledge it is simulated.
+    $env:OPENAI_BASE_URL = "http://127.0.0.1:$aiPort/v1"
+    $env:OPENAI_API_KEY = 'fake-openai-key'
+}
 
 # ChatKit skips domain verification on localhost and enforces it everywhere else, so the tunnel
 # needs the key registered for its origin or the chat box never starts.
@@ -109,12 +133,12 @@ function Wait-ForHttp {
 try {
     Write-Host 'Principle_admin, against the simulations' -ForegroundColor Cyan
     Start-Server 'tests.fake.server:app'    $principlePort 'fake Principle' | Out-Null
-    Start-Server 'tests.fake_ai.server:app' $aiPort        'fake AI'        | Out-Null
+    if (-not $Live) { Start-Server 'tests.fake_ai.server:app' $aiPort 'fake AI' | Out-Null }
     Start-Server 'principle_admin.app:app'  $Port          'application'    | Out-Null
 
     # Each fake refuses a call it does not serve, and the refusal is the readiness signal.
     Wait-ForHttp "http://127.0.0.1:$principlePort/v1/practices" @(401, 403, 500) 'fake Principle'
-    Wait-ForHttp "http://127.0.0.1:$aiPort/v1/responses"        @(500)           'fake AI'
+    if (-not $Live) { Wait-ForHttp "http://127.0.0.1:$aiPort/v1/responses" @(500) 'fake AI' }
     Wait-ForHttp "http://127.0.0.1:$Port/health"                @(200)           'application'
 
     if (-not $NoSeed) {
@@ -143,7 +167,12 @@ try {
         Write-Host '  that needs a Google OAuth client with /auth/callback on this exact origin.'
     }
     Write-Host ''
-    Write-Host '  Signed in as the local development user; there is no Google round-trip in `fake`.'
+    if ($Live) {
+        Write-Host '  Real Google sign-in and the real model. Principle is still the fake, so the'
+        Write-Host '  banner stays and no patient record is involved.' -ForegroundColor DarkGray
+    } else {
+        Write-Host '  Signed in as the local development user; simulated model; fake Principle.'
+    }
     Write-Host '  Ctrl+C to stop.' -ForegroundColor DarkGray
 
     while ($true) {

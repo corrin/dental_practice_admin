@@ -8,11 +8,14 @@ The identity a request carries is the trusted scope for everything downstream â€
 belongs to an address, and the ChatKit store checks it on every operation. It never comes from
 a request body or a model argument.
 
-Two providers behind one dependency:
+Two providers behind one dependency, chosen by `PRINCIPLE_SIGN_IN`:
 
-  production/staging  Google, via authlib
-  fake                a fixed local user, so the test suite and a developer's browser need no
-                      OAuth round-trip. Unavailable outside `environment=fake` by construction.
+  google      the real flow, via authlib
+  developer   a fixed local user, so the test suite and a local run need no OAuth round-trip
+
+The choice is deliberately independent of which Principle is configured: otherwise the only way to
+exercise Google sign-in is with real patient records already behind it. `Settings` refuses
+`developer` against production.
 
 Deployment note: Google refuses a redirect URI that is neither HTTPS nor `localhost`. Staff
 sign-in therefore requires a stable internal hostname with a certificate, which settles the
@@ -29,7 +32,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from starlette.responses import Response
 
-from principle_admin.config import Environment, Settings, current_settings
+from principle_admin.config import Settings, SignIn, current_settings
 from principle_admin.storage import Storage
 
 GOOGLE_METADATA_URL = "https://accounts.google.com/.well-known/openid-configuration"
@@ -78,7 +81,7 @@ def staff_from_session(request: Request, settings: Settings) -> StaffUser | None
     same local identity. This branch is guarded on the environment rather than on a flag so
     that it cannot be switched on in production by configuration alone.
     """
-    if settings.environment is Environment.FAKE:
+    if settings.sign_in is not SignIn.GOOGLE:
         return StaffUser(email=FAKE_STAFF, name="Development user")
     stored = _session(request).get(SESSION_USER_KEY)
     if not isinstance(stored, dict):
@@ -133,7 +136,7 @@ async def login(
     request: Request, settings: Annotated[Settings, Depends(current_settings)]
 ) -> Response:
     """Start the Google flow, or go straight in when running against the fake."""
-    if settings.environment is Environment.FAKE:
+    if settings.sign_in is not SignIn.GOOGLE:
         return RedirectResponse("/")
     oauth: OAuth = request.app.state.oauth
     # Built from the public origin, not from `url_for` alone: behind Caddy the latter names the
@@ -190,6 +193,6 @@ async def logout(
     middleware that provides one is only installed outside `fake`. Reaching for
     `request.session` unconditionally is what made this route hang instead of redirect.
     """
-    if settings.environment is not Environment.FAKE:
+    if settings.sign_in is SignIn.GOOGLE:
         _session(request).pop(SESSION_USER_KEY, None)
     return RedirectResponse("/")

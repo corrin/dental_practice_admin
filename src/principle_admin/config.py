@@ -41,6 +41,18 @@ class Environment(StrEnum):
     PRODUCTION = "production"
 
 
+class SignIn(StrEnum):
+    """How a visitor becomes a staff member.
+
+    Separate from `Environment` because they are different questions: which Principle holds the
+    data, and who is allowed to see it. Welding them together meant Google sign-in could only be
+    exercised with real patient records already behind it.
+    """
+
+    GOOGLE = "google"
+    DEVELOPER = "developer"
+
+
 def api_host(url: str) -> str:
     """The bare hostname of an API base URL, lowercased and without port."""
     return (urlsplit(url).hostname or "").lower()
@@ -72,6 +84,11 @@ class Settings(BaseSettings):
 
     # Staff sign-in. Google holds the credentials; this application holds only the list of
     # people allowed in, so there is no password store to leak or reset.
+    #
+    # `developer` is the default so the test suite and a local run need no OAuth round-trip. It is
+    # refused outright against production, below: there is no configuration in which live patient
+    # records are served to an unauthenticated visitor.
+    sign_in: SignIn = SignIn.DEVELOPER
     session_secret: SecretStr = SecretStr("")
     google_client_id: str = ""
     google_client_secret: SecretStr = SecretStr("")
@@ -164,7 +181,12 @@ class Settings(BaseSettings):
         missing session secret means cookies are unsigned, which is worse than no sign-in at
         all: it looks protected and is not.
         """
-        if self.environment is Environment.FAKE:
+        if self.environment is Environment.PRODUCTION and self.sign_in is not SignIn.GOOGLE:
+            raise ConfigurationError(
+                f"environment=production with sign_in={self.sign_in.value}: live patient records"
+                " would be served to anyone who found the address. Production requires Google."
+            )
+        if self.sign_in is not SignIn.GOOGLE:
             return
         missing: list[str] = []
         if not self.session_secret.get_secret_value():
@@ -176,9 +198,7 @@ class Settings(BaseSettings):
         if not self.staff_emails and not self.staff_domain:
             missing.append("PRINCIPLE_STAFF_EMAILS or PRINCIPLE_STAFF_DOMAIN")
         if missing:
-            raise ConfigurationError(
-                f"environment={self.environment.value} needs {', '.join(missing)}"
-            )
+            raise ConfigurationError(f"sign_in=google needs {', '.join(missing)}")
 
     @model_validator(mode="after")
     def _environment_matches_host(self) -> Settings:
