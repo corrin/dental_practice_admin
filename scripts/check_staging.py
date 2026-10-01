@@ -41,7 +41,7 @@ async def check_api(env_file: Path) -> dict[str, Any]:
     if settings.api_base_url.rstrip("/") != STAGING_API_URL:
         raise ValueError("The check requires the standard staging API URL")
     async with PrincipleClient(settings) as client:
-        practices = (await client.get("list_practices"))["data"]
+        practices = (await client.get("listPractices"))["data"]
         matched = any(row["id"] == settings.practice_id for row in practices)
         result: dict[str, Any] = {
             "ok": False,
@@ -54,7 +54,7 @@ async def check_api(env_file: Path) -> dict[str, Any]:
             practice = practices[0]
         if practice is not None:
             rows = (await client.get(
-                "list_practitioners", path_params={"practice_id": practice["id"]}
+                "listPractitioners", path_params={"practiceId": practice["id"]}
             ))["data"]
             result["practitioner_count"] = len(rows)
             result["ok"] = matched and bool(rows)

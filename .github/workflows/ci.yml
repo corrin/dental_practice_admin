@@ -38,6 +38,9 @@ jobs:
       - name: Lint
         run: uv run ruff check .
 
+      - name: Generated Principle interface
+        run: uv run python -m scripts.refresh_spec --check
+
       - name: Types
         run: uv run mypy
 

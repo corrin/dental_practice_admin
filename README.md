@@ -29,9 +29,8 @@ closes that: run a modified version as a network service your staff log into and
 source. If anyone does pick this up, their improvements come back.
 
 Not affiliated with Principle Dental. The API is used as a customer. `tests/spec/fingerprint.json`
-is a derived description of published endpoints — parameter names and response shape for the
-three operations this project calls — not a copy of Principle's specification, which is
-deliberately not redistributed here.
+is a normalized description of the published read operations used for generation. The original
+specification and its examples are not redistributed here.
 
 ## Three Principles
 
@@ -140,6 +139,66 @@ lint, types, local tests, browser tests, Principle staging, and the synthetic re
 It requires Caddy, Playwright Chromium, network access, and staging/OpenAI credentials. Missing
 prerequisites fail the gate. Run individual test commands for diagnosis; partial checks do not
 certify a release. No release command exercises production records.
+
+## Generated Principle interface
+
+Endpoint definitions and chat tool schemas are generated from the committed
+`tests/spec/fingerprint.json` snapshot. `src/dental_practice_admin/generated_principle.json`
+is a generated artifact: do not edit it. The shared HTTP executor supplies authentication,
+practice scope, validation and pagination. No endpoint-specific wrapper functions are maintained.
+
+```powershell
+# Offline regeneration and verification
+uv run python -m scripts.refresh_spec --generate
+uv run python -m scripts.refresh_spec --check
+
+# Read the published specification without changing files
+uv run python -m scripts.refresh_spec --upstream-check
+
+# Fetch, show changes, regenerate, and run focused tests
+uv run python -m scripts.refresh_spec --update
+```
+
+The update leaves a normal working-tree diff for review. Commit the snapshot, compatibility
+configuration and generated output together, run the release gate, and release the application.
+The running app never fetches or adopts a new interface automatically. The API's `/v1` and
+OpenAPI version string do not establish compatibility; checks compare content.
+
+Run `scripts/install_hooks.ps1` once per clone to install the pre-commit hook. After the leak
+scan it checks the **staged** generator, snapshot, compatibility configuration and artifact in
+a temporary directory. It neither contacts Principle nor edits or stages files. CI checks the
+same deterministic output offline; the integration/release tier checks the published interface.
+Missing files, incompatible changes and unavailable upstream checks fail explicitly.
+
+`tests/spec/compatibility.json` holds verified deviations and coverage rules. Its patches name
+the expected upstream value, so an upstream fix requires review instead of silently applying
+an obsolete exception. Additional unused response fields are accepted. Missing required fields,
+wrong types and invalid response envelopes are refused.
+
+Chat exposes generated, practice-scoped business reads and the diary tools. Patient-specific
+paths without a proven practice boundary, administration and writes are excluded. Generated
+searches and pages are labelled partial unless complete coverage has been verified. Patient
+search cannot establish a whole-practice patient total. Large results require a narrower query.
+The diary fake models verified diary behaviour; synthetic generation/transport tests exercise
+the generic adapter without claiming to verify other live endpoints.
+
+### Production incompatibility warning
+
+Normal production reads detect incompatible response shapes, invalid JSON, repeated cursors,
+duplicate rows and HTTP 404/405/410/422 responses. A deduplicated warning persists in SQLite
+and appears on authenticated admin pages when loaded. It says **possible incompatibility**:
+an endpoint error can also mean a missing resource, and an unchanged response shape cannot
+prove unchanged business meaning. Authentication failures, rate limits and server outages
+remain ordinary request failures rather than interface-change alerts.
+
+Only operation names, reason codes, interface hashes and timestamps are stored in these warnings.
+The app does not retry through Firestore or the browser, regenerate itself, send email, or poll
+in the background. The warning survives restarts and successful responses from the same
+interface. A successful response for the affected operation after release of a changed interface
+clears it. Investigation and interface updates belong to the development/release workflow.
+
+Firestore contract checks belong alongside live integration tests when a verified Firestore
+operation is added. Sampling documents is not treated as an authoritative schema.
 
 ## Why the fake is built the way it is
 

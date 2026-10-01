@@ -38,7 +38,7 @@ async def test_api_key_is_accepted_and_practices_are_listed(
 
     The fake cannot prove any of these: it accepts the header because we told it to.
     """
-    envelope = await staging_client.get("list_practices")
+    envelope = await staging_client.get("listPractices")
     practices = envelope["data"]
     assert practices, "the staging workspace must expose at least one practice"
     assert all({"id", "name"} <= set(practice) for practice in practices)
@@ -56,7 +56,7 @@ async def test_a_wrong_api_key_is_refused(staging_settings: Settings) -> None:
     wrong = staging_settings.model_copy(update={"api_key": staging_settings.api_key.__class__("")})
     async with PrincipleClient(wrong) as client:
         with pytest.raises(PrincipleError) as raised:
-            await client.get("list_practices")
+            await client.get("listPractices")
     assert raised.value.status in {401, 403}, raised.value
 
 
@@ -72,7 +72,7 @@ async def test_appointment_paging_terminates_against_the_real_api(
     rows = [
         row
         async for row in staging_client.rows(
-            "list_appointments",
+            "listAppointmentsByDateRange",
             query={"practiceId": staging_settings.practice_id, **_window()},
             page_size=5,
         )
@@ -94,7 +94,7 @@ async def test_an_unknown_practice_is_refused_not_silently_empty(
         rows = [
             row
             async for row in staging_client.rows(
-                "list_appointments", query={"practiceId": "no-such-practice", **_window()}
+                "listAppointmentsByDateRange", query={"practiceId": "no-such-practice", **_window()}
             )
         ]
     except PrincipleError as refused:

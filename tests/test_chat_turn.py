@@ -12,9 +12,9 @@ numbers that come back are the ones the fake holds. Each of those is a real seam
 
 from __future__ import annotations
 
-import inspect
 import json
 from collections.abc import Iterator
+from datetime import date
 from pathlib import Path
 
 import httpx2
@@ -28,6 +28,7 @@ from dental_practice_admin.auth import StaffUser
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, build_tools
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import Environment, Settings
+from dental_practice_admin.principle import CATALOGUE, PrincipleClient
 from dental_practice_admin.tasks import daily_diary
 from tests.fake import FAKE_API_KEY, FAKE_PRACTICE_ID, FakeStore, seed
 from tests.fake import transport as fake_transport
@@ -153,6 +154,18 @@ async def test_the_assistant_reply_is_persisted(
     assert any(f"of {SLOTS_PER_DAY} booked" in str(item) for item in page.data)
 
 
+async def test_generated_tool_result_reaches_the_model_and_saved_reply(
+    chat_store: SqliteChatStore, chat_settings: Settings,
+) -> None:
+    ai = FakeAi()
+    thread_id = await _turn(chat_store, chat_settings, ai, message="List our practitioners")
+    page = await chat_store.load_thread_items(
+        thread_id, after=None, limit=10, order="asc", context=STAFF)
+    assert len(ai.requests) == 2
+    assert "Dr " in json.dumps(ai.requests[1]["input"])
+    assert any("Dr " in str(item) and MARKER in str(item) for item in page.data)
+
+
 async def test_a_partial_report_reaches_the_model_labelled_as_partial(
     chat_store: SqliteChatStore, chat_settings: Settings
 ) -> None:
@@ -192,7 +205,7 @@ async def test_no_tool_accepts_a_practice_id(chat_settings: Settings) -> None:
         assert not (properties & forbidden), f"{tool} accepts {properties & forbidden}"
 
 
-async def test_the_tool_set_stays_small_and_read_only(chat_settings: Settings) -> None:
+async def test_tools_expose_scoped_reads_and_diary_operations(chat_settings: Settings) -> None:
     """Browser sessions, credentials and arbitrary execution are not tools.
 
     A tool set that grows by accident is how a chat interface acquires abilities nobody decided
@@ -200,20 +213,24 @@ async def test_the_tool_set_stays_small_and_read_only(chat_settings: Settings) -
     """
     tools = build_tools(ChatDeps(settings=chat_settings, model="x"))
     names = {getattr(tool, "name", "") for tool in tools}
-    assert names == {"diary_for_date", "diary_for_tomorrow"}
+    assert names == {"diary_for_date", "diary_for_tomorrow"} | {
+        call.name for call in CATALOGUE if call.definition["exposed"]
+    }
+    assert "listPractices" not in names
+    assert all(call.method == "GET" for call in CATALOGUE)
 
 
-def test_chat_and_the_command_line_call_the_same_operation() -> None:
-    """ARCHITECTURE.md's requirement, asserted rather than assumed.
-
-    Two implementations of "the day's diary" would drift, and the one staff see in chat would
-    stop matching the one the scheduled report files.
-    """
-    import dental_practice_admin.chat as chat_module
-    import dental_practice_admin.tasks as tasks_module
-
-    source = inspect.getsource(chat_module._diary)
-    assert "daily_diary" in source
-    assert tasks_module.daily_diary is daily_diary
-    # The chat module must call the operation, not hold a reimplementation of it.
-    assert inspect.getmodule(chat_module.daily_diary) is tasks_module  # type: ignore[attr-defined]
+@pytest.mark.parametrize("appointments", [0, 3, 9])
+async def test_chat_agrees_with_the_diary_operation_for_different_workloads(
+    chat_store: SqliteChatStore, chat_settings: Settings, appointments: int,
+) -> None:
+    """Chat and scheduled reporting must give the same result as the underlying records vary."""
+    fake = seed(appointments_per_day=appointments, days=1)
+    ai = FakeAi()
+    try:
+        async with PrincipleClient(chat_settings, transport=fake_transport(fake)) as client:
+            expected = await daily_diary(client, date.fromisoformat(SEEDED_DAY))
+        await _turn(chat_store, chat_settings, ai, fake_store=fake)
+    finally:
+        fake.close()
+    assert expected.summary() in json.dumps(ai.requests[1]["input"])

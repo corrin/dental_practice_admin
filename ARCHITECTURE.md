@@ -55,7 +55,7 @@ The web application and chat server run locally; model inference uses the OpenAI
 | Staff chat | ChatKit web component and Python server SDK | Reuse the chat interface and streaming protocol |
 | Agent execution | OpenAI Agents SDK | Reuse model/tool orchestration |
 | Task and result pages | Jinja2 templates with minimal JavaScript | Avoid a separate frontend application and build pipeline |
-| Principle REST access | Assess a generated OpenAPI client; use HTTPX for a small custom client if generation proves unsuitable | Avoid hand-maintaining duplicate endpoint definitions |
+| Principle REST access | Generated operation definitions and agent schemas, with one HTTPX executor | Avoid hand-maintaining endpoint wrappers |
 | Browser automation | Playwright Python with headless Chromium | Script repeatable web-only operations |
 | Local persistence | SQLite with a small storage adapter | No database server to operate |
 | Web service lifecycle | Stable WinSW release | Windows service management through configuration |
@@ -74,9 +74,22 @@ Use the current published OpenAPI specification as the source for documented end
 
 Workspace API-key authentication is already used by the existing integration. Configure environment, base URL, practice scope, and credentials explicitly. Production and staging must have distinct configuration and browser session files.
 
-Assess one maintained OpenAPI generator against the actual Principle specification before choosing a client. Check authentication headers, pagination, representative read/write schemas, Windows generation, and reproducibility. A generated client may cover the full API while the agent exposes only selected useful tools.
+Generate the operation catalogue and agent schemas from a committed normalized OpenAPI snapshot.
+Use the shared HTTPX executor directly; do not maintain another client model or per-endpoint
+wrapper functions. Scope, authentication, request validation and paging belong to that executor
+and its shared tool adapter. Expose only read operations with an enforceable practice parameter;
+patient-specific paths and administration are excluded from generated chat tools.
 
-If generation requires extensive patching, use HTTPX and a small shared client for the endpoints required by the agreed tasks. Do not build a second model of every Principle resource or wrap every endpoint in another abstraction.
+Generation is offline and reproducible. Pre-commit checks staged inputs in isolation; CI checks
+the committed artifact. Live integration/release checks compare the published interface with the
+snapshot. An explicit update command fetches changes, regenerates and runs focused tests. Updates
+enter production through an application release, never runtime discovery or regeneration.
+
+Production requests validate responses against the released interface. Possible incompatibilities
+persist as deduplicated, patient-free warnings on authenticated admin pages. A changed interface
+release followed by a compatible response for the affected operation resolves its warning. This
+observes actual requests; it does not provide background release monitoring or detect unchanged
+schemas with different business meanings.
 
 Prior reconciliation code in od_data records patient-enumeration and pagination limitations, including unreliable grand totals on some endpoints. Treat these as observations to recheck against the current API. Reports must distinguish complete results from partial coverage.
 
@@ -179,7 +192,7 @@ Run automated checks on Windows. Validate live behaviour against staging where a
 2. The production Windows host and service identity; Google sign-in and Caddy HTTPS are selected.
 3. Whether the selected workflows need durable long-running interactive execution.
 4. Which web-only capabilities are needed and what backend or browser contracts have been verified.
-5. Additional Principle calls required by the selected workflows; the current three-call HTTPX client and catalogue are implemented.
+5. Workflow-specific coverage and business meaning for additional generated Principle reads.
 6. Conversation/result retention, backups, and workflow-specific write permissions.
 7. Production reboot, unattended execution, and restore acceptance evidence.
 

@@ -130,14 +130,14 @@ async def daily_diary(
     names: dict[str, str] = {
         str(row["id"]): str(row.get("name") or row["id"])
         async for row in client.rows(
-            "list_practitioners", path_params={"practice_id": practice}
+            "listPractitioners", path_params={"practiceId": practice}
         )
     }
 
     appointments = [
         row
         async for row in client.rows(
-            "list_appointments",
+            "listAppointmentsByDateRange",
             query={"practiceId": practice, **local_day_window(on_date)},
         )
     ]
