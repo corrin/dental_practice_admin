@@ -38,14 +38,14 @@ from typing import Any
 
 from pydantic import SecretStr
 
-from principle_admin.config import (
+from dental_practice_admin.config import (
     STAGING_API_URL,
     ConfigurationError,
     Environment,
     Settings,
     is_production_host,
 )
-from principle_admin.principle import PrincipleClient, PrincipleError
+from dental_practice_admin.principle import PrincipleClient, PrincipleError
 
 RECORDINGS = Path(__file__).resolve().parent.parent / "tests" / "recordings"
 

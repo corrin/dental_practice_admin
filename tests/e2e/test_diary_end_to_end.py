@@ -26,7 +26,7 @@ pytestmark = pytest.mark.e2e
 def completed_run(spine: dict[str, str]) -> str:
     """Run the diary task as Task Scheduler will, over real HTTP to the fake."""
     finished = subprocess.run(
-        [sys.executable, "-m", "principle_admin.tasks", "diary", "--date", DIARY_DATE],
+        [sys.executable, "-m", "dental_practice_admin.tasks", "diary", "--date", DIARY_DATE],
         cwd=REPO,
         env=spine,
         capture_output=True,

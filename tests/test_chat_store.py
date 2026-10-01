@@ -25,8 +25,8 @@ from chatkit.types import (
     UserMessageTextContent,
 )
 
-from principle_admin.auth import StaffUser
-from principle_admin.chat_store import SqliteChatStore, ThreadNotFoundError
+from dental_practice_admin.auth import StaffUser
+from dental_practice_admin.chat_store import SqliteChatStore, ThreadNotFoundError
 
 NURSE = StaffUser(email="nurse@practice.nz", name="Nurse")
 RECEPTION = StaffUser(email="reception@practice.nz", name="Reception")

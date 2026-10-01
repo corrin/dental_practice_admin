@@ -13,8 +13,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from principle_admin.config import Settings
-from principle_admin.principle import PrincipleClient
+from dental_practice_admin.config import Settings
+from dental_practice_admin.principle import PrincipleClient
 
 pytestmark = pytest.mark.integration
 

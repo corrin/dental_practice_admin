@@ -69,7 +69,7 @@ function Stage {
     }
 }
 
-Write-Host "Release gate for Principle_admin" -ForegroundColor White
+Write-Host "Release gate for dental_practice_admin" -ForegroundColor White
 
 Stage 'Dependencies are locked and installed' { uv sync --frozen }
 if (Get-Command caddy -ErrorAction SilentlyContinue) {

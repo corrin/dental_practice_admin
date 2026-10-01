@@ -1,10 +1,14 @@
-# Principle_admin
+# Massey Smiles Admin
 
-An administrative tool for dental practices running [Principle
-Dental](https://principle.dental). Staff get a small web page of task results and a chat
-interface; Windows Task Scheduler runs the tasks.
+Administrative tooling for one dental practice, over [Principle
+Dental](https://principle.dental), the patient management system. Staff get a small web page of task
+results and a chat interface; Windows Task Scheduler runs the tasks.
 
-It is small on purpose — 2,000 lines, enforced by a test — because a tool a single practice has to
+Published in case it is useful to someone, not offered as a product. It is specific to how this
+practice works and deeply tied to Principle; there is no abstraction over the patient management
+system and none is wanted.
+
+It is small on purpose — 2,000 lines, enforced by a test — because a tool one practice has to
 maintain should be a tool one person can read. The budget counts what runs in production, which is
 the only code that can break for staff. Tests, comments and tooling are reported but not budgeted:
 none of them has ever caused a phone call.
@@ -19,11 +23,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and its constraints.
 
 [GNU AGPL-3.0](LICENSE).
 
-This is meant to become a shared tool for anyone running Principle Dental, and the AGPL is
-chosen deliberately over the GPL. A practice that self-hosts this never *distributes* it, so
-the GPL's trigger would never fire and improvements could stay private indefinitely. AGPL
-section 13 closes that: if you run a modified version as a network service your staff log into,
-you owe them its source. Improve it and the next practice gets your improvements.
+AGPL rather than GPL, deliberately. A practice that self-hosts this never *distributes* it, so
+the GPL's trigger would never fire and improvements could stay private indefinitely. AGPL section 13
+closes that: run a modified version as a network service your staff log into and you owe them its
+source. If anyone does pick this up, their improvements come back.
 
 Not affiliated with Principle Dental. The API is used as a customer. `tests/spec/fingerprint.json`
 is a derived description of published endpoints — parameter names and response shape for the
@@ -100,7 +103,7 @@ invented. See [tests/recordings/README.md](tests/recordings/README.md).
 ## Layout
 
 ```text
-src/principle_admin/     the application (budgeted with deploy/: 2,000 lines)
+src/dental_practice_admin/     the application (budgeted with deploy/: 2,000 lines)
   config.py              which Principle, and where local data lives
   principle.py           the API client and the catalogue of calls it may make
   tasks.py               business operations and the command Task Scheduler runs
@@ -113,6 +116,7 @@ tests/
   integration/           the staging tier and the specification drift check
   e2e/                   separate processes, real browser
 scripts/                 tools: the recorder, the fingerprinter, the release gate, verify.ps1
+.vscode/tasks.json       Run > Run Task: starts the stack, VS Code supervising each service
 deploy/                  what runs in production: Caddy, WinSW, Task Scheduler (budgeted)
 ```
 

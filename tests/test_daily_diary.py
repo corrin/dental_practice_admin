@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import date
 
-from principle_admin.principle import PrincipleClient
-from principle_admin.storage import Coverage
-from principle_admin.tasks import daily_diary, local_day_window
+from dental_practice_admin.principle import PrincipleClient
+from dental_practice_admin.storage import Coverage
+from dental_practice_admin.tasks import daily_diary, local_day_window
 from tests.fake import FAKE_PRACTICE_ID, FakeStore
 
 SEEDED_DAY = date(2026, 9, 28)

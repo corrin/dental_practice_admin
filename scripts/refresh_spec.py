@@ -5,7 +5,7 @@ so redistribution rights are unstated, and it cannot be sublicensed under this p
 AGPL-3.0 in any case. It is fetched to a gitignored path instead.
 
 What is committed is `tests/spec/fingerprint.json`: for each operation in
-`principle_admin.principle.CATALOGUE`, the method, the path, the parameters the specification
+`dental_practice_admin.principle.CATALOGUE`, the method, the path, the parameters the specification
 declares, and the shape of the success response. That is a derived description of a published
 interface rather than a copy of the document, it is a few dozen lines instead of six thousand,
 and it makes the drift check scoped to what we actually call -- so an unrelated Principle
@@ -30,7 +30,7 @@ from typing import Any
 
 import yaml
 
-from principle_admin.principle import CATALOGUE
+from dental_practice_admin.principle import CATALOGUE
 
 SPEC_URL = "https://api.principle.dental/assets/api.yml"
 

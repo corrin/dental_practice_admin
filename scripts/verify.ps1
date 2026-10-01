@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Checks that an installed Principle_admin can actually do its job on this host.
+  Checks that an installed dental_practice_admin can actually do its job on this host.
 
 .DESCRIPTION
   The acceptance gate for a deployment. Every check is something that passes on a developer
@@ -11,15 +11,15 @@
   Read-only. It starts nothing and changes nothing.
 
 .EXAMPLE
-  .\scripts\verify.ps1 -InstallRoot 'C:\Program Files\PrincipleAdmin'
+  .\scripts\verify.ps1 -InstallRoot 'C:\Program Files\DentalPracticeAdmin'
 #>
 [CmdletBinding()]
 param(
-    [string]$InstallRoot = 'C:\Program Files\PrincipleAdmin',
-    [string]$DataRoot    = 'C:\ProgramData\PrincipleAdmin',
+    [string]$InstallRoot = 'C:\Program Files\DentalPracticeAdmin',
+    [string]$DataRoot    = 'C:\ProgramData\DentalPracticeAdmin',
     [string]$HealthUrl   = 'http://127.0.0.1:8080/health',
-    [string]$ServiceName = 'principle-admin',
-    [string]$TaskPath    = '\Principle admin\Daily diary'
+    [string]$ServiceName = 'dental-practice-admin',
+    [string]$TaskPath    = '\Massey Smiles Admin\Daily diary'
 )
 
 $ErrorActionPreference = 'Continue'
@@ -36,7 +36,7 @@ function Check {
     }
 }
 
-Write-Host "Verifying Principle_admin on $env:COMPUTERNAME" -ForegroundColor Cyan
+Write-Host "Verifying dental_practice_admin on $env:COMPUTERNAME" -ForegroundColor Cyan
 
 Check 'Service is installed and running' {
     $service = Get-Service -Name $ServiceName -ErrorAction Stop
@@ -113,7 +113,7 @@ Check 'Scheduled task points at the installed interpreter' {
 }
 
 Check 'A run has been recorded' {
-    $database = Join-Path $DataRoot 'production\principle_admin.db'
+    $database = Join-Path $DataRoot 'production\dental_practice_admin.db'
     if (-not (Test-Path $database)) { throw "no database at $database; no task has run yet" }
     "database present ($([math]::Round((Get-Item $database).Length / 1KB)) KB)"
 }

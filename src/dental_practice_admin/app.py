@@ -22,12 +22,12 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from principle_admin.auth import CurrentStaff, build_oauth
-from principle_admin.auth import router as auth_router
-from principle_admin.chat import ChatDeps, StaffChatServer
-from principle_admin.chat_store import SqliteChatStore
-from principle_admin.config import Environment, Settings, current_settings
-from principle_admin.storage import Storage, TaskRun
+from dental_practice_admin.auth import CurrentStaff, build_oauth
+from dental_practice_admin.auth import router as auth_router
+from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
+from dental_practice_admin.chat_store import SqliteChatStore
+from dental_practice_admin.config import Environment, Settings, current_settings
+from dental_practice_admin.storage import Storage, TaskRun
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
@@ -41,7 +41,7 @@ CONFIGURED_TASKS = (
     {
         "name": "daily_diary",
         "title": "Daily diary",
-        "command": "principle-admin diary",
+        "command": "dental-practice-admin diary",
         "description": "Tomorrow's appointments grouped by practitioner.",
     },
 )
@@ -61,7 +61,7 @@ def storage(
         store.close()
 
 
-app = FastAPI(title="Principle admin")
+app = FastAPI(title="Massey Smiles Admin")
 app.include_router(auth_router)
 
 
@@ -169,7 +169,7 @@ async def chatkit(
     response completes turns a live conversation into one silent pause and then a wall of text.
     """
     store = SqliteChatStore(configured.database_path)
-    server = StaffChatServer(store, ChatDeps(settings=configured, model=configured.agent_model))
+    server = StaffChatServer(store, ChatDeps(settings=configured, model=model_for(configured)))
     try:
         result = await server.process(await request.body(), staff)
     except Exception:

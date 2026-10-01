@@ -3,7 +3,7 @@
 ## fingerprint.json
 
 A derived description of the Principle operations this project calls: method, path, declared
-parameters and response shape, for the three entries in `principle_admin.principle.CATALOGUE`.
+parameters and response shape, for the three entries in `dental_practice_admin.principle.CATALOGUE`.
 Regenerate with `uv run python scripts/refresh_spec.py`.
 
 **The specification itself is not committed here.** It carries no licence, no terms of service

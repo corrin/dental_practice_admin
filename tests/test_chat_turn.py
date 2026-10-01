@@ -24,11 +24,11 @@ from chatkit.server import StreamingResult
 from openai import AsyncOpenAI
 from pydantic import SecretStr
 
-from principle_admin.auth import StaffUser
-from principle_admin.chat import ChatDeps, StaffChatServer, build_tools
-from principle_admin.chat_store import SqliteChatStore
-from principle_admin.config import Environment, Settings
-from principle_admin.tasks import daily_diary
+from dental_practice_admin.auth import StaffUser
+from dental_practice_admin.chat import ChatDeps, StaffChatServer, build_tools
+from dental_practice_admin.chat_store import SqliteChatStore
+from dental_practice_admin.config import Environment, Settings
+from dental_practice_admin.tasks import daily_diary
 from tests.fake import FAKE_API_KEY, FAKE_PRACTICE_ID, FakeStore, seed
 from tests.fake import transport as fake_transport
 from tests.fake_ai import FAKE_AI_KEY, MARKER, FakeAi, transport
@@ -209,8 +209,8 @@ def test_chat_and_the_command_line_call_the_same_operation() -> None:
     Two implementations of "the day's diary" would drift, and the one staff see in chat would
     stop matching the one the scheduled report files.
     """
-    import principle_admin.chat as chat_module
-    import principle_admin.tasks as tasks_module
+    import dental_practice_admin.chat as chat_module
+    import dental_practice_admin.tasks as tasks_module
 
     source = inspect.getsource(chat_module._diary)
     assert "daily_diary" in source

@@ -6,8 +6,8 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
-from principle_admin.config import Environment, Settings
-from principle_admin.principle import CallError, PrincipleClient, PrincipleError
+from dental_practice_admin.config import Environment, Settings
+from dental_practice_admin.principle import CallError, PrincipleClient, PrincipleError
 from tests.fake import FAKE_PRACTICE_ID, FakeStore, dispatch
 from tests.fake.server import FakeUnhandledParameterError, Request
 from tests.fake.store import FAKE_API_KEY

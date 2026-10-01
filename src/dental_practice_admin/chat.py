@@ -25,16 +25,18 @@ from datetime import date, datetime, timedelta
 
 from agents import Agent, RunConfig, Runner, function_tool
 from agents.models.interface import Model
+from agents.models.openai_responses import OpenAIResponsesModel
 from chatkit.agents import AgentContext, ThreadItemConverter, stream_agent_response
 from chatkit.server import ChatKitServer
 from chatkit.types import ThreadItem, ThreadMetadata, ThreadStreamEvent, UserMessageItem
 from httpx import AsyncBaseTransport
+from openai import AsyncOpenAI
 
-from principle_admin.auth import StaffUser
-from principle_admin.chat_store import SqliteChatStore
-from principle_admin.config import Settings
-from principle_admin.principle import PrincipleClient
-from principle_admin.tasks import PRACTICE_TZ, daily_diary
+from dental_practice_admin.auth import StaffUser
+from dental_practice_admin.chat_store import SqliteChatStore
+from dental_practice_admin.config import Settings
+from dental_practice_admin.principle import PrincipleClient
+from dental_practice_admin.tasks import PRACTICE_TZ, daily_diary
 
 # How much history the agent is given. Bounded because a year of chat is neither affordable nor
 # useful; the whole conversation stays in the store either way.
@@ -129,10 +131,27 @@ def _describe(report: object) -> str:
     return "\n".join(lines)
 
 
+def model_for(settings: Settings) -> Model | str:
+    """The model to run, built from configuration.
+
+    An explicit client when a key is configured, so `.env` is authoritative; the SDK's own
+    environment lookup would otherwise be a second place to configure the same thing. Pointing
+    `openai_base_url` at the fake AI is how a simulated model is selected -- the application never
+    learns that it is simulated.
+    """
+    if not settings.openai_api_key.get_secret_value():
+        return settings.agent_model
+    client = AsyncOpenAI(
+        api_key=settings.openai_api_key.get_secret_value(),
+        base_url=settings.openai_base_url or None,
+    )
+    return OpenAIResponsesModel(settings.agent_model, client)
+
+
 def build_agent(deps: ChatDeps) -> Agent[AgentContext[StaffUser]]:
     """The agent for one turn. `deps.model` is the injection point tests use."""
     return Agent[AgentContext[StaffUser]](
-        name="Principle admin assistant",
+        name="Massey Smiles Admin assistant",
         instructions=INSTRUCTIONS,
         model=deps.model,
         tools=build_tools(deps),  # type: ignore[arg-type]

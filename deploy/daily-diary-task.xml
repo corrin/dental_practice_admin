@@ -3,7 +3,7 @@
   Task Scheduler definition for the daily diary.
 
   Register with:
-    schtasks /Create /XML deploy\daily-diary-task.xml /TN "Principle admin\Daily diary" ^
+    schtasks /Create /XML deploy\daily-diary-task.xml /TN "Massey Smiles Admin\Daily diary" ^
              /RU <service account> /RP *
 
   Choices that matter here:
@@ -15,7 +15,7 @@
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
     <Description>Reports the next day's appointments from Principle.</Description>
-    <URI>\Principle admin\Daily diary</URI>
+    <URI>\Massey Smiles Admin\Daily diary</URI>
   </RegistrationInfo>
   <Triggers>
     <CalendarTrigger>
@@ -43,9 +43,9 @@
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>C:\Program Files\PrincipleAdmin\.venv\Scripts\python.exe</Command>
-      <Arguments>-m principle_admin.tasks diary --initiator scheduler</Arguments>
-      <WorkingDirectory>C:\Program Files\PrincipleAdmin</WorkingDirectory>
+      <Command>C:\Program Files\DentalPracticeAdmin\.venv\Scripts\python.exe</Command>
+      <Arguments>-m dental_practice_admin.tasks diary --initiator scheduler</Arguments>
+      <WorkingDirectory>C:\Program Files\DentalPracticeAdmin</WorkingDirectory>
     </Exec>
   </Actions>
 </Task>

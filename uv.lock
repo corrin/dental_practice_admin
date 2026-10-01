@@ -661,7 +661,7 @@ wheels = [
 ]
 
 [[package]]
-name = "principle-admin"
+name = "dental-practice-admin"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

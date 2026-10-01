@@ -8,7 +8,7 @@ The identity a request carries is the trusted scope for everything downstream â€
 belongs to an address, and the ChatKit store checks it on every operation. It never comes from
 a request body or a model argument.
 
-Two providers behind one dependency, chosen by `PRINCIPLE_SIGN_IN`:
+Two providers behind one dependency, chosen by `ADMIN_SIGN_IN`:
 
   google      the real flow, via authlib
   developer   a fixed local user, so the test suite and a local run need no OAuth round-trip
@@ -32,8 +32,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from starlette.responses import Response
 
-from principle_admin.config import Settings, SignIn, current_settings
-from principle_admin.storage import Storage
+from dental_practice_admin.config import Settings, SignIn, current_settings
+from dental_practice_admin.storage import Storage
 
 GOOGLE_METADATA_URL = "https://accounts.google.com/.well-known/openid-configuration"
 
@@ -166,7 +166,7 @@ async def callback(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
                 f"{email or 'that account'} is not approved for this practice. "
-                "Ask whoever administers Principle_admin to add it."
+                "Ask whoever administers dental_practice_admin to add it."
             ),
         )
     address = email.strip().lower()

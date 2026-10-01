@@ -18,7 +18,7 @@ from typing import Any
 
 import httpx
 
-from principle_admin.config import Settings
+from dental_practice_admin.config import Settings
 
 
 class PrincipleError(Exception):

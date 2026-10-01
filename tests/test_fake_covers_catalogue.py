@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from principle_admin.principle import CATALOGUE, Call
+from dental_practice_admin.principle import CATALOGUE, Call
 from tests.fake import FakeStore, dispatch
 from tests.fake.server import ROUTES, FakeUnhandledRouteError, Request
 from tests.fake.store import FAKE_API_KEY

@@ -10,8 +10,10 @@ Three environments, and the difference between them is the whole safety story:
 claims to be staging while addressing production. `Settings` cross-checks the declared
 environment against the host actually configured and refuses a mismatch either way.
 
-Environment variable names match SMS_Bridge and od_data (`PRINCIPLE_API_BASE_URL`,
-`PRINCIPLE_API_KEY`, `PRINCIPLE_PRACTICE_ID`) so an existing .env carries over.
+Two prefixes, because there are two subjects. `PRINCIPLE_*` names settings about Principle
+Dental, the patient management system -- and matches SMS_Bridge and od_data, so an existing .env
+carries over. `ADMIN_*` names settings about this application: who may sign in, where its data
+lives, which model it talks to. None of those are Principle's.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.requests import Request
 
@@ -71,16 +73,21 @@ class Settings(BaseSettings):
     """Resolved runtime configuration for one process."""
 
     model_config = SettingsConfigDict(
-        env_prefix="PRINCIPLE_",
+        env_prefix="ADMIN_",
+        # An aliased field is otherwise settable only by its alias, so Settings(api_base_url=...)
+        # would be silently ignored and the production guard would never fire.
+        populate_by_name=True,
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
-    environment: Environment = Environment.FAKE
-    api_base_url: str = FAKE_API_URL
-    api_key: SecretStr = SecretStr("")
-    practice_id: str = ""
+    environment: Environment = Field(
+        default=Environment.FAKE, validation_alias="PRINCIPLE_ENVIRONMENT"
+    )
+    api_base_url: str = Field(default=FAKE_API_URL, validation_alias="PRINCIPLE_API_BASE_URL")
+    api_key: SecretStr = Field(default=SecretStr(""), validation_alias="PRINCIPLE_API_KEY")
+    practice_id: str = Field(default="", validation_alias="PRINCIPLE_PRACTICE_ID")
 
     # Staff sign-in. Google holds the credentials; this application holds only the list of
     # people allowed in, so there is no password store to leak or reset.
@@ -98,12 +105,26 @@ class Settings(BaseSettings):
     #
     # A plain comma-separated string, not a set. pydantic-settings JSON-decodes complex types from
     # environment and dotenv sources before any validator runs, so a `frozenset` field could only
-    # ever be set from Python -- PRINCIPLE_STAFF_EMAILS=someone@example.com failed to parse and the
+    # ever be set from Python -- ADMIN_STAFF_EMAILS=someone@example.com failed to parse and the
     # application refused to start. Use `allowed_emails` to read it.
     staff_emails: str = ""
     staff_domain: str = ""
 
-    openai_api_key: SecretStr = SecretStr("")
+    # Read here rather than left to the OpenAI SDK's own environment lookup, so .env is the one
+    # place configuration lives. Otherwise every launcher needs code to copy .env into the process
+    # environment before the SDK will see it.
+    #
+    # Aliased to the names OpenAI documents, not ADMIN_OPENAI_*: anyone who has used the SDK
+    # already knows them, and `env_prefix` would otherwise invent a second spelling that silently
+    # reads as empty.
+    openai_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("OPENAI_API_KEY", "ADMIN_OPENAI_API_KEY"),
+    )
+    openai_base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("OPENAI_BASE_URL", "ADMIN_OPENAI_BASE_URL"),
+    )
     # Confirmed present on /v1/models. A default that names a retired model is a chat box that
     # breaks for staff on the day it is retired, so this is worth keeping current.
     agent_model: str = "gpt-6.1-sol"
@@ -119,7 +140,7 @@ class Settings(BaseSettings):
     # Runtime data sits outside the source checkout on a real host (ARCHITECTURE.md,
     # Storage and configuration). Production and staging must not share a database or a
     # browser session file, so the environment name is part of the path.
-    data_root: Path = Field(default=Path.home() / "principle_admin_data")
+    data_root: Path = Field(default=Path.home() / "dental_practice_admin_data")
 
     @property
     def data_dir(self) -> Path:
@@ -129,7 +150,7 @@ class Settings(BaseSettings):
     @property
     def database_path(self) -> Path:
         """SQLite file holding run history and conversations."""
-        return self.data_dir / "principle_admin.db"
+        return self.data_dir / "dental_practice_admin.db"
 
     @property
     def browser_state_path(self) -> Path:
@@ -195,13 +216,13 @@ class Settings(BaseSettings):
             return
         missing: list[str] = []
         if not self.session_secret.get_secret_value():
-            missing.append("PRINCIPLE_SESSION_SECRET")
+            missing.append("ADMIN_SESSION_SECRET")
         if not self.google_client_id:
-            missing.append("PRINCIPLE_GOOGLE_CLIENT_ID")
+            missing.append("ADMIN_GOOGLE_CLIENT_ID")
         if not self.google_client_secret.get_secret_value():
-            missing.append("PRINCIPLE_GOOGLE_CLIENT_SECRET")
+            missing.append("ADMIN_GOOGLE_CLIENT_SECRET")
         if not self.allowed_emails and not self.staff_domain:
-            missing.append("PRINCIPLE_STAFF_EMAILS or PRINCIPLE_STAFF_DOMAIN")
+            missing.append("ADMIN_STAFF_EMAILS or ADMIN_STAFF_DOMAIN")
         if missing:
             raise ConfigurationError(f"sign_in=google needs {', '.join(missing)}")
 

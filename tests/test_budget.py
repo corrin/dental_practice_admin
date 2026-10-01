@@ -258,7 +258,7 @@ def test_production_configuration_is_counted() -> None:
     """
     counted = count(CATEGORIES["application"]).per_file
     assert "deploy/Caddyfile" in counted
-    assert "deploy/principle-admin.xml" in counted
+    assert "deploy/dental-practice-admin.xml" in counted
 
 
 def test_the_harness_is_not_counted_against_the_application() -> None:

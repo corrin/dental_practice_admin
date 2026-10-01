@@ -1,10 +1,10 @@
-# Principle_admin architecture
+# dental_practice_admin architecture
 
 Status: Architecture baseline; application implementation has not started.
 
 ## Purpose and constraints
 
-Principle_admin is a small Python application for administrative work in Principle Dental at one dental practice. Staff use a web browser for AI-assisted interactive work and ordinary task pages. Scheduled tasks run on an always-on practice Windows host.
+dental_practice_admin is a small Python application for administrative work in Principle Dental at one dental practice. Staff use a web browser for AI-assisted interactive work and ordinary task pages. Scheduled tasks run on an always-on practice Windows host.
 
 The architecture is planned upfront so that interactive and scheduled work share useful code without becoming a general-purpose automation platform.
 
@@ -139,11 +139,11 @@ Staff access is open to the internet so that staff can work from home without a 
 ## Proposed repository layout
 
 ```text
-Principle_admin/
+dental_practice_admin/
   ARCHITECTURE.md
   README.md
   pyproject.toml
-  src/principle_admin/
+  src/dental_practice_admin/
     app.py                 # FastAPI routes and application composition
     chat.py                # ChatKit server and agent tools
     principle.py           # Documented API access and configuration

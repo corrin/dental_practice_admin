@@ -3,7 +3,8 @@
 Shared by the end-to-end and smoke tiers: both need the same three processes, and starting a
 separate pair per tier would double the runtime to prove the same thing.
 
-Nothing here is a special test mode. `principle_admin.app:app` is the production entry point, run
+Nothing here is a special test mode. `dental_practice_admin.app:app` is the production entry
+point, run
 the way WinSW runs it; only the configuration differs, pointing at the simulations instead of the
 real Principle and the real model.
 """
@@ -51,7 +52,7 @@ def _serve(target: str, port: int, env: dict[str, str]) -> subprocess.Popen[byte
             "127.0.0.1",
             "--port",
             str(port),
-            # The same flags deploy/principle-admin.xml uses. A spine that started uvicorn
+            # The same flags deploy/dental-practice-admin.xml uses. A spine that started uvicorn
             # differently from the service would test an arrangement nothing ever runs.
             "--proxy-headers",
             "--forwarded-allow-ips",
@@ -99,7 +100,7 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
             "PRINCIPLE_API_BASE_URL": f"http://127.0.0.1:{fake_port}",
             "PRINCIPLE_API_KEY": FAKE_API_KEY,
             "PRINCIPLE_PRACTICE_ID": FAKE_PRACTICE_ID,
-            "PRINCIPLE_DATA_ROOT": str(data_root),
+            "ADMIN_DATA_ROOT": str(data_root),
             "PYTHONPATH": str(REPO),
             # OpenAI's own documented overrides, so the application needs no knowledge that its
             # model is simulated. No production code branches on being under test.
@@ -110,7 +111,7 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
 
     fake = _serve("tests.fake.server:app", fake_port, env)
     fake_ai = _serve("tests.fake_ai.server:app", fake_ai_port, env)
-    application = _serve("principle_admin.app:app", app_port, env)
+    application = _serve("dental_practice_admin.app:app", app_port, env)
     try:
         # Each fake refuses a call it does not serve, and the refusal is the readiness signal.
         _await_http(f"http://127.0.0.1:{fake_port}/v1/practices", fake, {401, 403, 500})

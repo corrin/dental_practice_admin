@@ -1,19 +1,19 @@
 <!--
-  WinSW service definition. Copy alongside a WinSW release renamed principle-admin.exe, then
-  `principle-admin.exe install`.
+  WinSW service definition. Copy alongside a WinSW release renamed dental-practice-admin.exe, then
+  `dental-practice-admin.exe install`.
 
   %BASE% is the directory holding this file. Runtime data is deliberately NOT under it: a
   release is replaced wholesale during an upgrade, and anything inside would go with it.
 -->
 <service>
-  <id>principle-admin</id>
-  <name>Principle admin</name>
-  <description>Staff pages and run history for Principle Dental administration.</description>
+  <id>dental-practice-admin</id>
+  <name>Massey Smiles Admin</name>
+  <description>Staff pages and run history for the practice, over Principle Dental.</description>
 
   <executable>%BASE%\.venv\Scripts\python.exe</executable>
   <!-- --proxy-headers is load-bearing: Caddy terminates TLS, and without it every absolute URL
        this application builds names 127.0.0.1:8080, including the Google OAuth redirect. -->
-  <arguments>-m uvicorn principle_admin.app:app --host 127.0.0.1 --port 8080 --proxy-headers --forwarded-allow-ips 127.0.0.1</arguments>
+  <arguments>-m uvicorn dental_practice_admin.app:app --host 127.0.0.1 --port 8080 --proxy-headers --forwarded-allow-ips 127.0.0.1</arguments>
   <workingdirectory>%BASE%</workingdirectory>
 
   <!-- Development reload is not part of a service: it watches the filesystem and restarts
@@ -21,7 +21,7 @@
   <env name="PYTHONPATH" value="%BASE%\src" />
   <env name="PRINCIPLE_ENVIRONMENT" value="production" />
   <env name="PRINCIPLE_API_BASE_URL" value="https://api.principle.dental" />
-  <env name="PRINCIPLE_DATA_ROOT" value="C:\ProgramData\PrincipleAdmin" />
+  <env name="ADMIN_DATA_ROOT" value="C:\ProgramData\DentalPracticeAdmin" />
 
   <onfailure action="restart" delay="10 sec" />
   <onfailure action="restart" delay="60 sec" />
@@ -37,5 +37,5 @@
     <autoRollAtTime>00:00:00</autoRollAtTime>
     <keepFiles>30</keepFiles>
   </log>
-  <logpath>C:\ProgramData\PrincipleAdmin\logs</logpath>
+  <logpath>C:\ProgramData\DentalPracticeAdmin\logs</logpath>
 </service>

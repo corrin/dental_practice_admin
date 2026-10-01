@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from principle_admin.app import app
-from principle_admin.config import Environment, Settings, current_settings
-from principle_admin.storage import Coverage, Outcome, Storage
+from dental_practice_admin.app import app
+from dental_practice_admin.config import Environment, Settings, current_settings
+from dental_practice_admin.storage import Coverage, Outcome, Storage
 
 
 @pytest.fixture

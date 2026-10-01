@@ -13,14 +13,14 @@ from collections.abc import AsyncIterator, Iterator
 import pytest
 from pydantic import SecretStr
 
-from principle_admin.config import (
+from dental_practice_admin.config import (
     STAGING_API_URL,
     ConfigurationError,
     Environment,
     Settings,
     is_production_host,
 )
-from principle_admin.principle import PrincipleClient
+from dental_practice_admin.principle import PrincipleClient
 from tests.fake import FAKE_API_KEY, FAKE_PRACTICE_ID, FakeStore, seed, transport
 
 

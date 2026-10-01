@@ -26,7 +26,7 @@ Run `scripts\verify.ps1` first; it must pass before any of this is worth doing.
 - [ ] **Restore the database.** Take a backup, delete a run from a copy, restore, confirm the
       run is back. A backup nobody has restored is a hypothesis.
 - [ ] **Reinstate the previous release.** Stop the service, swap the release directory back,
-      start, run `verify.ps1`. Confirm runtime data under `C:\ProgramData\PrincipleAdmin`
+      start, run `verify.ps1`. Confirm runtime data under `C:\ProgramData\DentalPracticeAdmin`
       survived the swap untouched.
 
 ## Repeat quarterly

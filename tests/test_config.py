@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from principle_admin.config import (
+from dental_practice_admin.config import (
     FAKE_API_URL,
     STAGING_API_URL,
     ConfigurationError,
@@ -25,11 +25,12 @@ PRODUCTION_API_URL = "https://api.principle.dental"
 def _isolated_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Build settings from the arguments alone.
 
-    A developer's .env or exported PRINCIPLE_* variables would otherwise decide what these
-    assertions are testing, and the failure would look like a bug in the guard.
+    A developer's .env or exported variables would otherwise decide what these assertions are
+    testing, and the failure would look like a bug in the guard. Both prefixes: ADMIN_ for this
+    application, PRINCIPLE_ for the patient management system.
     """
     for name in list(os.environ):
-        if name.startswith("PRINCIPLE_"):
+        if name.startswith(("ADMIN_", "PRINCIPLE_", "OPENAI_")):
             monkeypatch.delenv(name)
     monkeypatch.chdir(tmp_path)
 
@@ -83,12 +84,12 @@ def test_the_allowlist_can_be_set_from_the_environment(
 
     Every other test here builds Settings from Python keyword arguments, which skips the
     environment source entirely. That is how `staff_emails` shipped as a frozenset that
-    pydantic-settings tried to JSON-decode: PRINCIPLE_STAFF_EMAILS=someone@example.com raised at
+    pydantic-settings tried to JSON-decode: ADMIN_STAFF_EMAILS=someone@example.com raised at
     startup, the application would not boot, and nobody could sign in.
     """
-    monkeypatch.setenv("PRINCIPLE_STAFF_EMAILS", "One@Practice.NZ, two@practice.nz")
-    monkeypatch.setenv("PRINCIPLE_STAFF_DOMAIN", "@Example.COM")
-    monkeypatch.setenv("PRINCIPLE_SIGN_IN", "google")
+    monkeypatch.setenv("ADMIN_STAFF_EMAILS", "One@Practice.NZ, two@practice.nz")
+    monkeypatch.setenv("ADMIN_STAFF_DOMAIN", "@Example.COM")
+    monkeypatch.setenv("ADMIN_SIGN_IN", "google")
 
     settings = Settings()
 
@@ -97,6 +98,24 @@ def test_the_allowlist_can_be_set_from_the_environment(
     assert settings.admits("anyone@example.com", email_verified=True)
     assert not settings.admits("stranger@elsewhere.com", email_verified=True)
     assert settings.sign_in is SignIn.GOOGLE
+
+
+def test_openai_settings_use_the_names_openai_documents(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OPENAI_API_KEY must be read under that name, not ADMIN_OPENAI_API_KEY.
+
+    `env_prefix` applies to every field, so without an alias these read as empty however plainly
+    the environment sets them -- and the application quietly falls back to the SDK's own lookup,
+    which is the second source of truth this is meant to remove.
+    """
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:8899/v1")
+
+    settings = Settings()
+
+    assert settings.openai_api_key.get_secret_value() == "sk-test"
+    assert settings.openai_base_url == "http://127.0.0.1:8899/v1"
 
 
 def test_production_refuses_developer_sign_in() -> None:
@@ -120,7 +139,7 @@ def test_production_refuses_developer_sign_in() -> None:
 def test_google_sign_in_refuses_missing_credentials() -> None:
     """A deployment nobody can sign in to must fail at startup, not on the first visitor."""
     settings = _settings(sign_in=SignIn.GOOGLE)
-    with pytest.raises(ConfigurationError, match="PRINCIPLE_GOOGLE_CLIENT_ID"):
+    with pytest.raises(ConfigurationError, match="ADMIN_GOOGLE_CLIENT_ID"):
         settings.require_sign_in_configured()
 
 

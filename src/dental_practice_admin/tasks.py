@@ -20,9 +20,9 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from principle_admin.config import Environment, Settings
-from principle_admin.principle import PrincipleClient
-from principle_admin.storage import Coverage, Outcome, Storage
+from dental_practice_admin.config import Environment, Settings
+from dental_practice_admin.principle import PrincipleClient
+from dental_practice_admin.storage import Coverage, Outcome, Storage
 
 PRACTICE_TZ = ZoneInfo("Pacific/Auckland")
 
@@ -216,7 +216,7 @@ async def run_daily_diary(settings: Settings, on_date: date, initiator: str) -> 
 
 
 def _parse(argv: list[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(prog="principle-admin")
+    parser = argparse.ArgumentParser(prog="dental-practice-admin")
     tasks = parser.add_subparsers(dest="task", required=True)
     diary = tasks.add_parser("diary", help="report one day's appointments")
     diary.add_argument(

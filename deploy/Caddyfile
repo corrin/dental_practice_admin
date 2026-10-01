@@ -8,7 +8,7 @@
 #          |                                                |
 #   admin.massey-smiles.co.nz                 office.massey-smiles.co.nz
 #   -> 127.0.0.1:8080  (this machine)         -> reception:5170  (over the LAN)
-#      Principle_admin                           SMS_Bridge, /smsgateway/*
+#      dental_practice_admin                           SMS_Bridge, /smsgateway/*
 #
 # Both names are A records pointing at the SAME public IP. Caddy tells them apart by the Host
 # header, and obtains a separate certificate for each. That is why one router and one address
@@ -34,7 +34,7 @@
 }
 
 # ---------------------------------------------------------------------------
-# Principle_admin -- patient data, reachable from the internet.
+# dental_practice_admin -- patient data, reachable from the internet.
 #
 # The Google sign-in allowlist is the only access control. Nothing in this file restricts who may
 # reach the sign-in page.

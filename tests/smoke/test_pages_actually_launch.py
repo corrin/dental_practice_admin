@@ -50,7 +50,7 @@ IGNORED_CONSOLE = (
     "Direct usage of named widget classes is deprecated",
     "favicon.ico",
     # Localhost is exempt from ChatKit domain verification; production is not, and
-    # PRINCIPLE_CHATKIT_DOMAIN_KEY must hold a key registered for the practice's hostname.
+    # ADMIN_CHATKIT_DOMAIN_KEY must hold a key registered for the practice's hostname.
     "Domain verification skipped",
 )
 
