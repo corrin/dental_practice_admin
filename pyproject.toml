@@ -2,7 +2,7 @@
 name = "dental-practice-admin"
 version = "0.1.0"
 description = "Administrative application for Principle Dental at one dental practice"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.14,<3.15"
 dependencies = [
     "authlib>=1.8.0",
     "fastapi>=0.142.2",
@@ -23,10 +23,10 @@ dental-practice-admin = "dental_practice_admin.tasks:main"
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3,<9",
-    "pytest-asyncio>=0.24,<0.25",
+    "pytest>=8.4,<9",
+    "pytest-asyncio>=1.2,<2",
     "pyyaml>=6.0,<7",
-    "ruff>=0.7,<0.8",
+    "ruff>=0.14,<0.15",
     "mypy>=1.13,<2",
     "pytest-playwright>=0.9.0",
     "types-pyyaml>=6.0.12.20260906",
@@ -43,6 +43,7 @@ packages = ["src/dental_practice_admin"]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 # The default suite is hermetic: no credentials, no network, safe in CI. The integration
 # tier is a release gate run deliberately (scripts/run_integration_tests.ps1), never a
 # default, because it reaches the real staging tenant.
@@ -67,7 +68,7 @@ ignore = ["D203", "D213", "D401", "D102", "D105", "D107"]
 "tests/*" = ["D100", "D103"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 strict = true
 files = ["src", "tests", "scripts"]
 # src is the package root; without these mypy reads src/dental_practice_admin/*.py twice, once

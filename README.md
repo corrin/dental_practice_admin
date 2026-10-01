@@ -48,7 +48,12 @@ and refuses to call itself production while addressing anything else.
 
 ## Running the application
 
-Run `uv sync --locked` once, then use **Terminal > Run Task > Run** in VS Code.
+Python 3.14 is required. Run `uv sync --locked` once, then use
+**Terminal > Run Task > Run** in VS Code. uv selects a compatible interpreter from
+`pyproject.toml` and recreates an incompatible project virtual environment; it can download
+Python when needed. After upgrading Python, run this command in each development or release
+directory before starting the application. Service and scheduled-task paths still point to
+`.venv\Scripts\python.exe`.
 The ordinary setup is Principle staging, Google login, real OpenAI, and ngrok at
 `https://massey-admin-dev.ngrok-free.app`. The command is
 `uv run python scripts/run.py --preset staging --sign-in google`.
