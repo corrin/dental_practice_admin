@@ -47,4 +47,8 @@ possible, and keep it there.
 - Commit and push after every step that works. Never end a turn with unpushed commits.
 - Commit everything in the working tree. Don't stash, cherry-pick, rebase, or switch branches
   over uncommitted work, and don't pick files selectively.
-- Mark the pull request ready when the work is done. Done means merged to `main`.
+- When the work is done, mark the pull request ready and run `gh pr merge --auto --merge`. It
+  merges once `hermetic` passes, and GitHub then deletes the branch. Done means merged to `main`.
+- After it merges, remove the worktree and local branch. GitHub deletes only its own copy.
+  `uv run python -m scripts.merged_leftovers` lists local branches and worktrees whose work is
+  already in `main`.
