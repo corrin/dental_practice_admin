@@ -21,7 +21,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from dental_practice_admin.config import Environment, Settings
-from dental_practice_admin.principle import PrincipleClient
+from dental_practice_admin.principle import PrincipleClient, check_web_build
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 
 PRACTICE_TZ = ZoneInfo("Pacific/Auckland")
@@ -242,6 +242,8 @@ def main(argv: list[str] | None = None) -> int:
     on_date = arguments.date or (datetime.now(tz=PRACTICE_TZ).date() + timedelta(days=1))
     initiator = arguments.initiator or f"windows:{getpass.getuser()}"
     run_id = asyncio.run(run_daily_diary(settings, on_date, initiator))
+    if settings.environment is not Environment.FAKE:
+        check_web_build(settings)
     storage = Storage(settings.database_path)
     run = storage.run(run_id)
     storage.close()

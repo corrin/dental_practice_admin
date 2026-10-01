@@ -21,7 +21,7 @@ from typing import Any
 import httpx
 from jsonschema import Draft202012Validator, FormatChecker
 
-from dental_practice_admin.config import Environment, Settings
+from dental_practice_admin.config import PRINCIPLE_WEB_URLS, Environment, Settings
 from dental_practice_admin.storage import Storage
 
 
@@ -92,6 +92,43 @@ CATALOGUE: tuple[Call, ...] = tuple(
 )
 
 BY_NAME: Mapping[str, Call] = {call.name: call for call in CATALOGUE}
+
+# Principle web builds that docs/principle/ and the scripts using the website or Firestore
+# were checked against, named by the hashed main script each build serves.
+ACCEPTED_WEB_BUILDS = frozenset({"main.ecfbec0077a05029.js", "main.8e7a8bfa2c5bf44c.js"})
+WEB_BUILD_CHECK = "principleWebBuild"
+_ACCEPTED_ID = ",".join(sorted(ACCEPTED_WEB_BUILDS))
+
+
+def check_web_build(
+    settings: Settings, transport: httpx.BaseTransport | None = None
+) -> str | None:
+    """Warn staff when Principle's web app is a build nobody here has checked.
+
+    A new build can change the website and Firestore behaviour docs/principle/ describes;
+    docs/principle/README.md says what to re-check. The warning is recorded under the current
+    accepted set, so it lasts until a release accepts the build. An unreadable page is
+    recorded separately and clears when the page reads again. Returns the build observed.
+    """
+    build = None
+    try:
+        with httpx.Client(transport=transport, timeout=30) as client:
+            page = client.get(PRINCIPLE_WEB_URLS[settings.environment]).raise_for_status()
+        found = set(re.findall(r"\bmain\.[0-9a-f]+\.js\b", page.text))
+        build = found.pop() if len(found) == 1 else None
+    except httpx.HTTPError:
+        pass
+    store = Storage(settings.database_path)
+    try:
+        if build is None:
+            store.interface_warning(WEB_BUILD_CHECK, "unreadable", "web_build_unreadable")
+        elif build in ACCEPTED_WEB_BUILDS:
+            store.resolve_interface_warning(WEB_BUILD_CHECK, _ACCEPTED_ID)
+        else:
+            store.interface_warning(WEB_BUILD_CHECK, _ACCEPTED_ID, f"new_web_build {build}")
+    finally:
+        store.close()
+    return build
 
 
 class PrincipleClient:
