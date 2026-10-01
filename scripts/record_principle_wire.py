@@ -258,18 +258,18 @@ def window() -> dict[str, str]:
 async def record_successes(
     client: PrincipleClient, practice_id: str, names: Pseudonymiser
 ) -> list[Path]:
-    """Capture one page of each listing the catalogue describes.
+    """Capture one page of each verified diary listing.
 
     All three share one Pseudonymiser, so the practice id in the appointment rows maps to the
     same synthetic value as the practice's own id -- the cross-references between recordings
     are part of the shape.
     """
-    practices = await client.get("list_practices")
+    practices = await client.get("listPractices")
     practitioners = await client.get(
-        "list_practitioners", path_params={"practice_id": practice_id}
+        "listPractitioners", path_params={"practiceId": practice_id}
     )
     appointments = await client.get(
-        "list_appointments", query={"practiceId": practice_id, "limit": 2, **window()}
+        "listAppointmentsByDateRange", query={"practiceId": practice_id, "limit": 2, **window()}
     )
     for document in (practices, practitioners, appointments):
         names.observe(document)
@@ -287,7 +287,7 @@ async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Path
 
     no_key = settings.model_copy(update={"api_key": SecretStr("")})
     async with PrincipleClient(no_key) as client:
-        written.append(await _provoke(client, "unauthorised", "list_practices", names))
+        written.append(await _provoke(client, "unauthorised", "listPractices", names))
 
     # Deliberately not provoked: an unplaceable offsetId, a missing required parameter, and
     # an out-of-range limit. The first is not a refusal at all -- Principle ignores it and

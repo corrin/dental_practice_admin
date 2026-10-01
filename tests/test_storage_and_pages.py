@@ -127,6 +127,20 @@ def test_the_fake_is_announced_on_every_page(pages: Pages) -> None:
     assert 'data-automation-id="fake-banner"' in body
 
 
+def test_interface_warning_is_visible_on_staff_pages(pages: Pages) -> None:
+    pages.store.interface_warning("searchPatients", "fake-release", "response_schema")
+    run_id = pages.store.start_run("daily_diary", "fake-user", "fake")
+    for path in ("/", "/chat", f"/runs/{run_id}"):
+        response = pages.client.get(path)
+        assert response.status_code == 200
+        assert 'data-automation-id="principle-interface-warning"' in response.text
+        assert "searchPatients" in response.text
+
+
+def test_compatible_pages_have_no_interface_warning(pages: Pages) -> None:
+    assert 'data-automation-id="principle-interface-warning"' not in pages.client.get("/").text
+
+
 def test_no_page_claims_a_next_run_time(pages: Pages) -> None:
     """Windows owns the schedule.
 

@@ -43,6 +43,14 @@ CREATE TABLE IF NOT EXISTS sign_ins (
     remote_ip   TEXT
 );
 CREATE INDEX IF NOT EXISTS sign_ins_recent ON sign_ins(at DESC);
+
+CREATE TABLE IF NOT EXISTS interface_warnings (
+    operation TEXT PRIMARY KEY,
+    interface_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    first_seen TEXT NOT NULL,
+    last_seen TEXT NOT NULL
+);
 """
 
 
@@ -108,6 +116,29 @@ class Storage:
 
     def close(self) -> None:
         self.db.close()
+
+    def interface_warning(self, operation: str, interface_id: str, reason: str) -> None:
+        """Deduplicate production incompatibilities without storing business data."""
+        with self._write() as db:
+            db.execute(
+                "INSERT INTO interface_warnings VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(operation) DO UPDATE SET interface_id=excluded.interface_id, "
+                "reason=excluded.reason, last_seen=excluded.last_seen",
+                (operation, interface_id, reason, now(), now()),
+            )
+
+    def resolve_interface_warning(self, operation: str, interface_id: str) -> None:
+        """A compatible response from a different released contract resolves the warning."""
+        with self._write() as db:
+            db.execute("DELETE FROM interface_warnings WHERE operation=? AND interface_id<>?",
+                       (operation, interface_id))
+
+    def interface_warnings(self) -> list[dict[str, str]]:
+        """Outstanding observations, retained across application restarts."""
+        return [dict(row) for row in self.db.execute(
+            "SELECT operation, reason, first_seen, last_seen FROM interface_warnings "
+            "ORDER BY first_seen"
+        )]
 
     @contextmanager
     def _write(self) -> Iterator[sqlite3.Connection]:

@@ -39,8 +39,8 @@ async def test_total_is_the_page_size_not_the_result_size(
     one row answers total 1 over the same window that answers total 20 at limit 20.
     """
     query = {"practiceId": staging_settings.practice_id, **_window()}
-    one = await staging_client.get("list_appointments", query={**query, "limit": 1})
-    twenty = await staging_client.get("list_appointments", query={**query, "limit": 20})
+    one = await staging_client.get("listAppointmentsByDateRange", query={**query, "limit": 1})
+    twenty = await staging_client.get("listAppointmentsByDateRange", query={**query, "limit": 20})
 
     assert one["meta"]["total"] == len(one["data"]) == 1
     assert twenty["meta"]["total"] == len(twenty["data"]) == 20
@@ -60,7 +60,7 @@ async def test_next_offset_id_is_the_last_row_created_at(
     describe different appointments.
     """
     page = await staging_client.get(
-        "list_appointments",
+        "listAppointmentsByDateRange",
         query={"practiceId": staging_settings.practice_id, "limit": 3, **_window()},
     )
     rows = page["data"]
@@ -80,9 +80,9 @@ async def test_an_unplaceable_offset_id_is_ignored_not_refused(
     cursor mid-walk would yield the first page twice and inflate every count in the report.
     """
     query = {"practiceId": staging_settings.practice_id, "limit": 2, **_window()}
-    first = await staging_client.get("list_appointments", query=query)
+    first = await staging_client.get("listAppointmentsByDateRange", query=query)
     with_nonsense = await staging_client.get(
-        "list_appointments", query={**query, "offsetId": "no-such-record"}
+        "listAppointmentsByDateRange", query={**query, "offsetId": "no-such-record"}
     )
     assert [row["id"] for row in with_nonsense["data"]] == [row["id"] for row in first["data"]]
 
@@ -96,7 +96,8 @@ async def test_the_server_default_limit_is_twenty(
     appointments, which for a busy practice is most of a day missing.
     """
     page = await staging_client.get(
-        "list_appointments", query={"practiceId": staging_settings.practice_id, **_window()}
+        "listAppointmentsByDateRange",
+        query={"practiceId": staging_settings.practice_id, **_window()},
     )
     assert page["meta"]["limit"] == 20
 
@@ -111,7 +112,7 @@ async def test_practitioners_is_not_paginated(
     what it asked for.
     """
     envelope = await staging_client.get(
-        "list_practitioners", path_params={"practice_id": staging_settings.practice_id}
+        "listPractitioners", path_params={"practiceId": staging_settings.practice_id}
     )
     assert "meta" not in envelope
     assert envelope["data"], "the practice must have at least one practitioner"
@@ -119,7 +120,7 @@ async def test_practitioners_is_not_paginated(
 
 async def test_practices_is_not_paginated(staging_client: PrincipleClient) -> None:
     """`/v1/practices` returns `data` alone, which is what the catalogue assumes."""
-    envelope = await staging_client.get("list_practices")
+    envelope = await staging_client.get("listPractices")
     assert "meta" not in envelope
 
 
@@ -135,7 +136,7 @@ async def test_a_full_walk_yields_no_duplicates(
     rows = [
         row
         async for row in staging_client.rows(
-            "list_appointments",
+            "listAppointmentsByDateRange",
             query={"practiceId": staging_settings.practice_id, **_window(days=14)},
             page_size=10,
         )

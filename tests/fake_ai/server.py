@@ -59,6 +59,9 @@ def decide(body: dict[str, Any]) -> list[dict[str, Any]]:
     if outputs:
         return [_message(f"{MARKER} {' '.join(outputs)}")]
 
+    if "practitioners" in rendered.lower() and "listPractitioners" in tools:
+        return [_function_call("listPractitioners", {})]
+
     if "diary_for_date" in tools:
         found = DATE.search(rendered)
         if found:

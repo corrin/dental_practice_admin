@@ -123,6 +123,7 @@ def index(
         {
             "tasks": CONFIGURED_TASKS,
             "runs": store.recent_runs(),
+            "interface_warnings": store.interface_warnings(),
             "staff": staff,
             "environment": configured.environment,
             "is_fake": configured.environment is Environment.FAKE,
@@ -135,6 +136,7 @@ def chat_page(
     request: Request,
     staff: CurrentStaff,
     configured: Annotated[Settings, Depends(settings)],
+    store: Annotated[Storage, Depends(storage)],
 ) -> HTMLResponse:
     """The page hosting the ChatKit web component."""
     return TEMPLATES.TemplateResponse(
@@ -143,6 +145,7 @@ def chat_page(
         {
             "staff": staff,
             "chatkit_domain_key": configured.chatkit_domain_key,
+            "interface_warnings": store.interface_warnings(),
             "environment": configured.environment,
             "is_fake": configured.environment is Environment.FAKE,
         },
@@ -218,6 +221,7 @@ def run_detail(
         "run.html",
         {
             "run": run,
+            "interface_warnings": store.interface_warnings(),
             "staff": staff,
             "environment": configured.environment,
             "is_fake": configured.environment is Environment.FAKE,

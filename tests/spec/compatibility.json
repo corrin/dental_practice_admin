@@ -1,0 +1,8 @@
+{
+  "complete_listings": ["listPractitioners"],
+  "notes": {
+    "searchPatients": "This search cannot count all patients.",
+    "listAppointmentsByDateRange": "Pagination totals describe the page, not the whole result set. Prefer the diary tools for complete daily reports."
+  },
+  "patches": []
+}

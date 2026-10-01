@@ -26,6 +26,7 @@ Stage 'Installed application' { uv run --locked python -c "from dental_practice_
 Stage 'Caddy configuration' { caddy validate --config deploy\Caddyfile --adapter caddyfile }
 Stage 'Lint' { uv run --locked ruff check . }
 Stage 'Types' { uv run --locked mypy }
+Stage 'Generated Principle interface' { uv run --locked python -m scripts.refresh_spec --check }
 Stage 'Local suite and code budget' { uv run --locked pytest -q }
 Stage 'End to end' { uv run --locked pytest -m e2e -q }
 Stage 'Browser smoke' { uv run --locked pytest -m smoke -q }

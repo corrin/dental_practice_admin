@@ -270,7 +270,7 @@ async def test_fake_server_rejects_incorrect_keys(key: str, fake_store: FakeStor
     settings = Settings(environment=Environment.FAKE, api_key=SecretStr(key))
     async with PrincipleClient(settings, transport=transport(fake_store)) as client:
         with pytest.raises(PrincipleError) as error:
-            await client.get("list_practices")
+            await client.get("listPractices")
     assert error.value.status in {401, 403}
 
 
@@ -281,4 +281,4 @@ async def test_fake_server_accepts_its_synthetic_uuid(fake_client: PrincipleClie
     from tests.fake import FAKE_API_KEY
 
     assert str(UUID(FAKE_API_KEY)) == FAKE_API_KEY
-    assert (await fake_client.get("list_practices"))["data"]
+    assert (await fake_client.get("listPractices"))["data"]

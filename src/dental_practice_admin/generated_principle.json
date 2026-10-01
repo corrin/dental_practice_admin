@@ -1,8 +1,12 @@
 {
   "operations": {
     "getAppointmentTag": {
-      "description": "Retrieve an appointment tag",
+      "complete_listing": false,
+      "description": "Retrieve an appointment tag. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "getAppointmentTag",
+      "paginated": false,
       "parameters": [
         {
           "in": "path",
@@ -22,6 +26,22 @@
         }
       ],
       "path": "/v1/tags/appointment/{tagId}",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "practiceId": {
+            "type": "string"
+          },
+          "tagId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tagId",
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "createdAt": {
@@ -46,11 +66,27 @@
           "updatedAt"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "tagId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tagId"
+        ],
+        "type": "object"
       }
     },
     "getPatientTag": {
-      "description": "Retrieve a patient tag",
+      "complete_listing": false,
+      "description": "Retrieve a patient tag. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "getPatientTag",
+      "paginated": false,
       "parameters": [
         {
           "in": "path",
@@ -70,6 +106,22 @@
         }
       ],
       "path": "/v1/tags/patient/{tagId}",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "practiceId": {
+            "type": "string"
+          },
+          "tagId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tagId",
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "createdAt": {
@@ -94,11 +146,27 @@
           "updatedAt"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "tagId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tagId"
+        ],
+        "type": "object"
       }
     },
     "getPractice": {
-      "description": "Retrieve practice",
+      "complete_listing": false,
+      "description": "Retrieve practice. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "getPractice",
+      "paginated": false,
       "parameters": [
         {
           "in": "path",
@@ -110,6 +178,18 @@
         }
       ],
       "path": "/v1/practices/{practiceId}",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "practiceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "createdAt": {
@@ -134,11 +214,21 @@
           "updatedAt"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
       }
     },
     "getPractitioner": {
-      "description": "Retrieve a practitioner",
+      "complete_listing": false,
+      "description": "Retrieve a practitioner. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "getPractitioner",
+      "paginated": false,
       "parameters": [
         {
           "in": "path",
@@ -158,6 +248,22 @@
         }
       ],
       "path": "/v1/practices/{practiceId}/practitioners/{practitionerId}",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "practiceId": {
+            "type": "string"
+          },
+          "practitionerId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId",
+          "practitionerId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "createdAt": {
@@ -189,11 +295,27 @@
           "treatmentOptions"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "practitionerId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "practitionerId"
+        ],
+        "type": "object"
       }
     },
     "getTreatmentOption": {
-      "description": "Retrieve a treatment option",
+      "complete_listing": false,
+      "description": "Retrieve a treatment option. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "getTreatmentOption",
+      "paginated": false,
       "parameters": [
         {
           "in": "path",
@@ -213,6 +335,22 @@
         }
       ],
       "path": "/v1/practices/{practiceId}/treatment-options/{treatmentOptionId}",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "practiceId": {
+            "type": "string"
+          },
+          "treatmentOptionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId",
+          "treatmentOptionId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "createdAt": {
@@ -237,11 +375,27 @@
           "updatedAt"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "treatmentOptionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "treatmentOptionId"
+        ],
+        "type": "object"
       }
     },
     "listAppointmentTags": {
-      "description": "List appointment tags",
+      "complete_listing": false,
+      "description": "List appointment tags. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "listAppointmentTags",
+      "paginated": true,
       "parameters": [
         {
           "in": "query",
@@ -270,6 +424,25 @@
         }
       ],
       "path": "/v1/tags/appointment",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "pattern": "^[1-9][0-9]?$|^100$",
+            "type": "integer"
+          },
+          "offsetId": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -327,11 +500,46 @@
           "meta"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "pattern": "^[1-9][0-9]?$|^100$",
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offsetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "limit",
+          "offsetId"
+        ],
+        "type": "object"
       }
     },
     "listAppointmentsByDateRange": {
-      "description": "List appointments (all patients) by date range Returns appointments whose **event.from** or **event.to** intersects the [from, to) window.\nUse this to report on the diary across **all patients**.\n",
+      "complete_listing": false,
+      "description": "List appointments (all patients) by date range Returns appointments whose **event.from** or **event.to** intersects the [from, to) window.\nUse this to report on the diary across **all patients**.\n. Read only; restricted to this practice. Results may be partial; never infer a population total. Pagination totals describe the page, not the whole result set. Prefer the diary tools for complete daily reports.",
+      "exposed": true,
       "method": "GET",
+      "name": "listAppointmentsByDateRange",
+      "paginated": true,
       "parameters": [
         {
           "in": "query",
@@ -441,6 +649,68 @@
         }
       ],
       "path": "/v1/appointments",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "createdFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "limit": {
+            "pattern": "^[1-9][0-9]?$|^100$",
+            "type": "integer"
+          },
+          "offsetId": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "practitionerId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "unscheduled",
+              "scheduled",
+              "confirmed",
+              "arrived",
+              "checkedIn",
+              "inProgress",
+              "checkingOut",
+              "complete",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedTo": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "practiceId",
+          "to"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -678,11 +948,137 @@
           "meta"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "createdFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "pattern": "^[1-9][0-9]?$|^100$",
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offsetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "practitionerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unscheduled",
+                  "scheduled",
+                  "confirmed",
+                  "arrived",
+                  "checkedIn",
+                  "inProgress",
+                  "checkingOut",
+                  "complete",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "createdFrom",
+          "createdTo",
+          "from",
+          "limit",
+          "offsetId",
+          "practitionerId",
+          "status",
+          "to",
+          "updatedFrom",
+          "updatedTo"
+        ],
+        "type": "object"
       }
     },
     "listFilesByDateRange": {
-      "description": "List patient files (all patients) by date range Returns files across **all patients** filtered by creation and/or last-update window.\nAt least one of the date filters must be supplied.\n",
+      "complete_listing": false,
+      "description": "List patient files (all patients) by date range Returns files across **all patients** filtered by creation and/or last-update window.\nAt least one of the date filters must be supplied.\n. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "listFilesByDateRange",
+      "paginated": true,
       "parameters": [
         {
           "in": "query",
@@ -747,6 +1143,41 @@
         }
       ],
       "path": "/v1/files",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "createdFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "limit": {
+            "pattern": "^[1-9][0-9]?$|^100$",
+            "type": "integer"
+          },
+          "offsetId": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "updatedFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedTo": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -826,11 +1257,94 @@
           "meta"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "createdFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "pattern": "^[1-9][0-9]?$|^100$",
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offsetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "createdFrom",
+          "createdTo",
+          "limit",
+          "offsetId",
+          "updatedFrom",
+          "updatedTo"
+        ],
+        "type": "object"
       }
     },
     "listInvoicesByDateRange": {
-      "description": "List invoices (all patients) by date range Returns invoices created or updated within the supplied date range across all patients.\n",
+      "complete_listing": false,
+      "description": "List invoices (all patients) by date range Returns invoices created or updated within the supplied date range across all patients.\n. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "listInvoicesByDateRange",
+      "paginated": true,
       "parameters": [
         {
           "in": "query",
@@ -895,6 +1409,41 @@
         }
       ],
       "path": "/v1/invoices",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "createdFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "limit": {
+            "pattern": "^[1-9][0-9]?$|^100$",
+            "type": "integer"
+          },
+          "offsetId": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "updatedFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedTo": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -1270,11 +1819,94 @@
           "meta"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "createdFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "pattern": "^[1-9][0-9]?$|^100$",
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offsetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "createdFrom",
+          "createdTo",
+          "limit",
+          "offsetId",
+          "updatedFrom",
+          "updatedTo"
+        ],
+        "type": "object"
       }
     },
     "listPatientTags": {
-      "description": "List patient tags",
+      "complete_listing": false,
+      "description": "List patient tags. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "listPatientTags",
+      "paginated": true,
       "parameters": [
         {
           "in": "query",
@@ -1303,6 +1935,25 @@
         }
       ],
       "path": "/v1/tags/patient",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "pattern": "^[1-9][0-9]?$|^100$",
+            "type": "integer"
+          },
+          "offsetId": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -1360,13 +2011,54 @@
           "meta"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "pattern": "^[1-9][0-9]?$|^100$",
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offsetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "limit",
+          "offsetId"
+        ],
+        "type": "object"
       }
     },
     "listPractices": {
-      "description": "List practices",
+      "complete_listing": false,
+      "description": "List practices. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": false,
       "method": "GET",
+      "name": "listPractices",
+      "paginated": false,
       "parameters": [],
       "path": "/v1/practices",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -1402,11 +2094,21 @@
           "data"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
       }
     },
     "listPractitioners": {
-      "description": "List practitioners within a practice Returns all practitioners that belong to the given practice.\n",
+      "complete_listing": true,
+      "description": "List practitioners within a practice Returns all practitioners that belong to the given practice.\n. Read only; restricted to this practice.",
+      "exposed": true,
       "method": "GET",
+      "name": "listPractitioners",
+      "paginated": false,
       "parameters": [
         {
           "in": "path",
@@ -1418,6 +2120,18 @@
         }
       ],
       "path": "/v1/practices/{practiceId}/practitioners",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "practiceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -1457,11 +2171,21 @@
           }
         },
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
       }
     },
     "listTransactionsByDateRange": {
-      "description": "List transactions (all patients) by date range Returns transactions created or updated within the supplied date range across all patients.\n",
+      "complete_listing": false,
+      "description": "List transactions (all patients) by date range Returns transactions created or updated within the supplied date range across all patients.\n. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "listTransactionsByDateRange",
+      "paginated": true,
       "parameters": [
         {
           "in": "query",
@@ -1526,6 +2250,41 @@
         }
       ],
       "path": "/v1/transactions",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "createdFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "limit": {
+            "pattern": "^[1-9][0-9]?$|^100$",
+            "type": "integer"
+          },
+          "offsetId": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "updatedFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedTo": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -1662,11 +2421,94 @@
           "meta"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "createdFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "pattern": "^[1-9][0-9]?$|^100$",
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offsetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "createdFrom",
+          "createdTo",
+          "limit",
+          "offsetId",
+          "updatedFrom",
+          "updatedTo"
+        ],
+        "type": "object"
       }
     },
     "listTreatmentOptions": {
-      "description": "List treatment options",
+      "complete_listing": false,
+      "description": "List treatment options. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "listTreatmentOptions",
+      "paginated": false,
       "parameters": [
         {
           "in": "path",
@@ -1686,6 +2528,21 @@
         }
       ],
       "path": "/v1/practices/{practiceId}/treatment-options",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "practiceId": {
+            "type": "string"
+          },
+          "practitionerId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -1721,11 +2578,34 @@
           "data"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "practitionerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "practitionerId"
+        ],
+        "type": "object"
       }
     },
     "listTreatmentPlansByDateRange": {
-      "description": "List treatment plans (all patients) by date range Returns treatment plans across **all patients**. Filter by created/updated date range.\n",
+      "complete_listing": false,
+      "description": "List treatment plans (all patients) by date range Returns treatment plans across **all patients**. Filter by created/updated date range.\n. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "listTreatmentPlansByDateRange",
+      "paginated": true,
       "parameters": [
         {
           "in": "query",
@@ -1798,6 +2678,44 @@
         }
       ],
       "path": "/v1/treatment-plans",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "createdFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "limit": {
+            "pattern": "^[1-9][0-9]?$|^100$",
+            "type": "integer"
+          },
+          "offsetId": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "practitionerId": {
+            "type": "string"
+          },
+          "updatedFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedTo": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -2063,11 +2981,105 @@
           "meta"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "createdFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "pattern": "^[1-9][0-9]?$|^100$",
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offsetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "practitionerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedFrom": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "createdFrom",
+          "createdTo",
+          "limit",
+          "offsetId",
+          "practitionerId",
+          "updatedFrom",
+          "updatedTo"
+        ],
+        "type": "object"
       }
     },
     "searchAvailability": {
-      "description": "Search availability for new appointments Search for available time slots when booking a new appointment. To search availability for rescheduling an existing appointment (via an appointment id), use the `searchRescheduleAvailability` endpoint (`GET /v1/patients/{patientId}/appointments/{appointmentId}/availability`).",
+      "complete_listing": false,
+      "description": "Search availability for new appointments Search for available time slots when booking a new appointment. To search availability for rescheduling an existing appointment (via an appointment id), use the `searchRescheduleAvailability` endpoint (`GET /v1/patients/{patientId}/appointments/{appointmentId}/availability`).. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "searchAvailability",
+      "paginated": false,
       "parameters": [
         {
           "in": "query",
@@ -2113,6 +3125,35 @@
         }
       ],
       "path": "/v1/availability",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "format": "date",
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "practitionerId": {
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "type": "string"
+          },
+          "treatmentOptionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "practiceId",
+          "to",
+          "treatmentOptionId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -2246,11 +3287,48 @@
           "data"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "format": "date",
+            "type": "string"
+          },
+          "practitionerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to": {
+            "format": "date",
+            "type": "string"
+          },
+          "treatmentOptionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "practitionerId",
+          "to",
+          "treatmentOptionId"
+        ],
+        "type": "object"
       }
     },
     "searchLeads": {
-      "description": "Search leads Search for leads by `name`/`phone`/`email` using semantic search. A limit of 10 results are returned.\n",
+      "complete_listing": false,
+      "description": "Search leads Search for leads by `name`/`phone`/`email` using semantic search. A limit of 10 results are returned.\n. Read only; restricted to this practice. Results may be partial; never infer a population total.",
+      "exposed": true,
       "method": "GET",
+      "name": "searchLeads",
+      "paginated": false,
       "parameters": [
         {
           "in": "query",
@@ -2286,6 +3364,27 @@
         }
       ],
       "path": "/v1/leads",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -2337,11 +3436,56 @@
           "data"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "email",
+          "name",
+          "phone"
+        ],
+        "type": "object"
       }
     },
     "searchPatients": {
-      "description": "Search patients Search for patients by `name`/`dateOfBirth`/`phoneNumber` using semantic search. A limit of 10 results are returned.\n",
+      "complete_listing": false,
+      "description": "Search patients Search for patients by `name`/`dateOfBirth`/`phoneNumber` using semantic search. A limit of 10 results are returned.\n. Read only; restricted to this practice. Results may be partial; never infer a population total. This search cannot count all patients.",
+      "exposed": true,
       "method": "GET",
+      "name": "searchPatients",
+      "paginated": false,
       "parameters": [
         {
           "in": "query",
@@ -2378,6 +3522,28 @@
         }
       ],
       "path": "/v1/patients",
+      "request_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "dateOfBirth": {
+            "format": "date",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId"
+        ],
+        "type": "object"
+      },
       "response": {
         "properties": {
           "data": {
@@ -2561,8 +3727,50 @@
           "data"
         ],
         "type": "object"
+      },
+      "tool_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "dateOfBirth": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phoneNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "dateOfBirth",
+          "name",
+          "phoneNumber"
+        ],
+        "type": "object"
       }
     }
   },
-  "source": "https://api.principle.dental/assets/api.yml"
+  "source_hash": "b012ada9aaf0498279b7ff87b8df5f0c86314ce8bf044cf3a86dad29d9c307d9"
 }
