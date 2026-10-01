@@ -39,7 +39,6 @@ from typing import Any
 from pydantic import SecretStr
 
 from dental_practice_admin.config import (
-    STAGING_API_URL,
     ConfigurationError,
     Environment,
     Settings,
@@ -240,7 +239,7 @@ def write(
 
 def staging_settings() -> Settings:
     """Staging configuration, refusing production and missing credentials alike."""
-    settings = Settings(environment=Environment.STAGING, api_base_url=STAGING_API_URL)
+    settings = Settings(environment=Environment.STAGING)
     if is_production_host(settings.api_base_url):
         raise ConfigurationError("the recorder addresses staging, never production")
     settings.require_credentials()

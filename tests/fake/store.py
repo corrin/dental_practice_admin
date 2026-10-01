@@ -32,6 +32,9 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from dental_practice_admin.config import FAKE_API_KEY as FAKE_API_KEY
+from dental_practice_admin.config import FAKE_PRACTICE_ID as FAKE_PRACTICE_ID
+
 SCHEMA = """
 CREATE TABLE practices (
     id          TEXT PRIMARY KEY,
@@ -76,12 +79,6 @@ CREATE INDEX appointments_by_cursor ON appointments(created_at DESC, id);
 CREATE INDEX appointments_by_practitioner ON appointments(practitioner_id, event_from);
 CREATE INDEX appointments_by_status ON appointments(status);
 """
-
-# The key the fake accepts. A request carrying anything else is unauthenticated, which is how
-# a test asserts the client actually sends the header.
-FAKE_API_KEY = "fake-principle-key"
-
-FAKE_PRACTICE_ID = "fake-practice-0001"
 
 # The practice is in New Zealand; the diary task asks for local days, so the seed sits in
 # local business hours.

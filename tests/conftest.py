@@ -14,7 +14,6 @@ import pytest
 from pydantic import SecretStr
 
 from dental_practice_admin.config import (
-    STAGING_API_URL,
     ConfigurationError,
     Environment,
     Settings,
@@ -31,10 +30,10 @@ def _never_production() -> None:
     Guards the case where a developer's shell still holds the production API key from an
     afternoon of operational work.
     """
-    configured = os.environ.get("PRINCIPLE_API_BASE_URL")
+    configured = os.environ.get("PRINCIPLE_API_BASE_URL_STAGING")
     if configured and is_production_host(configured):
         pytest.fail(
-            f"PRINCIPLE_API_BASE_URL={configured!r} addresses production; "
+            f"PRINCIPLE_API_BASE_URL_STAGING={configured!r} addresses production; "
             "no test may run against live patient records"
         )
 
@@ -84,7 +83,6 @@ def staging_settings() -> Settings:
     """Staging configuration, refusing when credentials are absent."""
     settings = Settings(
         environment=Environment.STAGING,
-        api_base_url=os.environ.get("PRINCIPLE_API_BASE_URL", STAGING_API_URL),
     )
     if is_production_host(settings.api_base_url):
         raise ConfigurationError("the integration tier must not address production")

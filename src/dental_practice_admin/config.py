@@ -10,20 +10,19 @@ Three environments, and the difference between them is the whole safety story:
 claims to be staging while addressing production. `Settings` cross-checks the declared
 environment against the host actually configured and refuses a mismatch either way.
 
-Two prefixes, because there are two subjects. `PRINCIPLE_*` names settings about Principle
-Dental, the patient management system -- and matches SMS_Bridge and od_data, so an existing .env
-carries over. `ADMIN_*` names settings about this application: who may sign in, where its data
-lives, which model it talks to. None of those are Principle's.
+Principle credentials are scoped by environment. ADMIN_* controls this application;
+Google sign-in and OpenAI configuration are independent of the Principle environment.
 """
 
 from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 from starlette.requests import Request
 
 PRODUCTION_API_HOSTS = frozenset({"api.principle.dental", "app.principle.dental"})
@@ -33,6 +32,8 @@ STAGING_API_URL = "https://api.staging.principle.dental"
 # The fake answers in-process; the URL exists only so httpx can build a request, and the
 # host makes a stray real call obvious in a log or a traceback.
 FAKE_API_URL = "https://fake.principle.invalid"
+FAKE_API_KEY = "00000000-0000-4000-8000-000000000001"
+FAKE_PRACTICE_ID = "fake-practice-0001"
 
 
 class Environment(StrEnum):
@@ -41,6 +42,18 @@ class Environment(StrEnum):
     FAKE = "fake"
     STAGING = "staging"
     PRODUCTION = "production"
+
+
+PRINCIPLE_URLS = {
+    Environment.FAKE: FAKE_API_URL,
+    Environment.STAGING: STAGING_API_URL,
+    Environment.PRODUCTION: "https://api.principle.dental",
+}
+
+
+def environment_suffix(environment: str) -> str:
+    """The suffix identifying one Principle configuration section."""
+    return "PROD" if environment == "production" else environment.upper()
 
 
 class SignIn(StrEnum):
@@ -140,6 +153,39 @@ class Settings(BaseSettings):
     # browser session file, so the environment name is part of the path.
     data_root: Path = Field(default=Path.home() / "dental_practice_admin_data")
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[Any, ...]:
+        def resolved() -> dict[str, Any]:
+            initial = init_settings()
+            sources = [dotenv_settings, env_settings]
+            values: dict[str, Any] = {}
+            for source in sources:
+                values.update(source())
+            values.update(initial)
+            environment = values.get("environment", values.get("PRINCIPLE_ENVIRONMENT", "staging"))
+            suffix = environment_suffix(environment)
+            for field in ("api_base_url", "api_key", "practice_id"):
+                alias = f"PRINCIPLE_{field.upper()}"
+                values.pop(alias, None)
+                for source in sources:
+                    raw = getattr(source, "env_vars", {})
+                    scoped = raw.get(f"{alias}_{suffix}".lower())
+                    if scoped is not None:
+                        values[alias] = scoped
+                if field in initial or alias in initial:
+                    values.pop(alias, None)
+                    values[field] = initial.get(field, initial.get(alias))
+            return values
+
+        return (resolved,)
+
     @property
     def data_dir(self) -> Path:
         """Per-environment directory for the database, logs and browser session state."""
@@ -231,11 +277,7 @@ class Settings(BaseSettings):
     def _environment_matches_host(self) -> Settings:
         """Refuse config whose declared environment disagrees with its host."""
         if not self.api_base_url:
-            self.api_base_url = {
-                Environment.FAKE: FAKE_API_URL,
-                Environment.STAGING: STAGING_API_URL,
-                Environment.PRODUCTION: "https://api.principle.dental",
-            }[self.environment]
+            self.api_base_url = PRINCIPLE_URLS[self.environment]
         host = api_host(self.api_base_url)
         production_host = is_production_host(self.api_base_url)
         if self.environment is Environment.PRODUCTION and not production_host:
@@ -259,7 +301,7 @@ class Settings(BaseSettings):
         if self.environment is Environment.FAKE:
             return
         missing = [
-            name
+            f"{name}_{environment_suffix(self.environment)}"
             for name, value in (
                 ("PRINCIPLE_API_KEY", self.api_key.get_secret_value()),
                 ("PRINCIPLE_PRACTICE_ID", self.practice_id),

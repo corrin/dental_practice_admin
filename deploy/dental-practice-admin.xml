@@ -19,7 +19,7 @@
   <!-- Development reload is not part of a service: it watches the filesystem and restarts
        mid-request. -->
   <env name="PRINCIPLE_ENVIRONMENT" value="production" />
-  <env name="PRINCIPLE_API_BASE_URL" value="https://api.principle.dental" />
+  <env name="PRINCIPLE_API_BASE_URL_PROD" value="https://api.principle.dental" />
   <env name="ADMIN_DATA_ROOT" value="C:\ProgramData\DentalPracticeAdmin" />
 
   <onfailure action="restart" delay="10 sec" />

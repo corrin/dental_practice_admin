@@ -9,15 +9,24 @@ import pytest
 from pydantic import SecretStr
 from scripts import run
 
-from dental_practice_admin.config import ConfigurationError, Environment, Settings, SignIn
+from dental_practice_admin.config import (
+    PRINCIPLE_URLS,
+    ConfigurationError,
+    Environment,
+    Settings,
+    SignIn,
+)
 from dental_practice_admin.storage import Coverage, Outcome, Storage
+from tests.fake.store import FAKE_API_KEY
 
 
 @pytest.fixture
 def credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     for key, value in {
-        "PRINCIPLE_API_KEY": "synthetic-key",
-        "PRINCIPLE_PRACTICE_ID": "synthetic-practice",
+        "PRINCIPLE_API_KEY_STAGING": "synthetic-staging-key",
+        "PRINCIPLE_API_KEY_PROD": "synthetic-production-key",
+        "PRINCIPLE_PRACTICE_ID_STAGING": "synthetic-staging-practice",
+        "PRINCIPLE_PRACTICE_ID_PROD": "synthetic-production-practice",
         "OPENAI_API_KEY": "fake-ai-key",
         "ADMIN_SESSION_SECRET": "fake-session",
         "ADMIN_GOOGLE_CLIENT_ID": "fake-google-client",
@@ -37,7 +46,7 @@ def arguments(**overrides: object) -> argparse.Namespace:
 def test_normal_run_is_staging_with_google_and_real_ai(credentials: None) -> None:
     settings = run.configuration(arguments())
     assert settings.environment is Environment.STAGING
-    assert settings.api_base_url == run.PRINCIPLE_URLS[Environment.STAGING]
+    assert settings.api_base_url == PRINCIPLE_URLS[Environment.STAGING]
     assert settings.sign_in is SignIn.GOOGLE
     assert settings.openai_base_url == ""
     assert settings.public_base_url == run.STAGING_ORIGIN
@@ -63,7 +72,7 @@ def test_fake_preset_still_requires_explicit_authentication_opt_out() -> None:
     with pytest.raises(ConfigurationError, match="sign_in=google"):
         run.configuration(arguments(preset=Environment.FAKE))
     settings = run.configuration(arguments(preset=Environment.FAKE, sign_in=SignIn.DEVELOPER))
-    assert settings.api_key.get_secret_value() == "fake-principle-key"
+    assert settings.api_key.get_secret_value() == FAKE_API_KEY
     assert settings.openai_api_key.get_secret_value() == "fake-openai-key"
 
 
@@ -132,3 +141,17 @@ def test_launcher_stops_its_children_on_failure_or_interrupt(
     child.wait.assert_called()
     if failure != "running":
         child.terminate.assert_called_once()
+
+
+def test_cli_principle_overrides_preset_and_dotenv(
+    credentials: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PRINCIPLE_ENVIRONMENT", "production")
+    monkeypatch.setenv("PRINCIPLE_API_BASE_URL_STAGING", "https://staging.fake.invalid")
+    settings = run.configuration(arguments(preset=Environment.FAKE, principle=Environment.STAGING))
+    assert settings.environment is Environment.STAGING
+    assert settings.api_key.get_secret_value() == "synthetic-staging-key"
+    assert settings.practice_id == "synthetic-staging-practice"
+    assert settings.api_base_url == "https://staging.fake.invalid"
+    assert settings.sign_in is SignIn.GOOGLE
+    assert settings.openai_base_url == "http://127.0.0.1:8899/v1"
