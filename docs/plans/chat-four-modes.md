@@ -110,7 +110,9 @@ Generic tools on that session, added in `chat.build_tools`:
   - ask which record is meant when a search finds several
   - include the docs index
   - **check the translation, before and after.** This is the only safeguard: prompt text, no
-    mechanism.
+    mechanism. The owner decided this on 2026-10-01. The app is behind Google sign-in, and
+    staff are asking for changes they could make in Principle themselves, so the risk is
+    misreading the request, not misuse.
     - Before any change, state the record, the exact change, and the call or steps you will
       use, then check that they match what the person asked.
     - If the request could mean more than one thing, ask.
