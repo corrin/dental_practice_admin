@@ -256,25 +256,35 @@ def main() -> int:
     started = time.monotonic()
     try:
         with staging_browser() as session:
-            session.page.set_default_timeout(8000)
+            stats["stage"] = "login"
+            session.page.set_default_timeout(30000)
             session.login(email, password)
             session.page.get_by_placeholder("Password", exact=True).wait_for(
                 state="hidden", timeout=30000,
             )
             session.page.context.route("**/*", guard_navigation)
+            session.page.set_default_timeout(8000)
+            stats["stage"] = "discovery"
             browser = BrowserTest(session.page)
             run_phase(client, settings.agent_model, browser, stats)
             try:
                 browser.phase, browser.expected = "edit", browser.test_value
+                stats["stage"] = "edit"
                 run_phase(client, settings.agent_model, browser, stats)
                 stats["edit_verified"] = True
             finally:
                 browser.phase, browser.expected = "restore", str(browser.original)
+                stats["stage"] = "restore"
                 session.page.reload(wait_until="domcontentloaded")
                 run_phase(client, settings.agent_model, browser, stats)
                 stats["restoration_verified"] = True
     except Exception as error:
         stats["error_type"] = type(error).__name__
+        if args.diagnostic:
+            message = str(error).splitlines()[0]
+            for secret in (email, password, settings.openai_api_key.get_secret_value()):
+                message = message.replace(secret, "<redacted>")
+            print(json.dumps({"error": message}), flush=True)
     finally:
         client.close()
     stats["elapsed_seconds"] = round(time.monotonic() - started, 1)

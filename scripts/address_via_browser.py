@@ -5,7 +5,9 @@
 The edit form verifies addresses: free text is rejected until an autocomplete suggestion
 is picked or "Manually Enter Address" is used. Manual entry has structured fields, but
 Principle stores only the joined string, e.g. "1 Example St, Palmerston North, 4410,
-New Zealand". Saving submits the whole form, so other fields can be rewritten too.
+New Zealand", so the manual fields open blank and the whole address is replaced: pass
+--unit or --region to keep them. Saving submits the whole form, so other fields can be
+rewritten too.
 
 Navigation gotchas: the staging login offers several "Massey Smiles" workspaces, so the
 option must match exactly; patient URLs use the workspace slug, and a wrong slug leaves
@@ -33,6 +35,8 @@ def main() -> int:
     parser.add_argument("street")
     parser.add_argument("city")
     parser.add_argument("postcode")
+    parser.add_argument("--unit", default="")
+    parser.add_argument("--region", default="")
     parser.add_argument("--ui-env-file", default="../od_data/.env")
     parser.add_argument("--headed", action="store_true")
     args = parser.parse_args()
@@ -56,9 +60,9 @@ def main() -> int:
         page.get_by_text("Manually Enter Address").click()
         form = page.locator("pr-address-input")
         form.locator("[formcontrolname=streetName]").fill(args.street)
-        form.locator("[formcontrolname=subpremise]").fill("")
+        form.locator("[formcontrolname=subpremise]").fill(args.unit)
         form.locator("[formcontrolname=city]").fill(args.city)
-        form.locator("[formcontrolname=state]").fill("")
+        form.locator("[formcontrolname=state]").fill(args.region)
         form.locator("[formcontrolname=postalCode]").fill(args.postcode)
         form.locator("[formcontrolname=country]").fill("New Zealand")
         page.get_by_role("option", name="New Zealand", exact=True).click()
