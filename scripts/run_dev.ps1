@@ -22,13 +22,27 @@
 .PARAMETER NoSeed
   Skip creating example diary runs.
 
+.PARAMETER Tunnel
+  Also publish the application on a real HTTPS domain through ngrok, so the Google sign-in and
+  ChatKit paths can be exercised the way they will run in production, and so someone else can try
+  it before DNS exists.
+
+  The tunnel opens only after the health checks pass. Opening it first means the first thing a
+  visitor sees is a connection refused, which looks like the application is broken when it is
+  merely still starting -- the same discipline as DocketWorks' start_ngrok_when_ready.sh.
+
+  The authtoken comes from ngrok's own configuration, deliberately: putting one in this repository
+  is how SMS_Bridge ended up with a live credential in a file.
+
 .EXAMPLE
   .\scripts\run_dev.ps1
 #>
 [CmdletBinding()]
 param(
     [int]$Port = 8080,
-    [switch]$NoSeed
+    [switch]$NoSeed,
+    [switch]$Tunnel,
+    [string]$TunnelDomain = 'massey-admin-dev.ngrok-free.app'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -62,7 +76,11 @@ function Start-Server {
     $started = Start-Process -FilePath 'uv' -PassThru -NoNewWindow -WorkingDirectory $repo `
         -ArgumentList @(
             'run', 'python', '-m', 'uvicorn', $Target,
-            '--host', '127.0.0.1', '--port', "$On"
+            '--host', '127.0.0.1', '--port', "$On",
+            # The same flags the service and the test spine use. Behind a tunnel or a proxy,
+            # without these the application builds http://127.0.0.1 absolute URLs and the Google
+            # redirect stops matching the one registered with Google.
+            '--proxy-headers', '--forwarded-allow-ips', '127.0.0.1'
         )
     $script:processes += $started
     return $started
@@ -98,10 +116,24 @@ try {
         }
     }
 
+    if ($Tunnel) {
+        Write-Host "  publishing on https://$TunnelDomain" -ForegroundColor DarkGray
+        $started = Start-Process -FilePath 'ngrok' -PassThru -NoNewWindow -WorkingDirectory $repo `
+            -ArgumentList @('http', "--url=$TunnelDomain", "$Port", '--log=stdout')
+        $script:processes += $started
+        Wait-ForHttp "https://$TunnelDomain/health" @(200) 'tunnel'
+    }
+
     Write-Host ''
     Write-Host "  Runs and tasks   http://127.0.0.1:$Port/" -ForegroundColor Green
     Write-Host "  Chat             http://127.0.0.1:$Port/chat" -ForegroundColor Green
     Write-Host "  Health           http://127.0.0.1:$Port/health" -ForegroundColor DarkGray
+    if ($Tunnel) {
+        Write-Host ''
+        Write-Host "  Public           https://$TunnelDomain/" -ForegroundColor Green
+        Write-Host '  Register that exact origin with Google (OAuth redirect /auth/callback) and'
+        Write-Host '  with OpenAI (ChatKit domain allowlist) before sign-in or chat will work there.'
+    }
     Write-Host ''
     Write-Host '  Signed in as the local development user; there is no Google round-trip in `fake`.'
     Write-Host '  Ctrl+C to stop.' -ForegroundColor DarkGray
