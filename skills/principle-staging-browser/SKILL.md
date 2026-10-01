@@ -53,7 +53,7 @@ The model follows [the English procedure](../../scripts/browser_address_procedur
 the Python runner supplies browser tools and checks outcomes. ChatKit is the chat UI,
 not the browser driver. This diagnostic does not add writes to staff chat.
 
-Capture the original field value from the UI before editing. Verify persistence by
+Capture the persisted Profile address before opening the editor. Verify persistence by
 reloading and reading the field again; neither a filled input nor a model's completion
 message proves a save. Restore and independently verify the original. Report edit and
 restoration separately. After an uncertain write, read the saved state before retrying.
@@ -62,9 +62,15 @@ The address editor rejects unverified free text: select an autocomplete suggesti
 use Manually Enter Address. Its structured fields open blank even when the profile has
 an address, because the stored address is a joined string. Blank manual fields are not
 the original address. Preserve unit, region and other components, and establish exact
-restoration before saving. Update Patient submits the whole profile form; verify that
+restoration before saving. A single-component address can be restored by filling only
+`streetName`; the other manual fields are optional. `text=Update Patient` matches the
+heading and button, so use `button:has-text("Update Patient")`. Update Patient submits the whole profile form; verify that
 unrelated fields remain unchanged.
 
 Screenshots and rendered UI sent to the model can contain staging patient data.
 Keep credentials out of observations and retain raw diagnostics only where authorised.
 Never commit `.env`, session state, or unredacted recordings.
+
+The model needs prior rendered-page observations in its conversation history to reason
+about action results. Retain text observations; send only the latest screenshot. Stop
+repeated identical actions and inspect the UI rather than increasing the timeout.

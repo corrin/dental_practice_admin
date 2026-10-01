@@ -22,6 +22,9 @@ from scripts.check_staging import UI_URL, staging_browser
 from dental_practice_admin.config import Environment, Settings
 
 PATIENT = "Annette Dummy"
+PATIENT_ID = "Ab00hnl8R3EZpPHzcB0G"
+ADDRESS = "pr-patient-address"
+STREET = "pr-address-input [formcontrolname=streetName]"
 WORKSPACE_PREFIX = f"/{SLUG}/"
 PATIENTS_URL = UI_URL + WORKSPACE_PREFIX + "patients"
 EXCLUDED = ("r6YoXCruTjwciIoidQy3", "NYiQ7JuG7SebVoDPzZZK")
@@ -34,8 +37,8 @@ TOOL: Any = {
         "Operate the staging browser. selector is CSS or text=exact visible text. "
         "Actions: click, fill, observe, reload, navigate, capture, verify. "
         "navigate takes a staging browser URL in text. "
-        "capture requires the first address input selector and patient_id from the URL. "
-        "verify requires the address input selector after reloading and reopening the form. "
+        "capture requires pr-patient-address and patient_id from the URL. "
+        "verify requires pr-patient-address after reloading with the edit dialog closed. "
         "Unused arguments must be empty strings."
     ),
     "parameters": {
@@ -70,7 +73,7 @@ class BrowserTest:
         self.page = page
         self.patient_id = ""
         self.original: str | None = None
-        self.address_selector = ""
+        self.address_selector = ADDRESS
         self.phase = "discovery"
         self.expected = ""
         self.reloaded = False
@@ -86,6 +89,12 @@ class BrowserTest:
         if target.count() != 1 or not target.is_visible():
             raise ValueError("Selector must identify exactly one visible element")
         return target
+
+    def saved_address(self) -> str:
+        """Read persisted Profile text with no unsaved patient form open."""
+        if self.page.locator("pr-update-patient:visible").count():
+            raise ValueError("Close the edit dialog before reading the saved address")
+        return self.locator(ADDRESS).inner_text().strip().removeprefix("Address:").strip()
 
     def observation(self) -> list[dict[str, Any]]:
         """Return rendered UI only; credentials and network state are unavailable."""
@@ -136,11 +145,11 @@ class BrowserTest:
             if not urlsplit(self.page.url).path.startswith(WORKSPACE_PREFIX):
                 raise ValueError("Patient must be in the Massey Smiles workspace")
             body = self.page.locator("body").inner_text()
-            if PATIENT not in body:
-                raise ValueError("Target patient's full name must be visible")
-            target = self.locator(selector)
-            self.original = target.input_value()
-            self.address_selector = selector
+            if patient_id != PATIENT_ID or not re.search(r"Annette(?: \(Annie\))? Dummy", body):
+                raise ValueError("Expected Annette Dummy's confirmed staging identity")
+            if selector != ADDRESS:
+                raise ValueError("Capture must read the saved Profile address")
+            self.original = self.saved_address()
             self.patient_id = patient_id
             self.complete = True
             return
@@ -149,7 +158,7 @@ class BrowserTest:
                 raise ValueError("Verification requires a fresh page load")
             if selector != self.address_selector:
                 raise ValueError("Verification must read the captured address field")
-            value = self.locator(selector).input_value()
+            value = self.saved_address()
             if value != self.expected:
                 raise ValueError("Persisted address does not equal the expected value")
             self.complete = True
@@ -159,20 +168,24 @@ class BrowserTest:
             if self.phase == "discovery":
                 if args["text"] not in ("", PATIENT, *PATIENT.split(), "Massey Smiles Dental"):
                     raise ValueError("Only the target patient search is allowed")
-            elif selector != self.address_selector or args["text"] != self.expected:
+            elif self.original is None or selector != STREET or args["text"] != self.expected:
                 raise ValueError("Only the captured address field and expected value may be filled")
-            if self.phase == "restore" and target.input_value() not in (
-                self.original, self.test_value,
-            ):
-                raise ValueError("Address changed outside this test")
             target.fill("")
             target.press_sequentially(args["text"], delay=40)
             self.reloaded = False
             return
         if action == "click":
             label = target.inner_text().strip().lower()
-            if self.phase == "discovery" and re.search(r"\b(save|submit|delete|send)\b", label):
+            if re.search(r"\b(delete|send)\b", label):
+                raise ValueError("Deleting and sending are forbidden")
+            if self.phase == "discovery" and re.search(r"\b(save|submit|update patient)\b", label):
                 raise ValueError("Discovery cannot save or send")
+            if self.phase != "discovery" and label == "edit":
+                allowed = (self.original,) if self.phase == "edit" else (
+                    self.original, self.test_value,
+                )
+                if self.saved_address() not in allowed:
+                    raise ValueError("Address changed outside this test")
             target.click()
             self.page.wait_for_timeout(500)
             return
@@ -192,13 +205,17 @@ def run_phase(client: OpenAI, model: str, browser: BrowserTest, stats: dict[str,
         + "\nTest value: " + browser.test_value
     )}]
     deadline = time.monotonic() + PHASE_SECONDS
+    previous_action: dict[str, str] | None = None
+    repeats = 0
     for step in range(MAX_CALLS):
         if time.monotonic() >= deadline:
             raise TimeoutError("Phase time budget exhausted")
+        observation = browser.observation()
+        history.append({"role": "user", "content": [observation[0]]})
         response = client.responses.create(
             model=model, store=False, tools=[TOOL], parallel_tool_calls=False,
             input=cast(ResponseInputParam, [
-                *history, {"role": "user", "content": browser.observation()},
+                *history, {"role": "user", "content": [observation[1]]},
             ]),
         )
         stats["model_calls"] += 1
@@ -214,6 +231,10 @@ def run_phase(client: OpenAI, model: str, browser: BrowserTest, stats: dict[str,
             raise RuntimeError("Model stopped without verified completion")
         for call in calls:
             args = json.loads(call.arguments)
+            repeats = repeats + 1 if args == previous_action else 1
+            previous_action = args
+            if repeats >= 3:
+                raise RuntimeError("Repeated browser action without progress; inspect the UI")
             try:
                 browser.execute(args)
                 outcome = "Completed action."
