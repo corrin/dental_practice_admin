@@ -8,10 +8,10 @@ Published in case it is useful to someone, not offered as a product. It is speci
 practice works and deeply tied to Principle; there is no abstraction over the patient management
 system and none is wanted.
 
-It is small on purpose — 2,000 lines, enforced by a test — because a tool one practice has to
-maintain should be a tool one person can read. The budget counts what runs in production, which is
-the only code that can break for staff. Tests, comments and tooling are reported but not budgeted:
-none of them has ever caused a phone call.
+It is small on purpose — 2,000 lines, [enforced by a test](tests/test_budget.py) —
+because a tool one practice has to maintain should be a tool one person can read. The budget
+counts what runs in production, which is the only code that can break for staff. Tests, comments
+and tooling are reported but not budgeted: none of them has ever caused a phone call.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and its constraints.
 
@@ -28,8 +28,9 @@ the GPL's trigger would never fire and improvements could stay private indefinit
 closes that: run a modified version as a network service your staff log into and you owe them its
 source. If anyone does pick this up, their improvements come back.
 
-Not affiliated with Principle Dental. The API is used as a customer. `tests/spec/fingerprint.json`
-is a normalized description of the published read operations used for generation. The original
+Not affiliated with Principle Dental. The API is used as a customer.
+[`tests/spec/fingerprint.json`](tests/spec/fingerprint.json) is a normalized description of the
+published read operations, used for [generation](#generated-principle-interface). The original
 specification and its examples are not redistributed here.
 
 ## Three Principles
@@ -39,8 +40,8 @@ so auth, paging and error handling are exercised for real everywhere.
 
 | | What it is | Used by |
 | --- | --- | --- |
-| **fake** | `tests/fake/` — a real implementation with its own SQLite state, no network | the default suite, the E2E tier, local development |
-| **staging** | `api.staging.principle.dental` | the integration tier, the recorder |
+| **fake** | [`tests/fake/`](tests/fake/) — a real implementation with its own SQLite state, no network | the default suite, the [E2E tier](#running-the-tests), local development |
+| **staging** | `api.staging.principle.dental` | the [integration tier](#running-the-tests), the [recorder](scripts/record_principle_wire.py) |
 | **production** | `api.principle.dental` | the practice |
 
 Configuration refuses to address production unless it says `PRINCIPLE_ENVIRONMENT=production`,
@@ -50,18 +51,21 @@ and refuses to call itself production while addressing anything else.
 
 Python 3.14 is required. Run `uv sync --locked` once, then use
 **Terminal > Run Task > Run** in VS Code. uv selects a compatible interpreter from
-`pyproject.toml` and recreates an incompatible project virtual environment; it can download
-Python when needed. After upgrading Python, run this command in each development or release
-directory before starting the application. Service and scheduled-task paths still point to
-`.venv\Scripts\python.exe`.
+[`pyproject.toml`](pyproject.toml) and recreates an incompatible project virtual environment; it
+can download Python when needed. After upgrading Python, run `uv sync --locked` again in each
+development or release directory before starting the application. Service and scheduled-task
+paths still point to `.venv\Scripts\python.exe`.
+
 The ordinary setup is Principle staging, Google login, real OpenAI, and ngrok at
 `https://massey-admin-dev.ngrok-free.app`. The command is
 `uv run python scripts/run.py --preset staging --sign-in google`.
-Stop it with Ctrl+C; the launcher stops its child processes. Only one local run uses port 8080.
+Stop it with Ctrl+C; the launcher stops its child processes. Only one local run can hold port
+8080: the launcher refuses to start while something else already has it.
 
-Keep credentials in the gitignored `.env`: `PRINCIPLE_API_KEY_STAGING`, `PRINCIPLE_PRACTICE_ID_STAGING`,
-`OPENAI_API_KEY`, `ADMIN_GOOGLE_CLIENT_ID`, `ADMIN_GOOGLE_CLIENT_SECRET`, `ADMIN_SESSION_SECRET`,
-and `ADMIN_STAFF_EMAILS` and/or `ADMIN_STAFF_DOMAIN`. Register the Google callback
+Keep credentials in the gitignored `.env`: `PRINCIPLE_API_KEY_STAGING`,
+`PRINCIPLE_PRACTICE_ID_STAGING`, `OPENAI_API_KEY`, `ADMIN_GOOGLE_CLIENT_ID`,
+`ADMIN_GOOGLE_CLIENT_SECRET`, `ADMIN_SESSION_SECRET`, and `ADMIN_STAFF_EMAILS` and/or
+`ADMIN_STAFF_DOMAIN`. Register the Google callback
 `https://massey-admin-dev.ngrok-free.app/auth/callback` and configure
 `ADMIN_CHATKIT_DOMAIN_KEY` for that hostname. Install ngrok and authenticate it through its own
 configuration. Fake Principle credentials are accepted only by the simulation, not staging.
@@ -93,11 +97,13 @@ The Firestore probe GETs up to three staging document references observed during
 A practice-ID mismatch is reported even if the API can read the sole returned practice.
 No records, screenshots, or authenticated session files are saved.
 
-Further scripts can import `check_api` and `staging_browser` from `scripts.check_staging`.
-Within `with staging_browser() as session`, call `session.login(email, password)`, use
-`session.page` for Playwright navigation, and `session.read_document(name)` for an exact
-Firestore GET under that user's permissions. Record bodies and tokens remain in memory;
-callers must keep them out of logs and version control.
+Further scripts can import `check_api` and `staging_browser` from
+[`scripts.check_staging`](scripts/check_staging.py). Within `with staging_browser() as session`,
+call `session.login(email, password)`, use `session.page` for Playwright navigation, and
+`session.read_document(name)` for an exact Firestore GET under that user's permissions. Record
+bodies and tokens remain in memory; callers must keep them out of logs and version control.
+
+### Presets and configuration
 
 Principle, sign-in, and AI are independent. These examples change only the choices named:
 
@@ -115,9 +121,10 @@ the loader selects credentials from the chosen environment's section.
 
 CLI selections override `.env` and the shell. For settings not selected on the command line,
 shell variables override `.env`. `PRINCIPLE_ENVIRONMENT` selects Principle (default `staging`).
-Group its key and practice ID under matching `_FAKE`, `_STAGING`, and `_PROD` settings in `.env`. Optional endpoint overrides
-use `PRINCIPLE_API_BASE_URL_FAKE`, `_STAGING`, or `_PROD`; otherwise standard endpoints apply.
-Shared, unscoped Principle credentials are not used. Missing selected credentials fail startup.
+Group its key and practice ID under matching `_FAKE`, `_STAGING`, and `_PROD` settings in `.env`.
+Optional endpoint overrides use `PRINCIPLE_API_BASE_URL_FAKE`, `_STAGING`, or `_PROD`; otherwise
+standard endpoints apply. Shared, unscoped Principle credentials are not used. Missing selected
+credentials fail startup.
 `--principle` overrides `--preset`, which overrides the configured environment.
 `ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL`, `OPENAI_API_KEY`, and
 `ADMIN_AGENT_MODEL` configure AI. Use only the `OPENAI_*` spellings for its key and endpoint.
@@ -136,21 +143,24 @@ uv run pytest -m llm                   # bounded real OpenAI check with syntheti
 uv run python -m scripts.code_size     # the 2,000-line budget, counted
 ```
 
-The integration tier needs `PRINCIPLE_API_KEY_STAGING` and `PRINCIPLE_PRACTICE_ID_STAGING` for a **staging**
-workspace. It is a release gate, deliberately absent from CI, which stays hermetic.
+The integration tier needs `PRINCIPLE_API_KEY_STAGING` and `PRINCIPLE_PRACTICE_ID_STAGING` for a
+**staging** workspace. It is a release gate, deliberately absent from
+[CI](.github/workflows/ci.yml), which stays hermetic.
 
-`scripts/release_gate.ps1` runs the fixed release checks: installed imports, Caddy validation,
-lint, types, local tests, browser tests, Principle staging, and the synthetic real-model check.
-It requires Caddy, Playwright Chromium, network access, and staging/OpenAI credentials. Missing
-prerequisites fail the gate. Run individual test commands for diagnosis; partial checks do not
-certify a release. No release command exercises production records.
+[`scripts/release_gate.ps1`](scripts/release_gate.ps1) runs the fixed release checks: installed
+imports, Caddy validation, lint, types, local tests, browser tests, Principle staging, and the
+synthetic real-model check. It requires Caddy, Playwright Chromium, network access, and
+staging/OpenAI credentials. Missing prerequisites fail the gate. Run individual test commands for
+diagnosis; partial checks do not certify a release. No release command exercises production
+records.
 
 ## Generated Principle interface
 
 Endpoint definitions and chat tool schemas are generated from the committed
-`tests/spec/fingerprint.json` snapshot. `src/dental_practice_admin/generated_principle.json`
-is a generated artifact: do not edit it. The shared HTTP executor supplies authentication,
-practice scope, validation and pagination. No endpoint-specific wrapper functions are maintained.
+[`tests/spec/fingerprint.json`](tests/spec/fingerprint.json) snapshot.
+[`generated_principle.json`](src/dental_practice_admin/generated_principle.json) is a generated
+artifact: do not edit it. The shared HTTP executor supplies authentication, practice scope,
+validation and pagination. No endpoint-specific wrapper functions are maintained.
 
 ```powershell
 # Offline regeneration and verification
@@ -169,16 +179,17 @@ configuration and generated output together, run the release gate, and release t
 The running app never fetches or adopts a new interface automatically. The API's `/v1` and
 OpenAPI version string do not establish compatibility; checks compare content.
 
-Run `scripts/install_hooks.ps1` once per clone to install the pre-commit hook. After the leak
-scan it checks the **staged** generator, snapshot, compatibility configuration and artifact in
-a temporary directory. It neither contacts Principle nor edits or stages files. CI checks the
-same deterministic output offline; the integration/release tier checks the published interface.
-Missing files, incompatible changes and unavailable upstream checks fail explicitly.
+Run [`scripts/install_hooks.ps1`](scripts/install_hooks.ps1) once per clone to install the
+pre-commit hook. After the leak scan it checks the **staged** generator, snapshot, compatibility
+configuration and artifact in a temporary directory. It neither contacts Principle nor edits or
+stages files. CI checks the same deterministic output offline; the integration/release tier checks
+the published interface. Missing files, incompatible changes and unavailable upstream checks fail
+explicitly.
 
-`tests/spec/compatibility.json` holds verified deviations and coverage rules. Its patches name
-the expected upstream value, so an upstream fix requires review instead of silently applying
-an obsolete exception. Additional unused response fields are accepted. Missing required fields,
-wrong types and invalid response envelopes are refused.
+[`tests/spec/compatibility.json`](tests/spec/compatibility.json) holds verified deviations and
+coverage rules. Its patches name the expected upstream value, so an upstream fix requires review
+instead of silently applying an obsolete exception. Additional unused response fields are
+accepted. Missing required fields, wrong types and invalid response envelopes are refused.
 
 Chat exposes generated, practice-scoped business reads and the diary tools. Patient-specific
 paths without a proven practice boundary, administration and writes are excluded. Generated
@@ -223,27 +234,30 @@ was wrong in five ways, each found by pointing the recorder at a real staging te
 | `/v1/.../practitioners` takes `limit` and pages | it ignores `limit` and returns no `meta` at all |
 | (unstated) | the default `limit` is 20 |
 
-Each is pinned in `tests/integration/test_pagination_contract.py`, so if Principle changes any
-of them a test fails rather than a report going quietly wrong. The third one is the dangerous
-one: because a stale cursor is ignored rather than refused, a long walk can silently restart and
-double-count, so `PrincipleClient.rows` refuses on a repeated row id.
+Each is pinned in
+[`tests/integration/test_pagination_contract.py`](tests/integration/test_pagination_contract.py),
+so if Principle changes any of them a test fails rather than a report going quietly wrong. The
+third one is the dangerous one: because a stale cursor is ignored rather than refused, a long walk
+can silently restart and double-count, so
+[`PrincipleClient.rows`](src/dental_practice_admin/principle.py) refuses on a repeated row id.
 
 These are observations against one staging tenant on 2026-10-01, offered so the next person does
 not have to rediscover them. If Principle has since changed, the tests will say so.
 
 ## Recordings are not distributed
 
-`tests/recordings/` holds wire bodies captured from a real tenant, and the success bodies are
-**gitignored**. They derive from real patient records, and no key-based anonymiser deserves the
-confidence needed to publish its output as health information.
+[`tests/recordings/`](tests/recordings/) holds wire bodies captured from a real tenant, and the
+success bodies are **gitignored**. They derive from real patient records, and no key-based
+anonymiser deserves the confidence needed to publish its output as health information.
 
-Run `scripts/record_principle_wire.py` against your own staging tenant to get your own. The
-anonymiser denies by default — an unrecognised field is replaced and reported rather than passed
-through — and it is still not a basis for publishing patient-derived data.
+Run [`scripts/record_principle_wire.py`](scripts/record_principle_wire.py) against your own
+staging tenant to get your own. The anonymiser denies by default — an unrecognised field is
+replaced and reported rather than passed through — and it is still not a basis for publishing
+patient-derived data.
 
-Committed: `tests/recordings/refusals/`, which are error bodies. Those are Principle's own
-wording and carry no patient data, and the fake needs them so it can only refuse in words nobody
-invented. See [tests/recordings/README.md](tests/recordings/README.md).
+Committed: [`tests/recordings/refusals/`](tests/recordings/refusals/), which are error bodies.
+Those are Principle's own wording and carry no patient data, and the fake needs them so it can
+only refuse in words nobody invented. See [tests/recordings/README.md](tests/recordings/README.md).
 
 ## Layout
 
@@ -274,12 +288,12 @@ The service invokes `dental_practice_admin.app:create_app --factory`; install th
 `uv sync --locked` in the release directory before starting it. Runtime configuration lives in
 the host's `.env` and the service environment, separately from the development checkout.
 
-`scripts/verify.ps1` is the gate — service identity, data directory outside the release, health
-endpoint naming its configured Principle, scheduled task registered without interactive logon,
-and a complete production diary recorded within the daily schedule's 26-hour allowance.
-`deploy/ACCEPTANCE.md` holds what only a person can sign off: the reboot, the unattended run and
-the restore drill.
+[`scripts/verify.ps1`](scripts/verify.ps1) is the gate — service identity, data directory outside
+the release, health endpoint naming its configured Principle, scheduled task registered without
+interactive logon, and a complete production diary recorded within the daily schedule's 26-hour
+allowance. [`deploy/ACCEPTANCE.md`](deploy/ACCEPTANCE.md) holds what only a person can sign off:
+the reboot, the unattended run and the restore drill.
 
-Caddy fronts the application; `deploy/Caddyfile` is the configuration it runs. Access is open to
-the internet so staff can work from home, which makes the Google sign-in allowlist the only
-access control.
+Caddy fronts the application; [`deploy/Caddyfile`](deploy/Caddyfile) is the configuration it runs.
+Access is open to the internet so staff can work from home, which makes the Google sign-in
+allowlist the only access control.
