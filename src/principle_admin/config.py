@@ -104,7 +104,9 @@ class Settings(BaseSettings):
     staff_domain: str = ""
 
     openai_api_key: SecretStr = SecretStr("")
-    agent_model: str = "gpt-5"
+    # Confirmed present on /v1/models. A default that names a retired model is a chat box that
+    # breaks for staff on the day it is retired, so this is worth keeping current.
+    agent_model: str = "gpt-6.1-sol"
 
     # Registered with OpenAI for the domain the chat page is served from, and required by the
     # ChatKit component alongside the endpoint URL. Not a secret: it is rendered into the page.

@@ -39,6 +39,10 @@ class PractitionerDay:
     name: str
     appointments: int
     attending: int
+
+    # Already in practice-local time and already formatted, so no caller has to remember to
+    # convert. Principle sends UTC, and a 9am appointment rendered from it reads as 8pm the
+    # evening before -- which is what staff would ring about.
     first_from: str | None
     last_to: str | None
 
@@ -79,6 +83,11 @@ class DiaryReport:
             "coverage": self.coverage.value,
             "coverageNote": self.coverage_note,
         }
+
+
+def local_time(timestamp: str) -> str:
+    """An ISO instant as the clock time staff see on the wall, "HH:MM"."""
+    return datetime.fromisoformat(timestamp).astimezone(PRACTICE_TZ).strftime("%H:%M")
 
 
 def _event_window(row: Mapping[str, Any]) -> tuple[str, str] | None:
@@ -162,8 +171,8 @@ async def daily_diary(
                 attending=sum(
                     1 for row in rows if row.get("status") not in STATUSES_NOT_ATTENDING
                 ),
-                first_from=windows[0][0] if windows else None,
-                last_to=max(window[1] for window in windows) if windows else None,
+                first_from=local_time(windows[0][0]) if windows else None,
+                last_to=local_time(max(window[1] for window in windows)) if windows else None,
             )
         )
 

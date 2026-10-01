@@ -62,6 +62,17 @@ async def test_grouped_by_practitioner_with_names_and_bounds(
     assert first.first_from < first.last_to
 
 
+async def test_times_are_shown_in_practice_local_time(fake_client: PrincipleClient) -> None:
+    """Staff read a wall clock, not UTC.
+
+    Principle sends UTC, and the seeded diary runs 09:00-13:00 NZ. Rendered straight from the
+    wire it reads as 20:00-00:00 -- the previous evening -- which is what a dentist rings about.
+    """
+    report = await daily_diary(fake_client, SEEDED_DAY)
+    assert [day.first_from for day in report.by_practitioner] == ["09:00", "09:30"]
+    assert all(day.last_to is not None and day.last_to <= "13:00" for day in report.by_practitioner)
+
+
 async def test_complete_day_reports_complete_coverage(fake_client: PrincipleClient) -> None:
     """The happy path must not be permanently labelled partial.
 

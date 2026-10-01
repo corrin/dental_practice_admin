@@ -30,8 +30,8 @@
     <td>{{ day.name }}</td>
     <td>{{ day.appointments }}</td>
     <td>{{ day.attending }}</td>
-    <td class="mono">{{ (day.first_from or '')[11:16] }}</td>
-    <td class="mono">{{ (day.last_to or '')[11:16] }}</td>
+    <td class="mono">{{ day.first_from or '' }}</td>
+    <td class="mono">{{ day.last_to or '' }}</td>
   </tr>
   {% endfor %}
 </table>

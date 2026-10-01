@@ -119,7 +119,7 @@ def _describe(report: object) -> str:
     for day in getattr(report, "by_practitioner", []):
         lines.append(
             f"- {day.name}: {day.attending} attending of {day.appointments} booked"
-            f" ({(day.first_from or '?')[11:16]}-{(day.last_to or '?')[11:16]})"
+            f" ({day.first_from or '?'}-{day.last_to or '?'})"
         )
     note = getattr(report, "coverage_note", None)
     if note:

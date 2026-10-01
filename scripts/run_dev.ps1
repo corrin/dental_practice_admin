@@ -120,13 +120,19 @@ if ($RealAI) {
 # needs the key registered for its origin or the chat box never starts.
 if ($Tunnel) { $env:PRINCIPLE_CHATKIT_DOMAIN_KEY = $TunnelDomainKey }
 
+$python = Join-Path $repo '.venv\Scripts\python.exe'
+if (-not (Test-Path $python)) { throw "No interpreter at $python. Run `uv sync` first." }
+
 $processes = @()
 function Start-Server {
     param([string]$Target, [int]$On, [string]$Label)
     Write-Host "  starting $Label on $On" -ForegroundColor DarkGray
-    $started = Start-Process -FilePath 'uv' -PassThru -NoNewWindow -WorkingDirectory $repo `
+    # The venv interpreter directly, not `uv run`. uv spawns python as a child, so stopping uv
+    # leaves the server orphaned, holding its port and answering health checks after this script
+    # has reported that it stopped.
+    $started = Start-Process -FilePath $python -PassThru -NoNewWindow -WorkingDirectory $repo `
         -ArgumentList @(
-            'run', 'python', '-m', 'uvicorn', $Target,
+            '-m', 'uvicorn', $Target,
             '--host', '127.0.0.1', '--port', "$On",
             # The same flags the service and the test spine use. Behind a tunnel or a proxy,
             # without these the application builds http://127.0.0.1 absolute URLs and the Google
@@ -139,14 +145,25 @@ function Start-Server {
 
 function Wait-ForHttp {
     param([string]$Url, [int[]]$Accept, [string]$Label)
+    # -SkipHttpErrorCheck is PowerShell 7+; this is Windows PowerShell 5.1, where a non-2xx throws.
+    # The readiness signal for each fake IS a non-2xx, so the status has to come off the exception.
+    $last = 'no response'
     for ($i = 0; $i -lt 120; $i++) {
         try {
-            $code = (Invoke-WebRequest -Uri $Url -TimeoutSec 3 -SkipHttpErrorCheck).StatusCode
-            if ($Accept -contains $code) { return }
-        } catch { }
+            $code = [int](Invoke-WebRequest -Uri $Url -TimeoutSec 3 -UseBasicParsing).StatusCode
+        } catch [System.Net.WebException] {
+            $response = $_.Exception.Response
+            $code = if ($response) { [int]$response.StatusCode } else { 0 }
+            $last = if ($code) { "status $code" } else { $_.Exception.Message }
+        } catch {
+            $code = 0
+            $last = $_.Exception.Message
+        }
+        if ($Accept -contains $code) { return }
+        if ($code) { $last = "status $code, wanted $($Accept -join '/')" }
         Start-Sleep -Milliseconds 500
     }
-    throw "$Label did not answer at $Url"
+    throw "$Label did not answer at $Url ($last)"
 }
 
 try {
@@ -204,6 +221,10 @@ try {
     Write-Host ''
     Write-Host 'stopping' -ForegroundColor DarkGray
     foreach ($process in $script:processes) {
-        if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+        if ($process.HasExited) { continue }
+        # Children too: ngrok and uvicorn both spawn, and a half-stopped stack holds its ports.
+        Get-CimInstance Win32_Process -Filter "ParentProcessId = $($process.Id)" -ErrorAction SilentlyContinue |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
     }
 }

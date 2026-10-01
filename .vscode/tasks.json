@@ -1,0 +1,55 @@
+{
+  // Run > Run Task. Every task runs the real application; only what is behind it changes.
+  //
+  // Principle is the fake in all of them. Pointing a development run at real patient records is a
+  // deliberate act, not a menu item.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // The everyday one: no credentials, no network, no cost.
+      "label": "dev",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_dev.ps1",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated" }
+    },
+    {
+      // Publishes on https://massey-admin-dev.ngrok-free.app so the page can be reached from
+      // another machine, and so ChatKit sees a real origin rather than localhost.
+      "label": "dev + tunnel",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_dev.ps1 -Tunnel",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated" }
+    },
+    {
+      // Real model. Costs money per message; the project spend limit is the backstop.
+      "label": "dev + tunnel + real AI",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_dev.ps1 -Tunnel -RealAI",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated" }
+    },
+    {
+      // Everything real except the data: Google sign-in and the real model, fake Principle.
+      "label": "dev + tunnel + Google + real AI",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_dev.ps1 -Tunnel -GoogleSignIn -RealAI",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated" }
+    },
+    {
+      // Everything that must pass before a release, including the real staging API.
+      "label": "release gate",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/release_gate.ps1",
+      "problemMatcher": [],
+      "group": "test",
+      "presentation": { "panel": "dedicated" }
+    }
+  ]
+}
