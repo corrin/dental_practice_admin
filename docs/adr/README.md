@@ -18,3 +18,4 @@ session.
 | N | Title |
 | --- | --- |
 | [0001](0001-one-implementation-per-concept.md) | One implementation per concept |
+| [0002](0002-fail-early.md) | Fail early |
