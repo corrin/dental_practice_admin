@@ -17,8 +17,8 @@ anyone should publish patient-derived data.
 To get your own:
 
 ```powershell
-$env:PRINCIPLE_API_KEY = '...'
-$env:PRINCIPLE_PRACTICE_ID = '...'
+$env:PRINCIPLE_API_KEY_STAGING = '...'
+$env:PRINCIPLE_PRACTICE_ID_STAGING = '...'
 uv run python scripts/record_principle_wire.py
 ```
 

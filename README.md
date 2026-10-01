@@ -51,10 +51,11 @@ and refuses to call itself production while addressing anything else.
 
 Run `uv sync --locked` once, then use **Terminal > Run Task > Run** in VS Code.
 The ordinary setup is Principle staging, Google login, real OpenAI, and ngrok at
-`https://massey-admin-dev.ngrok-free.app`. The command is `uv run python scripts/run.py`.
+`https://massey-admin-dev.ngrok-free.app`. The command is
+`uv run python scripts/run.py --preset staging --sign-in google`.
 Stop it with Ctrl+C; the launcher stops its child processes. Only one local run uses port 8080.
 
-Keep credentials in the gitignored `.env`: `PRINCIPLE_API_KEY`, `PRINCIPLE_PRACTICE_ID`,
+Keep credentials in the gitignored `.env`: `PRINCIPLE_API_KEY_STAGING`, `PRINCIPLE_PRACTICE_ID_STAGING`,
 `OPENAI_API_KEY`, `ADMIN_GOOGLE_CLIENT_ID`, `ADMIN_GOOGLE_CLIENT_SECRET`, `ADMIN_SESSION_SECRET`,
 and `ADMIN_STAFF_EMAILS` and/or `ADMIN_STAFF_DOMAIN`. Register the Google callback
 `https://massey-admin-dev.ngrok-free.app/auth/callback` and configure
@@ -66,6 +67,33 @@ Health exposes readiness metadata, not reports or filesystem paths. Settings are
 startup; restart after changing credentials, access lists, or configuration.
 
 ### Diagnostic commands
+
+For a read-only check of the Principle staging API, website login, and Firestore:
+
+```powershell
+uv run python -m scripts.check_staging
+uv run python -m scripts.check_staging --only api
+uv run python -m scripts.check_staging --only browser --ui-env-file ../od_data/.env
+```
+
+The API uses the application's `PRINCIPLE_API_KEY_STAGING` and
+`PRINCIPLE_PRACTICE_ID_STAGING` configuration. Browser checks need `PRINCIPLE_UI_EMAIL`
+and `PRINCIPLE_UI_PASSWORD` in `.env`, the shell, or an explicitly supplied `--ui-env-file`.
+Install Chromium once with `uv run playwright install chromium`. Use `--headed` to watch,
+or `--workspace "Workspace name"` to select a different staging workspace.
+
+Output is JSON containing counts and statuses, without credentials or record contents.
+Exit code 1 means a check failed or could not confirm access. Login success alone does not
+prove workspace access; Firestore transport HTTP 200 does not prove a document exists.
+The Firestore probe GETs up to three staging document references observed during login.
+A practice-ID mismatch is reported even if the API can read the sole returned practice.
+No records, screenshots, or authenticated session files are saved.
+
+Further scripts can import `check_api` and `staging_browser` from `scripts.check_staging`.
+Within `with staging_browser() as session`, call `session.login(email, password)`, use
+`session.page` for Playwright navigation, and `session.read_document(name)` for an exact
+Firestore GET under that user's permissions. Record bodies and tokens remain in memory;
+callers must keep them out of logs and version control.
 
 Principle, sign-in, and AI are independent. These examples change only the choices named:
 
@@ -79,11 +107,15 @@ uv run python scripts/run.py --preset production               # explicit live-d
 The fake preset selects the two simulations and local access; disabling Google still requires
 `--sign-in developer`. It creates one example report if fake history is empty. Production
 Principle always requires Google. A production investigation needs production credentials;
-the launcher never discovers or switches credentials for you.
+the loader selects credentials from the chosen environment's section.
 
 CLI selections override `.env` and the shell. For settings not selected on the command line,
-shell variables override `.env`. `PRINCIPLE_ENVIRONMENT` and `PRINCIPLE_API_BASE_URL` configure
-Principle; `ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL`, `OPENAI_API_KEY`, and
+shell variables override `.env`. `PRINCIPLE_ENVIRONMENT` selects Principle (default `staging`).
+Group its key and practice ID under matching `_FAKE`, `_STAGING`, and `_PROD` settings in `.env`. Optional endpoint overrides
+use `PRINCIPLE_API_BASE_URL_FAKE`, `_STAGING`, or `_PROD`; otherwise standard endpoints apply.
+Shared, unscoped Principle credentials are not used. Missing selected credentials fail startup.
+`--principle` overrides `--preset`, which overrides the configured environment.
+`ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL`, `OPENAI_API_KEY`, and
 `ADMIN_AGENT_MODEL` configure AI. Use only the `OPENAI_*` spellings for its key and endpoint.
 `ADMIN_PUBLIC_BASE_URL` overrides the access address for diagnostics. Presets are shortcuts,
 not restrictions on mixing providers. Developer identity is prominently announced and has no
@@ -100,7 +132,7 @@ uv run pytest -m llm                   # bounded real OpenAI check with syntheti
 uv run python -m scripts.code_size     # the 2,000-line budget, counted
 ```
 
-The integration tier needs `PRINCIPLE_API_KEY` and `PRINCIPLE_PRACTICE_ID` for a **staging**
+The integration tier needs `PRINCIPLE_API_KEY_STAGING` and `PRINCIPLE_PRACTICE_ID_STAGING` for a **staging**
 workspace. It is a release gate, deliberately absent from CI, which stays hermetic.
 
 `scripts/release_gate.ps1` runs the fixed release checks: installed imports, Caddy validation,

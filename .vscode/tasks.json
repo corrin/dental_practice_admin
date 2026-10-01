@@ -6,7 +6,7 @@
       "detail": "Staging Principle, Google sign-in, OpenAI, and ngrok.",
       "type": "process",
       "command": "uv",
-      "args": ["run", "--locked", "python", "scripts/run.py"],
+      "args": ["run", "--locked", "python", "scripts/run.py", "--preset", "staging", "--sign-in", "google"],
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": [],
       "presentation": { "panel": "dedicated" }

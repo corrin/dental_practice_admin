@@ -40,7 +40,10 @@ ROOT = Path(__file__).resolve().parent.parent
 PUBLIC_SETTINGS = frozenset(
     {
         "PRINCIPLE_ENVIRONMENT",
-        "PRINCIPLE_API_BASE_URL",
+        "PRINCIPLE_API_BASE_URL_FAKE",
+        "PRINCIPLE_API_BASE_URL_STAGING",
+        "PRINCIPLE_API_BASE_URL_PROD",
+        "PRINCIPLE_API_KEY_FAKE",
         "ADMIN_SIGN_IN",
         "ADMIN_DATA_ROOT",
         "ADMIN_AGENT_MODEL",

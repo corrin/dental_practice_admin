@@ -7,7 +7,7 @@
   refuse rather than skip when credentials are absent, because a skip and a pass look
   identical in a summary line.
 
-  Requires PRINCIPLE_API_KEY and PRINCIPLE_PRACTICE_ID in the environment or in .env.
+  Requires PRINCIPLE_API_KEY_STAGING and PRINCIPLE_PRACTICE_ID_STAGING in the environment or in .env.
   Refuses to run against production.
 #>
 [CmdletBinding()]
@@ -22,11 +22,7 @@ if ($BaseUrl -match 'api\.principle\.dental') {
 }
 
 $env:PRINCIPLE_ENVIRONMENT = 'staging'
-$env:PRINCIPLE_API_BASE_URL = $BaseUrl
-
-if (-not $env:PRINCIPLE_API_KEY) {
-    Write-Host 'PRINCIPLE_API_KEY is not set; the suite will refuse and say so.' -ForegroundColor Yellow
-}
+$env:PRINCIPLE_API_BASE_URL_STAGING = $BaseUrl
 
 Write-Host "Integration tier against $BaseUrl" -ForegroundColor Cyan
 uv run pytest -m integration -v

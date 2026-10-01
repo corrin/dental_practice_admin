@@ -96,9 +96,9 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
     env.update(
         {
             "PRINCIPLE_ENVIRONMENT": "fake",
-            "PRINCIPLE_API_BASE_URL": f"http://127.0.0.1:{fake_port}",
-            "PRINCIPLE_API_KEY": FAKE_API_KEY,
-            "PRINCIPLE_PRACTICE_ID": FAKE_PRACTICE_ID,
+            "PRINCIPLE_API_BASE_URL_FAKE": f"http://127.0.0.1:{fake_port}",
+            "PRINCIPLE_API_KEY_FAKE": FAKE_API_KEY,
+            "PRINCIPLE_PRACTICE_ID_FAKE": FAKE_PRACTICE_ID,
             "ADMIN_DATA_ROOT": str(data_root),
             "ADMIN_SIGN_IN": "developer",
             "ADMIN_PUBLIC_BASE_URL": "",

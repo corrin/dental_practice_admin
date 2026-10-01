@@ -18,17 +18,21 @@ from urllib.parse import urlsplit
 import httpx
 from pydantic import SecretStr
 
-from dental_practice_admin.config import Environment, Settings, SignIn
+from dental_practice_admin.config import (
+    FAKE_API_KEY,
+    FAKE_API_URL,
+    FAKE_PRACTICE_ID,
+    Environment,
+    Settings,
+    SignIn,
+    environment_suffix,
+)
 from dental_practice_admin.storage import Storage
 from dental_practice_admin.tasks import run_daily_diary
 
 ROOT = Path(__file__).resolve().parents[1]
 STAGING_ORIGIN = "https://massey-admin-dev.ngrok-free.app"
-PRINCIPLE_URLS = {
-    Environment.FAKE: "http://127.0.0.1:8898",
-    Environment.STAGING: "https://api.staging.principle.dental",
-    Environment.PRODUCTION: "https://api.principle.dental",
-}
+FAKE_SERVER_URL = "http://127.0.0.1:8898"
 
 
 def configuration(args: argparse.Namespace) -> Settings:
@@ -37,9 +41,7 @@ def configuration(args: argparse.Namespace) -> Settings:
     principle = args.principle or args.preset
     ai = args.ai or ("fake" if args.preset is Environment.FAKE else "real" if args.preset else None)
     if principle is not None:
-        overrides.update(environment=principle, api_base_url=PRINCIPLE_URLS[principle])
-        if principle is Environment.FAKE:
-            overrides.update(api_key="fake-principle-key", practice_id="fake-practice-0001")
+        overrides["environment"] = principle
     if ai is not None:
         overrides["openai_base_url"] = (
             "http://127.0.0.1:8899/v1" if ai == "fake" else "https://api.openai.com/v1"
@@ -49,19 +51,18 @@ def configuration(args: argparse.Namespace) -> Settings:
     if args.sign_in is not None:
         overrides["sign_in"] = args.sign_in
     settings = Settings(**overrides)
+    if settings.environment is Environment.FAKE:
+        if settings.api_base_url == FAKE_API_URL:
+            settings.api_base_url = FAKE_SERVER_URL
+        if not settings.api_key.get_secret_value():
+            settings.api_key = SecretStr(FAKE_API_KEY)
+        if not settings.practice_id:
+            settings.practice_id = FAKE_PRACTICE_ID
     if not settings.public_base_url:
         settings.public_base_url = (
             "http://localhost:8080" if args.preset is Environment.FAKE else STAGING_ORIGIN
         )
     settings.require_web_configured()
-    if settings.environment is not Environment.FAKE and (
-        settings.api_key.get_secret_value().startswith("fake-")
-        or settings.practice_id.startswith("fake-")
-    ):
-        raise ValueError(
-            "Replace fake Principle credentials in .env with "
-            f"{settings.environment.value} credentials"
-        )
     if (
         urlsplit(settings.public_base_url).hostname not in {"localhost", "127.0.0.1"}
         and settings.chatkit_domain_key == "domain_pk_localhost"
@@ -76,6 +77,9 @@ def child_environment(settings: Settings) -> dict[str, str]:
     for name, field in Settings.model_fields.items():
         key = field.validation_alias or f"ADMIN_{name.upper()}"
         assert isinstance(key, str)
+        if name in {"api_base_url", "api_key", "practice_id"}:
+            suffix = environment_suffix(settings.environment)
+            key = f"{key}_{suffix}"
         value = getattr(settings, name)
         env[key] = value.get_secret_value() if isinstance(value, SecretStr) else str(value)
     return env
@@ -116,7 +120,7 @@ def run(settings: Settings) -> None:
     if tunnel and (origin.scheme != "https" or not shutil.which("ngrok")):
         raise ValueError("The public HTTPS address requires ngrok on PATH")
     services: list[tuple[str, int, str, set[int]]] = []
-    if settings.api_base_url == PRINCIPLE_URLS[Environment.FAKE]:
+    if settings.api_base_url == FAKE_SERVER_URL:
         services.append(("tests.fake.server:app", 8898, "/v1/practices", {401, 403}))
     if settings.openai_base_url == "http://127.0.0.1:8899/v1":
         services.append(("tests.fake_ai.server:app", 8899, "/health", {200}))
@@ -145,10 +149,7 @@ def run(settings: Settings) -> None:
             child = subprocess.Popen(command, cwd=ROOT, env=env)
             children.append(child)
             wait_for_server(f"http://127.0.0.1:{port}{path}", child, statuses)
-        if (
-            settings.environment is Environment.FAKE
-            and settings.api_base_url == PRINCIPLE_URLS[Environment.FAKE]
-        ):
+        if settings.environment is Environment.FAKE and settings.api_base_url == FAKE_SERVER_URL:
             seed_runs(settings)
         if tunnel:
             children.append(

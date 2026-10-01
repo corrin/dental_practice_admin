@@ -17,6 +17,8 @@ from dental_practice_admin.config import (
     Settings,
     SignIn,
 )
+from dental_practice_admin.principle import PrincipleClient
+from tests.fake import FakeStore
 
 PRODUCTION_API_URL = "https://api.principle.dental"
 
@@ -195,3 +197,88 @@ def test_environments_do_not_share_state() -> None:
     )
     assert staging.database_path != production.database_path
     assert staging.browser_state_path != production.browser_state_path
+
+
+@pytest.mark.parametrize(
+    "environment,suffix", [("fake", "FAKE"), ("staging", "STAGING"), ("production", "PROD")]
+)
+def test_selected_section_and_child_handoff(
+    environment: str, suffix: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from scripts.run import child_environment
+
+    dotenv = tmp_path / ".env"
+    dotenv.write_text(
+        "\n".join(
+            f"PRINCIPLE_{field}_{section}=fake-{section}-{field}"
+            for section in ("FAKE", "STAGING", "PROD")
+            for field in ("API_KEY", "PRACTICE_ID")
+        )
+    )
+    monkeypatch.setitem(Settings.model_config, "env_file", str(dotenv))
+    monkeypatch.setenv("PRINCIPLE_ENVIRONMENT", "fake")
+    settings = Settings(environment=Environment(environment))
+    assert settings.api_key.get_secret_value() == f"fake-{suffix}-API_KEY"
+    assert settings.practice_id == f"fake-{suffix}-PRACTICE_ID"
+    for key, value in child_environment(settings).items():
+        monkeypatch.setenv(key, value)
+    dotenv.write_text("")
+    child = Settings()
+    assert child.environment == settings.environment
+    assert child.api_key == settings.api_key
+    assert child.practice_id == settings.practice_id
+    assert child.api_base_url == settings.api_base_url
+
+
+def test_missing_selected_section_cannot_use_shared_or_other_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PRINCIPLE_API_KEY", "fake-shared-key")
+    monkeypatch.setenv("PRINCIPLE_PRACTICE_ID", "fake-shared-practice")
+    monkeypatch.setenv("PRINCIPLE_API_KEY_PROD", "fake-production-key")
+    monkeypatch.setenv("PRINCIPLE_PRACTICE_ID_PROD", "fake-production-practice")
+    with pytest.raises(ConfigurationError, match="PRINCIPLE_API_KEY_STAGING"):
+        Settings(environment=Environment.STAGING).require_credentials()
+
+
+def test_scoped_shell_overrides_dotenv_and_explicit_values_override_both(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    dotenv = tmp_path / ".env"
+    dotenv.write_text(
+        "PRINCIPLE_API_KEY_STAGING=fake-file-key\nPRINCIPLE_API_BASE_URL_STAGING=https://file.fake.invalid\n"
+    )
+    monkeypatch.setitem(Settings.model_config, "env_file", str(dotenv))
+    monkeypatch.setenv("PRINCIPLE_API_KEY_STAGING", "fake-shell-key")
+    monkeypatch.setenv("PRINCIPLE_API_BASE_URL_STAGING", STAGING_API_URL)
+    settings = Settings()
+    assert settings.api_key.get_secret_value() == "fake-shell-key"
+    assert settings.api_base_url == STAGING_API_URL
+    explicit = Settings(
+        api_key=SecretStr("fake-explicit-key"), api_base_url="https://explicit.fake.invalid"
+    )
+    assert explicit.api_key.get_secret_value() == "fake-explicit-key"
+    assert explicit.api_base_url == "https://explicit.fake.invalid"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("key", ["", "fake-principle-key", "00000000-0000-4000-8000-000000000002"])
+async def test_fake_server_rejects_incorrect_keys(key: str, fake_store: FakeStore) -> None:
+    from dental_practice_admin.principle import PrincipleClient, PrincipleError
+    from tests.fake import transport
+
+    settings = Settings(environment=Environment.FAKE, api_key=SecretStr(key))
+    async with PrincipleClient(settings, transport=transport(fake_store)) as client:
+        with pytest.raises(PrincipleError) as error:
+            await client.get("list_practices")
+    assert error.value.status in {401, 403}
+
+
+@pytest.mark.asyncio
+async def test_fake_server_accepts_its_synthetic_uuid(fake_client: PrincipleClient) -> None:
+    from uuid import UUID
+
+    from tests.fake import FAKE_API_KEY
+
+    assert str(UUID(FAKE_API_KEY)) == FAKE_API_KEY
+    assert (await fake_client.get("list_practices"))["data"]
