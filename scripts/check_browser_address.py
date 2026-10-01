@@ -29,7 +29,8 @@ TOOL: Any = {
     "type": "function", "name": "browser", "strict": True,
     "description": (
         "Operate the staging browser. selector is CSS or text=exact visible text. "
-        "Actions: click, fill, observe, reload, capture, verify. "
+        "Actions: click, fill, observe, reload, navigate, capture, verify. "
+        "navigate takes a staging browser URL in text. "
         "capture requires the first address input selector and patient_id from the URL. "
         "verify requires the address input selector after reloading and reopening the form. "
         "Unused arguments must be empty strings."
@@ -38,7 +39,7 @@ TOOL: Any = {
         "type": "object", "additionalProperties": False,
         "properties": {
             "action": {"type": "string", "enum": [
-                "click", "fill", "observe", "reload", "capture", "verify",
+                "click", "fill", "observe", "reload", "navigate", "capture", "verify",
             ]},
             "selector": {"type": "string"}, "text": {"type": "string"},
             "patient_id": {"type": "string"},
@@ -107,6 +108,13 @@ class BrowserTest:
         """Execute a bounded UI action and independently verify checkpoints."""
         check_location(self.page.url, self.patient_id)
         action, selector = args["action"], args["selector"]
+        if action == "navigate":
+            check_location(args["text"], self.patient_id)
+            if not urlsplit(args["text"]).path.startswith("/massey-smiles/"):
+                raise ValueError("Navigation must remain in the Massey Smiles workspace")
+            self.page.goto(args["text"], wait_until="domcontentloaded")
+            self.reloaded = True
+            return
         if action == "observe":
             self.page.wait_for_timeout(750)
             return
@@ -122,6 +130,8 @@ class BrowserTest:
             if not re.fullmatch(r"[A-Za-z0-9]{20}", patient_id):
                 raise ValueError("Expected the patient ID from the URL")
             check_location(self.page.url, patient_id)
+            if not urlsplit(self.page.url).path.startswith("/massey-smiles/"):
+                raise ValueError("Patient must be in the Massey Smiles workspace")
             body = self.page.locator("body").inner_text()
             if PATIENT not in body:
                 raise ValueError("Target patient's full name must be visible")
@@ -222,8 +232,11 @@ def run_phase(client: OpenAI, model: str, browser: BrowserTest, stats: dict[str,
 
 
 def guard_navigation(route: Route) -> None:
-    """Refuse document navigation outside staging or to excluded patients."""
-    if route.request.is_navigation_request():
+    """Restrict the main page; embedded authentication frames retain their normal flow."""
+    if (
+        route.request.is_navigation_request()
+        and route.request.frame == route.request.frame.page.main_frame
+    ):
         try:
             check_location(route.request.url)
         except ValueError:

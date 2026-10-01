@@ -4,7 +4,13 @@ from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
-from scripts.check_browser_address import EXCLUDED, PATIENT, BrowserTest, check_location
+from scripts.check_browser_address import (
+    EXCLUDED,
+    PATIENT,
+    BrowserTest,
+    check_location,
+    guard_navigation,
+)
 from scripts.check_staging import UI_URL
 
 PATIENT_ID = "abcdefghijklmnopqrst"
@@ -13,7 +19,7 @@ PATIENT_ID = "abcdefghijklmnopqrst"
 def browser_test() -> BrowserTest:
     """Represent an identified dummy's visible address form."""
     page = MagicMock()
-    page.url = UI_URL + "/patients/" + PATIENT_ID
+    page.url = UI_URL + "/massey-smiles/patients/" + PATIENT_ID
     page.locator.return_value.count.return_value = 1
     page.locator.return_value.is_visible.return_value = True
     page.locator.return_value.input_value.return_value = "Original street"
@@ -41,6 +47,20 @@ def test_patient_lock_rejects_another_record() -> None:
         check_location(UI_URL + "/patients/other", PATIENT_ID)
 
 
+def test_authentication_iframe_can_load_without_allowing_external_main_navigation() -> None:
+    route = MagicMock()
+    route.request.is_navigation_request.return_value = True
+    route.request.url = "https://principle-staging.firebaseapp.com/__/auth/iframe"
+    guard_navigation(route)
+    route.continue_.assert_called_once()
+    route.abort.assert_not_called()
+    route.reset_mock()
+    route.request.frame.page.main_frame = route.request.frame
+    guard_navigation(route)
+    route.abort.assert_called_once()
+    route.continue_.assert_not_called()
+
+
 @pytest.mark.parametrize("identity", [
     "Crash Test Dummy\n28th Jan, 1980", "Blocking Dummy\n22nd Jan, 1992",
 ])
@@ -58,6 +78,21 @@ def test_capture_reads_the_actual_input_and_preserves_empty_addresses() -> None:
     browser.execute(action("capture"))
     assert browser.original == ""
     assert browser.patient_id == PATIENT_ID
+
+
+def test_capture_refuses_a_matching_name_in_another_workspace() -> None:
+    browser = browser_test()
+    cast(MagicMock, browser.page).url = UI_URL + "/principle-platform/patients/" + PATIENT_ID
+    with pytest.raises(ValueError):
+        browser.execute(action("capture"))
+    assert browser.original is None
+
+
+def test_navigation_cannot_switch_to_another_workspace() -> None:
+    browser = browser_test()
+    with pytest.raises(ValueError):
+        browser.execute(action("navigate", text=UI_URL + "/principle-platform/patients"))
+    cast(MagicMock, browser.page).goto.assert_not_called()
 
 
 @pytest.mark.parametrize("selector,text", [("#email", "CUA TEST"), ("#address", "other")])

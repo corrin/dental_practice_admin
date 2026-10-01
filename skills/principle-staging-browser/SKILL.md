@@ -29,8 +29,10 @@ named records and operations; this skill does not authorise patient edits by its
 - Workspace selection can produce the duplicated path
   `/principle-platform/principle-platform/schedule/timeline` or
   `/massey-smiles/massey-smiles/schedule/timeline`. The rendered Patients/person sidebar
-  link uses `/massey-smiles/patients`. Follow the visible Patients link rather than
-  constructing a route from the timeline URL. The global Search & Quick Actions dialog
+  link for Massey Smiles uses `/massey-smiles/patients`. If the header says Principle
+  Platform and links start `/principle-platform/`, do not search or edit in that workspace:
+  navigate to the verified Massey Smiles route and confirm the patient identity there.
+  Do not construct a route from the duplicated timeline URL. The global quick-search dialog
   returned no matches in these browser experiments; use the Patients page to investigate.
 - Search results can contain multiple patients with the same name. Bind the chosen
   patient to its record ID and visible identity; use DOB when supplied. Account for

@@ -8,8 +8,10 @@ Do not send messages, change patient status, dismiss clinical alerts, or modify 
 
 Discovery: open the workspace dropdown and select Massey Smiles Dental. Wait for the
 application sidebar. Click its Patients/person icon: use the rendered link ending in
-/patients. Do not use the Search & Quick Actions dialog. The timeline landing URL can
-have a duplicated workspace prefix; the sidebar Patients link identifies the correct route.
+/patients. The correct workspace route is https://staging.principle.dental/massey-smiles/patients.
+If the app instead shows Principle Platform or /principle-platform/ links after workspace
+selection, navigate to that correct URL before searching. Do not use the Search & Quick
+Actions dialog. Do not search or edit under the Principle Platform workspace.
 Use the Patients page's search control to find {patient_name}, and inspect the matching
 patient's identity and date of birth. This patient is believed to be active. A full-name
 search may not match; try the first or last name. Stop if more than one matching patient
