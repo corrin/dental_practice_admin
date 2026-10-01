@@ -2,6 +2,9 @@
 
 Read [`docs/adr/README.md`](docs/adr/README.md) before non-trivial work. An ADR wins over habit.
 
+For Principle staging browser experiments, read
+[`skills/principle-staging-browser/SKILL.md`](skills/principle-staging-browser/SKILL.md).
+
 ## Minimise ongoing maintenance
 
 This is an internal application for one six-person dental practice. Scale is not a concern.
