@@ -18,6 +18,9 @@ named records and operations; this skill does not authorise patient edits by its
   when Firebase issues a token; the page can still contain the password field. Wait
   for that field to disappear before taking screenshots or sending page text to an LLM.
 - Workspace selection is a dropdown. Its option text is not visible until it is opened.
+  Several workspace names are similar. Match both the display name and the option's
+  `massey-smiles-dental` identifier on the full option element. Set the login redirect
+  to the intended workspace path; the root redirect can enter Principle Platform.
 - Browser launch reporting a missing executable can mean sandbox access is denied to
   the installed Playwright browser directory. Check the actual error before installing
   another browser or treating browser control as unavailable.
@@ -27,11 +30,18 @@ named records and operations; this skill does not authorise patient edits by its
 - Treat timeouts as evidence to investigate the current page, URL, overlays and selectors.
   Increasing a timeout does not correct a bad route or a closed dropdown.
 - Workspace selection can produce the duplicated path
-  `/principle-platform/principle-platform/schedule/timeline`. Inspect the landing route
-  and rendered navigation before interpreting empty patient-search results.
+  `/principle-platform/principle-platform/schedule/timeline` or
+  `/massey-smiles/massey-smiles/schedule/timeline`. The rendered Patients/person sidebar
+  link for Massey Smiles uses `/massey-smiles/patients`. If the header says Principle
+  Platform and links start `/principle-platform/`, do not search or edit in that workspace:
+  navigate to the verified Massey Smiles route and confirm the patient identity there.
+  Do not construct a route from the duplicated timeline URL. The global quick-search dialog
+  returned no matches in these browser experiments; use the Patients page to investigate.
 - Search results can contain multiple patients with the same name. Bind the chosen
   patient to its record ID and visible identity; use DOB when supplied. Account for
   active/inactive filters. Never select a different record just to make a test pass.
+- Profile names can include a parenthesised preferred name between first and last name.
+  Use the identity fields and record ID rather than requiring a literal display-name match.
 - Coordinate record ownership with concurrent sessions. The fourth-method script has
   explicit exclusions for the other session's two Crash Test Dummy records.
 
@@ -43,11 +53,24 @@ The model follows [the English procedure](../../scripts/browser_address_procedur
 the Python runner supplies browser tools and checks outcomes. ChatKit is the chat UI,
 not the browser driver. This diagnostic does not add writes to staff chat.
 
-Capture the original field value from the UI before editing. Verify persistence by
+Capture the persisted Profile address before opening the editor. Verify persistence by
 reloading and reading the field again; neither a filled input nor a model's completion
 message proves a save. Restore and independently verify the original. Report edit and
 restoration separately. After an uncertain write, read the saved state before retrying.
 
+The address editor rejects unverified free text: select an autocomplete suggestion or
+use Manually Enter Address. Its structured fields open blank even when the profile has
+an address, because the stored address is a joined string. Blank manual fields are not
+the original address. Preserve unit, region and other components, and establish exact
+restoration before saving. A single-component address can be restored by filling only
+`streetName`; the other manual fields are optional. `text=Update Patient` matches the
+heading and button, so use `button:has-text("Update Patient")`. Update Patient submits the whole profile form; verify that
+unrelated fields remain unchanged.
+
 Screenshots and rendered UI sent to the model can contain staging patient data.
 Keep credentials out of observations and retain raw diagnostics only where authorised.
 Never commit `.env`, session state, or unredacted recordings.
+
+The model needs prior rendered-page observations in its conversation history to reason
+about action results. Retain text observations; send only the latest screenshot. Stop
+repeated identical actions and inspect the UI rather than increasing the timeout.
