@@ -36,6 +36,11 @@ async def test_patient_without_practice_field_requires_scoped_id_match(
     async with PrincipleClient(fake_settings, transport=httpx.MockTransport(respond)) as client:
         if in_scope:
             assert await client.call("getPatient", {"patientId": patient["id"]}) == patient
+            tool = next(t for t in await api_tools(fake_settings, httpx.MockTransport(respond))
+                        if t.name == "getPatient")
+            result = await tool.on_invoke_tool(_context(tool.name),
+                                              json.dumps({"patientId": patient["id"]}))
+            assert json.loads(result) == {"result": patient}
         else:
             with pytest.raises(CallError, match="outside"):
                 await client.call("updatePatient", {
