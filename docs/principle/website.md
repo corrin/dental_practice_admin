@@ -18,7 +18,7 @@ such as `mat-input-42` change between visits.
 **What:** after the email and password form, a workspace picker appears. Type into its search
 box first; options appear only after typing. The staging login has several workspaces whose
 names start "Massey Smiles", so match the exact option, not a substring.
-**Verified:** [the staging address round-trip experiment](https://github.com/corrin/dental_practice_admin/blob/8b251fc/scripts/address_via_browser.py). Staging, 2026-10-01, build
+**Verified:** [the staging address round-trip experiment](https://github.com/corrin/dental_practice_admin/blob/84daa1a/scripts/address_via_browser.py). Staging, 2026-10-01, build
 `main.ecfbec0077a05029.js`.
 
 ## Opening a patient
@@ -29,7 +29,7 @@ indefinitely, with no error.
 **Patient search is unusable from automation:** in headless Chromium the patients list
 search (backed by Typesense) never returns results. Open patients by ID, which the API
 search can supply.
-**Verified:** [the staging address round-trip experiment](https://github.com/corrin/dental_practice_admin/blob/8b251fc/scripts/address_via_browser.py). Staging, 2026-10-01, build
+**Verified:** [the staging address round-trip experiment](https://github.com/corrin/dental_practice_admin/blob/84daa1a/scripts/address_via_browser.py). Staging, 2026-10-01, build
 `main.ecfbec0077a05029.js`.
 
 ## Editing a patient
@@ -47,7 +47,7 @@ patient. Saving with "Update Patient" resubmits every field in it, not only the 
 - Escape closes the whole dialog without saving.
 
 **Effect:** a save stamps `updatedAt` and `updatedBy`, and the API shows the change at once.
-**Verified:** [the staging address round-trip experiment](https://github.com/corrin/dental_practice_admin/blob/8b251fc/scripts/address_via_browser.py). Staging, 2026-10-01, build
+**Verified:** [the staging address round-trip experiment](https://github.com/corrin/dental_practice_admin/blob/84daa1a/scripts/address_via_browser.py). Staging, 2026-10-01, build
 `main.ecfbec0077a05029.js`.
 
 ## Browser fallback and verification
@@ -60,6 +60,8 @@ the configured workspace prefix; do not replace the landing route with an assume
 
 Bind the target to its patient ID and visible identity, including DOB when provided.
 Same-name search results are ambiguous. Never substitute another patient to complete a test.
+The profile can include a parenthesised preferred name between first and last name. Match the
+identity fields and record ID when the displayed name differs from a supplied search name.
 After saving, reload and read persisted state. Capture the original before a temporary edit,
 restore it and verify restoration separately. If saved state is neither the intended new value
 nor the original, stop and report a conflict. A toast or model completion is not persistence evidence.

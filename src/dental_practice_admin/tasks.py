@@ -191,7 +191,7 @@ async def daily_diary(
 async def run_daily_diary(settings: Settings, on_date: date, initiator: str) -> str:
     """Execute the diary task and record the run. Returns the run id."""
     from dental_practice_admin.scripts import released, run
-    script = released("diary", {"date": on_date.isoformat()}, initiator)
+    script = released("daily_diary", {"date": on_date.isoformat()}, initiator)
     return await run(settings, script, "daily_diary")
 
 

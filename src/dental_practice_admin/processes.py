@@ -20,6 +20,8 @@ def own_process_tree() -> None:
     info["BasicLimitInformation"]["LimitFlags"] = win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
     win32job.SetInformationJobObject(_JOB, win32job.JobObjectExtendedLimitInformation, info)
     win32job.AssignProcessToJobObject(_JOB, win32api.GetCurrentProcess())
+    # The OS closes this handle at exit; Python teardown would kill us before setting exit status.
+    _JOB = _JOB.Detach()
 
 
 if __name__ == "__main__":

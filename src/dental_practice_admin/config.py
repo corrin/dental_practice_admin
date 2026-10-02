@@ -52,7 +52,7 @@ PRINCIPLE_URLS = {
 }
 
 
-# Principle's web app, which uses the same Firestore the API reads. The fake has none.
+# Principle's web origins; the fake uses an unroutable origin unless a test supplies one.
 PRINCIPLE_WEB_URLS = {
     Environment.FAKE: "https://fake.principle.invalid",
     Environment.STAGING: "https://staging.principle.dental",

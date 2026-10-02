@@ -29,8 +29,7 @@ Stage 'Lint' { uv run --locked ruff check . }
 Stage 'Types' { uv run --locked mypy }
 Stage 'Released Principle interface' { uv run --locked python -m scripts.refresh_spec --check }
 Stage 'Local suite and code budget' { uv run --locked pytest -q }
-Stage 'End to end' { uv run --locked pytest tests/e2e -m e2e -q }
-Stage 'MCP browser' { uv run --locked pytest tests/test_mcp_browser.py -m e2e -q }
+Stage 'End to end' { uv run --locked pytest -m e2e -q }
 Stage 'Browser smoke' { uv run --locked pytest -m smoke -q }
 Stage 'Principle staging' { & "$PSScriptRoot\run_integration_tests.ps1" }
 Stage 'Real model with synthetic input' { uv run --locked pytest -m llm -q }
