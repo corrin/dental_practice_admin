@@ -22,6 +22,17 @@ from tests.fake.store import FAKE_API_KEY
 
 @pytest.fixture
 def credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    for suffix, project in (("STAGING", "principle-staging"), ("PROD", "principle")):
+        for name, value in {
+            "UI_EMAIL": "fake@fake.invalid",
+            "UI_PASSWORD": "fake-password",
+            "FIREBASE_KEY": "fake-key",
+            "FIREBASE_PROJECT": project,
+            "FIRESTORE_ROOT": "organisations/fake/brands/fake",
+            "WORKSPACE": "Synthetic workspace",
+            "WORKSPACE_SLUG": "fake",
+        }.items():
+            monkeypatch.setenv(f"PRINCIPLE_{name}_{suffix}", value)
     for key, value in {
         "PRINCIPLE_API_KEY_STAGING": "synthetic-staging-key",
         "PRINCIPLE_API_KEY_PROD": "synthetic-production-key",

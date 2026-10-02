@@ -1,0 +1,10 @@
+{
+  "language": "python",
+  "source": "diary.py",
+  "inputs": {
+    "type": "object",
+    "properties": {"date": {"type": "string", "format": "date"}},
+    "required": ["date"],
+    "additionalProperties": false
+  }
+}

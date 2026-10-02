@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
+import httpx2 as httpx
 import pytest
 from pydantic import SecretStr
 
@@ -82,7 +82,7 @@ async def test_pagination_stops_when_the_cursor_repeats() -> None:
     def stuck_cursor(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=_page(next(pages), "stuck"))
 
-    settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"))
+    settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"), practice_id="p")
     async with PrincipleClient(settings, transport=httpx.MockTransport(stuck_cursor)) as client:
         with pytest.raises(PrincipleError):
             _ = [
@@ -111,7 +111,7 @@ async def test_pagination_refuses_when_the_cursor_restarts() -> None:
     def restarts(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=next(answers))
 
-    settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"))
+    settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"), practice_id="p")
     async with PrincipleClient(settings, transport=httpx.MockTransport(restarts)) as client:
         with pytest.raises(PrincipleError):
             _ = [
@@ -216,7 +216,7 @@ async def test_error_status_becomes_a_typed_failure() -> None:
     def forbidden(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"message": "forbidden"})
 
-    settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"))
+    settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"), practice_id="p")
     async with PrincipleClient(settings, transport=httpx.MockTransport(forbidden)) as client:
         with pytest.raises(PrincipleError) as raised:
             await client.get("listPractices")

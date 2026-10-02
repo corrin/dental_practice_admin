@@ -9,7 +9,7 @@ documents, so Firestore is the source of truth behind both.
 member's permissions. It expires after an hour.
 **Used for:** reads the API cannot answer.
 **Verified:** `StagingBrowser.token` in `scripts/check_staging.py`, used by
-`scripts/address_via_firestore.py`. Staging, 2026-10-01, build `main.ecfbec0077a05029.js`.
+the staging Firestore address experiment. Staging, 2026-10-01, build `main.ecfbec0077a05029.js`.
 
 The token may run structured queries (`:runQuery`) over a whole collection, not only fetch
 documents by name.
@@ -20,7 +20,7 @@ documents by name.
 brand: `organisations/{org}/brands/{brand}/patients/{patientId}`. The document ID is the
 patient ID the API and web URLs use.
 **Used for:** finding the collection to query.
-**Verified:** `PATIENTS_PARENT` in `scripts/address_via_firestore.py`. Staging, 2026-10-01,
+**Verified:** the staging workspace document path. Staging, 2026-10-01,
 build `main.ecfbec0077a05029.js`.
 
 The staging login reaches more than one organisation and brand holding patients. Only one
@@ -49,7 +49,7 @@ none. A document path built from the wrong pair returns 404, not an error about 
 patient changed since then.
 **Used for:** "which patients changed today". The API cannot answer this: its patient search
 has no date filter.
-**Verified:** `changed_since` in `scripts/address_via_firestore.py`. Staging, 2026-10-01,
+**Verified:** the staging changed-since query. Staging, 2026-10-01,
 build `main.ecfbec0077a05029.js`. It returned exactly the patients changed that day through
 the API and the website.
 
@@ -64,5 +64,5 @@ and no address verification runs.
 audit fields. Documents also hold copies Principle maintains (`accountSummary`), which a
 direct write can leave inconsistent.
 **Rule:** never write to Firestore directly. Write through the API.
-**Verified:** `set_address` in `scripts/address_via_firestore.py`, which exists to show this.
+**Verified:** the staging direct-write comparison.
 Staging, 2026-10-01, build `main.ecfbec0077a05029.js`.

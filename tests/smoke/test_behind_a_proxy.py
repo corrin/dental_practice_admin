@@ -11,7 +11,7 @@ uvicorn's `--proxy-headers` handling and the application's own URL construction.
 
 from __future__ import annotations
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 pytestmark = pytest.mark.smoke

@@ -1,0 +1,7439 @@
+{
+  "components": {
+    "parameters": {
+      "accountCreditId": {
+        "description": "",
+        "in": "path",
+        "name": "accountCreditId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "appointmentId": {
+        "description": "",
+        "in": "path",
+        "name": "appointmentId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "createdFrom": {
+        "description": "",
+        "in": "query",
+        "name": "createdFrom",
+        "required": false,
+        "schema": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "createdTo": {
+        "description": "",
+        "in": "query",
+        "name": "createdTo",
+        "required": false,
+        "schema": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "emailId": {
+        "description": "",
+        "in": "path",
+        "name": "emailId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "fileId": {
+        "description": "",
+        "in": "path",
+        "name": "fileId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "fromDateTime": {
+        "description": "",
+        "in": "query",
+        "name": "from",
+        "required": true,
+        "schema": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "invoiceId": {
+        "description": "",
+        "in": "path",
+        "name": "invoiceId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "limit": {
+        "description": "",
+        "in": "query",
+        "name": "limit",
+        "schema": {
+          "pattern": "^[1-9][0-9]?$|^100$",
+          "type": "integer"
+        }
+      },
+      "offsetId": {
+        "description": "",
+        "in": "query",
+        "name": "offsetId",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "patientId": {
+        "description": "",
+        "in": "path",
+        "name": "patientId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "practiceId": {
+        "description": "",
+        "in": "path",
+        "name": "practiceId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "practitionerId": {
+        "description": "",
+        "in": "path",
+        "name": "practitionerId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "smsMessageId": {
+        "description": "",
+        "in": "path",
+        "name": "smsMessageId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "stepId": {
+        "description": "",
+        "in": "path",
+        "name": "stepId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "tagId": {
+        "description": "",
+        "in": "path",
+        "name": "tagId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "toDateTime": {
+        "description": "",
+        "in": "query",
+        "name": "to",
+        "required": true,
+        "schema": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "transactionId": {
+        "description": "",
+        "in": "path",
+        "name": "transactionId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "treatmentOptionId": {
+        "description": "",
+        "in": "path",
+        "name": "treatmentOptionId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "treatmentPlanId": {
+        "description": "",
+        "in": "path",
+        "name": "treatmentPlanId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "updatedFrom": {
+        "description": "",
+        "in": "query",
+        "name": "updatedFrom",
+        "required": false,
+        "schema": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "updatedTo": {
+        "description": "",
+        "in": "query",
+        "name": "updatedTo",
+        "required": false,
+        "schema": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "webhookId": {
+        "description": "",
+        "in": "path",
+        "name": "webhookId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "BadRequestError": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "Response"
+      },
+      "ConflictError": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "Response"
+      },
+      "ForbiddenError": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "Response"
+      },
+      "NotFoundError": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "Response"
+      },
+      "UnauthorisedError": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "Response",
+        "headers": {
+          "WWW-Authenticate": {
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "AccountCredit": {
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "patientId": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "practitionerId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "used": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "amount",
+          "description",
+          "patientId",
+          "practiceId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "AccountCreditCreatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountCredit"
+          },
+          "eventType": {
+            "enum": [
+              "account-credit.created"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Account Credit Created Payload",
+        "type": "object"
+      },
+      "AccountCreditUpdatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountCredit"
+          },
+          "eventType": {
+            "enum": [
+              "account-credit.updated"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Account Credit Updated Payload",
+        "type": "object"
+      },
+      "AllocationTarget": {
+        "description": "",
+        "discriminator": {
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "practitioner": {
+                "$ref": "#/components/schemas/NamedReference",
+                "description": ""
+              },
+              "type": {
+                "description": "",
+                "enum": [
+                  "practitioner"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "practitioner"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "type": {
+                "description": "",
+                "enum": [
+                  "unallocated"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Appointment": {
+        "description": "",
+        "properties": {
+          "createdAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          },
+          "event": {
+            "description": "",
+            "properties": {
+              "from": {
+                "description": "",
+                "format": "date-time",
+                "type": "string"
+              },
+              "to": {
+                "description": "",
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "description": "",
+            "type": "string"
+          },
+          "patientId": {
+            "description": "",
+            "type": "string"
+          },
+          "practiceId": {
+            "description": "",
+            "type": "string"
+          },
+          "practitionerId": {
+            "description": "",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AppointmentStatus",
+            "description": ""
+          },
+          "treatmentCategory": {
+            "$ref": "#/components/schemas/NamedReference",
+            "description": ""
+          },
+          "treatmentOptionId": {
+            "deprecated": true,
+            "description": "",
+            "type": "string"
+          },
+          "treatmentPlanId": {
+            "description": "",
+            "type": "string"
+          },
+          "treatmentStepId": {
+            "description": "",
+            "type": "string"
+          },
+          "treatments": {
+            "description": "",
+            "items": {
+              "$ref": "#/components/schemas/TreatmentInPlan"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "practiceId",
+          "practitionerId",
+          "patientId",
+          "treatmentOptionId",
+          "treatmentPlanId",
+          "treatmentStepId",
+          "status"
+        ],
+        "type": "object"
+      },
+      "AppointmentCancel": {
+        "properties": {
+          "cancelReason": {
+            "description": "",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AppointmentCreate": {
+        "properties": {
+          "event": {
+            "properties": {
+              "from": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "to": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "type": "object"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "practitionerId": {
+            "type": "string"
+          },
+          "skipActions": {
+            "description": "",
+            "items": {
+              "enum": [
+                "checklists",
+                "automations"
+              ]
+            },
+            "type": "array"
+          },
+          "tags": {
+            "description": "",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "treatmentOptionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId",
+          "practitionerId",
+          "treatmentOptionId",
+          "event"
+        ],
+        "type": "object"
+      },
+      "AppointmentCreatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Appointment"
+          },
+          "eventType": {
+            "enum": [
+              "appointment.created"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Appointment Created Payload",
+        "type": "object"
+      },
+      "AppointmentInteraction": {
+        "additionalProperties": false,
+        "description": "",
+        "properties": {
+          "appointmentId": {
+            "type": "string"
+          },
+          "content": {
+            "description": "",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "patientId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "call",
+              "note"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "patientId",
+          "appointmentId",
+          "title",
+          "content",
+          "type",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "AppointmentInteraction",
+        "type": "object"
+      },
+      "AppointmentReschedule": {
+        "properties": {
+          "event": {
+            "properties": {
+              "from": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "to": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "type": "object"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "practitionerId": {
+            "type": "string"
+          },
+          "rescheduleReason": {
+            "description": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId",
+          "practitionerId",
+          "event"
+        ],
+        "type": "object"
+      },
+      "AppointmentStatus": {
+        "description": "",
+        "enum": [
+          "unscheduled",
+          "scheduled",
+          "confirmed",
+          "arrived",
+          "checkedIn",
+          "inProgress",
+          "checkingOut",
+          "complete",
+          "cancelled"
+        ],
+        "type": "string"
+      },
+      "AppointmentSuggestion": {
+        "properties": {
+          "event": {
+            "properties": {
+              "duration": {
+                "description": "",
+                "type": "integer"
+              },
+              "from": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "to": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "type": "object"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "practitioner": {
+            "$ref": "#/components/schemas/NamedReference"
+          }
+        },
+        "required": [
+          "practitioner",
+          "practiceId",
+          "event"
+        ],
+        "type": "object"
+      },
+      "AppointmentUpdatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Appointment"
+          },
+          "eventType": {
+            "enum": [
+              "appointment.updated"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Appointment Updated Payload",
+        "type": "object"
+      },
+      "Availability": {
+        "properties": {
+          "availability": {
+            "items": {
+              "$ref": "#/components/schemas/AppointmentSuggestion"
+            },
+            "type": "array"
+          },
+          "nextAvailableAppointment": {
+            "$ref": "#/components/schemas/AppointmentSuggestion"
+          },
+          "practitioner": {
+            "$ref": "#/components/schemas/NamedReference"
+          }
+        },
+        "required": [
+          "practitioner",
+          "availability"
+        ],
+        "type": "object"
+      },
+      "CallEvent": {
+        "additionalProperties": false,
+        "description": "",
+        "properties": {
+          "createdAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "createdAt"
+        ],
+        "title": "CallEvent",
+        "type": "object"
+      },
+      "CallEventCreate": {
+        "description": "",
+        "properties": {
+          "callerName": {
+            "description": "",
+            "type": "string"
+          },
+          "callerPhone": {
+            "description": "",
+            "type": "string"
+          },
+          "context": {
+            "description": "",
+            "properties": {
+              "appointmentId": {
+                "description": "",
+                "type": "string"
+              },
+              "invoiceId": {
+                "description": "",
+                "type": "string"
+              },
+              "leadId": {
+                "description": "",
+                "type": "string"
+              },
+              "patientId": {
+                "description": "",
+                "type": "string"
+              },
+              "practiceId": {
+                "description": "",
+                "type": "string"
+              },
+              "practitionerId": {
+                "description": "",
+                "type": "string"
+              }
+            },
+            "required": [
+              "practiceId"
+            ],
+            "type": "object"
+          },
+          "durationSeconds": {
+            "description": "",
+            "maximum": 86400,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "externalId": {
+            "description": "",
+            "type": "string"
+          },
+          "transcript": {
+            "description": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transcript",
+          "context"
+        ],
+        "title": "CallEventCreate",
+        "type": "object"
+      },
+      "ContactNumber": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "description": "",
+            "type": "string"
+          },
+          "number": {
+            "pattern": "^\\+?\\d{6,15}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "number"
+        ],
+        "type": "object"
+      },
+      "Currency": {
+        "description": "",
+        "enum": [
+          "AUD",
+          "NZD"
+        ],
+        "type": "string"
+      },
+      "CustomLineItem": {
+        "properties": {
+          "amount": {
+            "description": "",
+            "type": "number"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TreatmentLineItem"
+            },
+            "type": "array"
+          },
+          "practitioner": {
+            "$ref": "#/components/schemas/NamedReference",
+            "description": ""
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "tax": {
+            "type": "number"
+          },
+          "type": {
+            "enum": [
+              "product",
+              "treatment",
+              "fee",
+              "deposit",
+              "creditTransfer",
+              "creditRefund"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "description",
+          "quantity",
+          "tax",
+          "amount"
+        ],
+        "type": "object"
+      },
+      "Deposit": {
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "description": {
+            "type": "string"
+          },
+          "patientId": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/Transaction"
+          }
+        },
+        "required": [
+          "amount",
+          "description",
+          "patientId",
+          "practiceId",
+          "transaction"
+        ],
+        "type": "object"
+      },
+      "Email": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "html": {
+            "description": "",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "senderRef": {
+            "$ref": "#/components/schemas/NamedReference"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "description": "",
+            "type": "string"
+          },
+          "to": {
+            "format": "email",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "to",
+          "subject",
+          "text",
+          "html",
+          "senderRef",
+          "practiceId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "EmailCreate": {
+        "properties": {
+          "html": {
+            "description": "",
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "description": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "text",
+          "html",
+          "practiceId"
+        ],
+        "type": "object"
+      },
+      "EmailCreatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Email"
+          },
+          "eventType": {
+            "enum": [
+              "email.created"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Email Created Payload",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "description": "",
+            "type": "string"
+          },
+          "message": {
+            "description": "",
+            "type": "string"
+          },
+          "statusCode": {
+            "description": "",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "error",
+          "statusCode"
+        ],
+        "type": "object"
+      },
+      "File": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "downloadUrl": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "propertyNames": {
+              "minLength": 1,
+              "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+            },
+            "type": "object"
+          },
+          "patientId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "downloadUrl",
+          "patientId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "FileCreatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/File"
+          },
+          "eventType": {
+            "enum": [
+              "file.created"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "File Created Payload",
+        "type": "object"
+      },
+      "Gender": {
+        "description": "",
+        "enum": [
+          "male",
+          "female",
+          "other",
+          "notSpecified"
+        ],
+        "title": "Gender",
+        "type": "string"
+      },
+      "InteractionCreate": {
+        "description": "",
+        "properties": {
+          "content": {
+            "description": "",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "call",
+              "note"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "content",
+          "type"
+        ],
+        "title": "InteractionCreate",
+        "type": "object"
+      },
+      "Invoice": {
+        "properties": {
+          "allocations": {
+            "description": "",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceAllocation"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "due": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CustomLineItem"
+            },
+            "type": "array"
+          },
+          "paidAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "patientId": {
+            "type": "string"
+          },
+          "practice": {
+            "$ref": "#/components/schemas/NamedReference"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "issued",
+              "cancelled",
+              "writtenOff",
+              "paid"
+            ],
+            "type": "string"
+          },
+          "subtotal": {
+            "description": "",
+            "type": "number"
+          },
+          "tax": {
+            "description": "",
+            "type": "number"
+          },
+          "total": {
+            "description": "",
+            "type": "number"
+          },
+          "transactionAllocations": {
+            "description": "",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceTransactionAllocation"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reference",
+          "status",
+          "practice",
+          "items",
+          "allocations",
+          "transactionAllocations",
+          "subtotal",
+          "tax",
+          "total",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "InvoiceAllocation": {
+        "description": "",
+        "properties": {
+          "allocatedAmount": {
+            "description": "",
+            "type": "number"
+          },
+          "target": {
+            "$ref": "#/components/schemas/AllocationTarget",
+            "description": ""
+          }
+        },
+        "required": [
+          "target",
+          "allocatedAmount"
+        ],
+        "type": "object"
+      },
+      "InvoiceCreatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Invoice"
+          },
+          "eventType": {
+            "enum": [
+              "invoice.created"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Invoice Created Payload",
+        "type": "object"
+      },
+      "InvoiceTransactionAllocation": {
+        "description": "",
+        "properties": {
+          "allocations": {
+            "description": "",
+            "items": {
+              "$ref": "#/components/schemas/TransactionAllocation"
+            },
+            "type": "array"
+          },
+          "transactionId": {
+            "description": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transactionId",
+          "allocations"
+        ],
+        "type": "object"
+      },
+      "InvoiceUpdatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Invoice"
+          },
+          "eventType": {
+            "enum": [
+              "invoice.updated"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Invoice Updated Payload",
+        "type": "object"
+      },
+      "Lead": {
+        "additionalProperties": false,
+        "description": "",
+        "properties": {
+          "createdAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          },
+          "email": {
+            "description": "",
+            "format": "email",
+            "type": "string"
+          },
+          "gender": {
+            "$ref": "#/components/schemas/Gender"
+          },
+          "id": {
+            "description": "",
+            "type": "string"
+          },
+          "name": {
+            "description": "",
+            "type": "string"
+          },
+          "phone": {
+            "description": "",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "createdAt"
+        ],
+        "title": "Lead",
+        "type": "object"
+      },
+      "LeadCreate": {
+        "description": "",
+        "properties": {
+          "email": {
+            "description": "",
+            "format": "email",
+            "type": "string"
+          },
+          "gender": {
+            "$ref": "#/components/schemas/Gender"
+          },
+          "name": {
+            "description": "",
+            "type": "string"
+          },
+          "phone": {
+            "description": "",
+            "type": "string"
+          },
+          "practiceId": {
+            "description": "",
+            "type": "string"
+          },
+          "source": {
+            "description": "",
+            "type": "string"
+          },
+          "sourceEventRef": {
+            "description": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "practiceId",
+          "source"
+        ],
+        "title": "LeadCreate",
+        "type": "object"
+      },
+      "MessageCreatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SMSMessage"
+          },
+          "eventType": {
+            "enum": [
+              "message.created"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Message Created Payload",
+        "type": "object"
+      },
+      "NamedReference": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "PaginationMeta": {
+        "description": "",
+        "properties": {
+          "limit": {
+            "type": "integer"
+          },
+          "nextOffsetId": {
+            "description": "",
+            "type": "string"
+          },
+          "offsetId": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "total"
+        ],
+        "type": "object"
+      },
+      "Patient": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "contactNumbers": {
+            "items": {
+              "$ref": "#/components/schemas/ContactNumber"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "format": "date",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "gender": {
+            "$ref": "#/components/schemas/Gender"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "preferredHygienist": {
+            "$ref": "#/components/schemas/NamedReference",
+            "description": ""
+          },
+          "preferredPractice": {
+            "$ref": "#/components/schemas/NamedReference",
+            "description": ""
+          },
+          "preferredPractitioner": {
+            "$ref": "#/components/schemas/NamedReference",
+            "description": ""
+          },
+          "referrer": {
+            "$ref": "#/components/schemas/PatientReferralSource",
+            "description": ""
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/NamedReference"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "gender",
+          "email",
+          "address"
+        ],
+        "type": "object"
+      },
+      "PatientCreate": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "contactNumbers": {
+            "items": {
+              "$ref": "#/components/schemas/ContactNumber"
+            },
+            "type": "array"
+          },
+          "dateOfBirth": {
+            "format": "date",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "type": "string"
+          },
+          "gender": {
+            "$ref": "#/components/schemas/Gender"
+          },
+          "name": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "practiceId",
+          "name",
+          "dateOfBirth",
+          "gender",
+          "email"
+        ],
+        "type": "object"
+      },
+      "PatientCreatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Patient"
+          },
+          "eventType": {
+            "enum": [
+              "patient.created"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Patient Created Payload",
+        "type": "object"
+      },
+      "PatientInteraction": {
+        "additionalProperties": false,
+        "description": "",
+        "properties": {
+          "content": {
+            "description": "",
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "",
+            "type": "string"
+          },
+          "patientId": {
+            "description": "",
+            "type": "string"
+          },
+          "title": {
+            "description": "",
+            "type": "string"
+          },
+          "type": {
+            "description": "",
+            "enum": [
+              "call",
+              "note"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "patientId",
+          "title",
+          "content",
+          "type",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "PatientInteraction",
+        "type": "object"
+      },
+      "PatientReferralSource": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "patient",
+                  "contact",
+                  "configuredReferrer"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "type"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "PatientUpdatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Patient"
+          },
+          "eventType": {
+            "enum": [
+              "patient.updated"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Patient Updated Payload",
+        "type": "object"
+      },
+      "PopupNotification": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/PopupNotificationAction"
+            },
+            "type": "array"
+          },
+          "content": {
+            "description": "",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "groupId": {
+            "description": "",
+            "type": "string"
+          },
+          "hasTimeout": {
+            "default": true,
+            "description": "",
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "stafferId": {
+            "description": "",
+            "type": "string"
+          },
+          "title": {
+            "description": "",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "stafferId",
+          "groupId",
+          "title",
+          "content",
+          "hasTimeout",
+          "actions",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "PopupNotificationAction": {
+        "properties": {
+          "href": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "href"
+        ],
+        "type": "object"
+      },
+      "PopupNotificationCreatePayload": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/PopupNotificationAction"
+            },
+            "type": "array"
+          },
+          "content": {
+            "description": "",
+            "type": "string"
+          },
+          "hasTimeout": {
+            "default": true,
+            "description": "",
+            "type": "boolean"
+          },
+          "stafferId": {
+            "description": "",
+            "type": "string"
+          },
+          "title": {
+            "description": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stafferId",
+          "title",
+          "content",
+          "hasTimeout",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "Practice": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "Practitioner": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "treatmentOptions": {
+            "description": "",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "createdAt",
+          "updatedAt",
+          "treatmentOptions"
+        ],
+        "type": "object"
+      },
+      "SMSMessage": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "direction": {
+            "description": "",
+            "enum": [
+              "inbound",
+              "outbound"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "patientPhoneNumber": {
+            "description": "",
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "practicePhoneNumber": {
+            "description": "",
+            "type": "string"
+          },
+          "status": {
+            "default": "sent",
+            "description": "",
+            "enum": [
+              "pending",
+              "sent",
+              "delivered",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "patientPhoneNumber",
+          "practicePhoneNumber",
+          "direction",
+          "status",
+          "practiceId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "SMSMessageCreate": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "direction": {
+            "default": "outbound",
+            "description": "",
+            "enum": [
+              "inbound",
+              "outbound"
+            ],
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "status": {
+            "default": "pending",
+            "description": "",
+            "enum": [
+              "pending",
+              "sent",
+              "delivered",
+              "failed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "status",
+          "practiceId"
+        ],
+        "type": "object"
+      },
+      "ServiceCode": {
+        "description": "",
+        "properties": {
+          "code": {
+            "description": "",
+            "type": "string"
+          },
+          "id": {
+            "description": "",
+            "type": "string"
+          },
+          "priceInCents": {
+            "description": "",
+            "type": "integer"
+          },
+          "quantity": {
+            "description": "",
+            "type": "number"
+          },
+          "taxInCents": {
+            "description": "",
+            "type": "integer"
+          },
+          "type": {
+            "description": "",
+            "enum": [
+              "ADA",
+              "ADF",
+              "DVA",
+              "DVAProsthetic",
+              "CDBS",
+              "ACC",
+              "MOH",
+              "Physiotherapy"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "type",
+          "taxInCents",
+          "priceInCents",
+          "quantity"
+        ],
+        "type": "object"
+      },
+      "Tag": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "TagCreate": {
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "Transaction": {
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "description": {
+            "description": "",
+            "type": "string"
+          },
+          "extendedData": {
+            "additionalProperties": true,
+            "description": "",
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "invoiceId": {
+            "description": "",
+            "type": "string"
+          },
+          "patientId": {
+            "description": "",
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "provider": {
+            "description": "",
+            "enum": [
+              "stripe",
+              "cash",
+              "manual",
+              "discount",
+              "accountCredit",
+              "accountCreditTransfer",
+              "paymentPlan",
+              "tyroEftpos",
+              "tyroHealthPoint",
+              "tyroEasyClaimBulkBill",
+              "tyroEasyClaimPartPaid",
+              "tyroEasyClaimFullyPaid",
+              "medipassHicaps",
+              "medipassMedicare",
+              "medipassDVA",
+              "medipassPatientFunded",
+              "medipassVirtualTerminal",
+              "medipassGapPayment",
+              "hicapsConnectEftpos",
+              "hicapsConnectHealthFund",
+              "hicapsConnectMedicare",
+              "smartpayCard",
+              "smartpayQR",
+              "moh",
+              "acc",
+              "verifoneCard"
+            ],
+            "type": "string"
+          },
+          "reference": {
+            "description": "",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "complete",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "payment",
+              "refund"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "reference",
+          "type",
+          "status",
+          "amount",
+          "practiceId",
+          "patientId",
+          "invoiceId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "TransactionAllocation": {
+        "description": "",
+        "properties": {
+          "allocatedAmount": {
+            "description": "",
+            "type": "number"
+          },
+          "allocatedProportion": {
+            "description": "",
+            "type": "number"
+          },
+          "target": {
+            "$ref": "#/components/schemas/AllocationTarget",
+            "description": ""
+          }
+        },
+        "required": [
+          "target",
+          "allocatedAmount",
+          "allocatedProportion"
+        ],
+        "type": "object"
+      },
+      "TransactionCreate": {
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "description": "",
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "provider": {
+            "description": "",
+            "enum": [
+              "manual"
+            ],
+            "type": "string"
+          },
+          "reference": {
+            "description": "",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "complete",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "payment",
+              "refund"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "reference",
+          "type",
+          "status",
+          "amount",
+          "practiceId"
+        ],
+        "type": "object"
+      },
+      "TransactionCreatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Transaction"
+          },
+          "eventType": {
+            "enum": [
+              "transaction.created"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Transaction Created Payload",
+        "type": "object"
+      },
+      "TransactionUpdatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Transaction"
+          },
+          "eventType": {
+            "enum": [
+              "transaction.updated"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Transaction Updated Payload",
+        "type": "object"
+      },
+      "Treatment": {
+        "description": "",
+        "properties": {
+          "basePriceInCents": {
+            "description": "",
+            "type": "integer"
+          },
+          "chartedAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "description": "",
+            "type": "string"
+          },
+          "id": {
+            "description": "",
+            "type": "string"
+          },
+          "practitionerId": {
+            "description": "",
+            "type": "string"
+          },
+          "resolvedAt": {
+            "description": "",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "serviceCodes": {
+            "description": "",
+            "items": {
+              "$ref": "#/components/schemas/ServiceCode"
+            },
+            "type": "array"
+          },
+          "taxInCents": {
+            "description": "",
+            "type": "integer"
+          },
+          "totalInCents": {
+            "description": "",
+            "type": "integer"
+          },
+          "treatmentCategoryName": {
+            "description": "",
+            "type": "string"
+          },
+          "treatmentStepId": {
+            "description": "",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "treatmentStepId",
+          "basePriceInCents",
+          "totalInCents",
+          "taxInCents",
+          "serviceCodes"
+        ],
+        "type": "object"
+      },
+      "TreatmentInPlan": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Treatment"
+          },
+          {
+            "properties": {
+              "treatmentStepId": {
+                "description": "",
+                "type": "string"
+              }
+            },
+            "required": [
+              "treatmentStepId"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "",
+        "type": "object"
+      },
+      "TreatmentLineItem": {
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "tax": {
+            "type": "number"
+          },
+          "toothId": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "treatmentBasePrice",
+              "serviceCode",
+              "adaCode"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "description",
+          "quantity",
+          "tax",
+          "amount"
+        ],
+        "type": "object"
+      },
+      "TreatmentOption": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "TreatmentPlan": {
+        "description": "",
+        "properties": {
+          "createdAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "",
+            "type": "string"
+          },
+          "name": {
+            "description": "",
+            "type": "string"
+          },
+          "patientId": {
+            "description": "",
+            "type": "string"
+          },
+          "practiceId": {
+            "description": "",
+            "nullable": true,
+            "type": "string"
+          },
+          "practitionerId": {
+            "description": "",
+            "nullable": true,
+            "type": "string"
+          },
+          "taxInCents": {
+            "description": "",
+            "type": "integer"
+          },
+          "totalInCents": {
+            "description": "",
+            "type": "integer"
+          },
+          "treatmentSteps": {
+            "description": "",
+            "items": {
+              "$ref": "#/components/schemas/TreatmentStep"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "patientId",
+          "treatmentSteps",
+          "totalInCents",
+          "taxInCents",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "TreatmentPlanCreatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TreatmentPlan",
+            "description": ""
+          },
+          "eventType": {
+            "description": "",
+            "enum": [
+              "treatment-plan.created"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Treatment Plan Created Payload",
+        "type": "object"
+      },
+      "TreatmentPlanUpdatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TreatmentPlan",
+            "description": ""
+          },
+          "eventType": {
+            "description": "",
+            "enum": [
+              "treatment-plan.updated"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Treatment Plan Updated Payload",
+        "type": "object"
+      },
+      "TreatmentStep": {
+        "description": "",
+        "properties": {
+          "appointmentId": {
+            "description": "",
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "",
+            "type": "string"
+          },
+          "patientId": {
+            "description": "",
+            "type": "string"
+          },
+          "practiceId": {
+            "description": "",
+            "nullable": true,
+            "type": "string"
+          },
+          "practitionerIds": {
+            "description": "",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "taxInCents": {
+            "description": "",
+            "type": "integer"
+          },
+          "totalInCents": {
+            "description": "",
+            "type": "integer"
+          },
+          "treatmentCategory": {
+            "$ref": "#/components/schemas/NamedReference",
+            "description": ""
+          },
+          "treatmentPlanId": {
+            "description": "",
+            "type": "string"
+          },
+          "treatments": {
+            "description": "",
+            "items": {
+              "$ref": "#/components/schemas/Treatment"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "treatmentPlanId",
+          "totalInCents",
+          "taxInCents",
+          "createdAt",
+          "updatedAt",
+          "patientId",
+          "practitionerIds",
+          "treatments"
+        ],
+        "type": "object"
+      },
+      "TreatmentStepCreatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TreatmentStep",
+            "description": ""
+          },
+          "eventType": {
+            "description": "",
+            "enum": [
+              "treatment-step.created"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Treatment Step Created Payload",
+        "type": "object"
+      },
+      "TreatmentStepUpdatedPayload": {
+        "description": "",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TreatmentStep",
+            "description": ""
+          },
+          "eventType": {
+            "description": "",
+            "enum": [
+              "treatment-step.updated"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventType",
+          "timestamp",
+          "data"
+        ],
+        "title": "Treatment Step Updated Payload",
+        "type": "object"
+      },
+      "Webhook": {
+        "properties": {
+          "consecutiveFailures": {
+            "description": "",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "createdAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "description": "",
+            "type": "string"
+          },
+          "disabledReason": {
+            "description": "",
+            "enum": [
+              "consecutive_failures"
+            ],
+            "type": "string"
+          },
+          "endpointUrl": {
+            "description": "",
+            "format": "uri",
+            "type": "string"
+          },
+          "events": {
+            "description": "",
+            "items": {
+              "$ref": "#/components/schemas/WebhookEvent"
+            },
+            "type": "array"
+          },
+          "id": {
+            "description": "",
+            "type": "string"
+          },
+          "label": {
+            "description": "",
+            "type": "string"
+          },
+          "organisationId": {
+            "description": "",
+            "type": "string"
+          },
+          "practiceIds": {
+            "description": "",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "secret": {
+            "description": "",
+            "type": "string"
+          },
+          "status": {
+            "description": "",
+            "enum": [
+              "enabled",
+              "disabled"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "endpointUrl",
+          "events"
+        ],
+        "type": "object"
+      },
+      "WebhookEvent": {
+        "enum": [
+          "account-credit.created",
+          "account-credit.updated",
+          "appointment.created",
+          "appointment.updated",
+          "email.created",
+          "invoice.created",
+          "invoice.updated",
+          "file.created",
+          "message.created",
+          "patient.created",
+          "patient.updated",
+          "transaction.created",
+          "transaction.updated",
+          "treatment-plan.created",
+          "treatment-plan.updated",
+          "treatment-step.created",
+          "treatment-step.updated"
+        ],
+        "type": "string",
+        "x-enum-required-scopes": [
+          [
+            "accounts:read",
+            "accounts:write"
+          ],
+          [
+            "accounts:read",
+            "accounts:write"
+          ],
+          [
+            "appointments:read",
+            "appointments:write"
+          ],
+          [
+            "appointments:read",
+            "appointments:write"
+          ],
+          [
+            "emails:read",
+            "emails:write"
+          ],
+          [
+            "accounts:read",
+            "accounts:write"
+          ],
+          [
+            "accounts:read",
+            "accounts:write"
+          ],
+          [
+            "files:read",
+            "files:write"
+          ],
+          [
+            "messages:read",
+            "messages:write"
+          ],
+          [
+            "patients:read",
+            "patients:write"
+          ],
+          [
+            "patients:read",
+            "patients:write"
+          ],
+          [
+            "accounts:read",
+            "accounts:write"
+          ],
+          [
+            "accounts:read",
+            "accounts:write"
+          ],
+          [
+            "treatment-plans:read",
+            "treatment-plans:write"
+          ],
+          [
+            "treatment-plans:read",
+            "treatment-plans:write"
+          ],
+          [
+            "treatment-plans:read",
+            "treatment-plans:write"
+          ],
+          [
+            "treatment-plans:read",
+            "treatment-plans:write"
+          ]
+        ],
+        "x-enumDescriptions": {
+          "account-credit.created": "Requires accounts:read OR accounts:write",
+          "account-credit.updated": "Requires accounts:read OR accounts:write",
+          "appointment.created": "Requires appointments:read OR appointments:write",
+          "appointment.updated": "Requires appointments:read OR appointments:write",
+          "email.created": "Requires emails:read OR emails:write",
+          "file.created": "Requires files:read OR files:write",
+          "invoice.created": "Requires accounts:read OR accounts:write",
+          "invoice.updated": "Requires accounts:read OR accounts:write",
+          "message.created": "Requires messages:read OR messages:write",
+          "patient.created": "Requires patients:read OR patients:write",
+          "patient.updated": "Requires patients:read OR patients:write",
+          "transaction.created": "Requires accounts:read OR accounts:write",
+          "transaction.updated": "Requires accounts:read OR accounts:write",
+          "treatment-plan.created": "Requires treatment-plans:read OR treatment-plans:write",
+          "treatment-plan.updated": "Requires treatment-plans:read OR treatment-plans:write",
+          "treatment-step.created": "Requires treatment-plans:read OR treatment-plans:write",
+          "treatment-step.updated": "Requires treatment-plans:read OR treatment-plans:write"
+        }
+      },
+      "WebhookPayload": {
+        "discriminator": {
+          "propertyName": "eventType"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/AccountCreditCreatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/AccountCreditUpdatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/AppointmentCreatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/AppointmentUpdatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/EmailCreatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/InvoiceCreatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/InvoiceUpdatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/FileCreatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/MessageCreatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/PatientCreatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/PatientUpdatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/TransactionCreatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/TransactionUpdatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/TreatmentPlanCreatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/TreatmentPlanUpdatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/TreatmentStepCreatedPayload"
+          },
+          {
+            "$ref": "#/components/schemas/TreatmentStepUpdatedPayload"
+          }
+        ]
+      }
+    },
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "description": "",
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
+      },
+      "oauth2": {
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://api.principle.dental/oauth/authorize",
+            "refreshUrl": "https://api.principle.dental/oauth/refresh",
+            "scopes": {
+              "accounts:read": "Read account data including invoices / transactions / deposits",
+              "accounts:write": "Write account data including invoices / transactions / deposits",
+              "appointments:read": "Read appointment data including online booking requests",
+              "appointments:write": "Write appointment data including online booking requests",
+              "availability:read": "Read availability data including appointment search helpers",
+              "emails:read": "Read email data",
+              "emails:write": "Write email data",
+              "files:read": "Read patient file data",
+              "files:write": "Write patient file data",
+              "interactions:write": "Write interaction data for patients / appointments",
+              "messages:read": "Read message data",
+              "messages:write": "Write message data",
+              "notifications:write": "Write notification data",
+              "patients:read": "Read patient data",
+              "patients:write": "Write patient data",
+              "practices:read": "Read practice data",
+              "tags:read": "Read tag data",
+              "tags:write": "Write tag data",
+              "treatment-plans:read": "Read treatment plans, steps, and treatments",
+              "treatment-plans:write": "Write treatment plans, steps, and treatments"
+            },
+            "tokenUrl": "https://api.principle.dental/oauth/token"
+          }
+        },
+        "type": "oauth2"
+      }
+    }
+  },
+  "info": {
+    "title": "Principle interface",
+    "version": "released"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/appointments": {
+      "get": {
+        "description": "",
+        "operationId": "listAppointmentsByDateRange",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "practitionerId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AppointmentStatus"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/fromDateTime"
+          },
+          {
+            "$ref": "#/components/parameters/toDateTime"
+          },
+          {
+            "$ref": "#/components/parameters/createdFrom"
+          },
+          {
+            "$ref": "#/components/parameters/createdTo"
+          },
+          {
+            "$ref": "#/components/parameters/updatedFrom"
+          },
+          {
+            "$ref": "#/components/parameters/updatedTo"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Appointment"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "appointments:read",
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Appointments",
+          "Search"
+        ]
+      }
+    },
+    "/v1/availability": {
+      "get": {
+        "description": "",
+        "operationId": "searchAvailability",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "practitionerId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "treatmentOptionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Availability"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "availability:read"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Appointments",
+          "Availability",
+          "Search"
+        ]
+      }
+    },
+    "/v1/files": {
+      "get": {
+        "description": "",
+        "operationId": "listFilesByDateRange",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/createdFrom"
+          },
+          {
+            "$ref": "#/components/parameters/createdTo"
+          },
+          {
+            "$ref": "#/components/parameters/updatedFrom"
+          },
+          {
+            "$ref": "#/components/parameters/updatedTo"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/File"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "files:read",
+              "files:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Files",
+          "Search"
+        ]
+      }
+    },
+    "/v1/invoices": {
+      "get": {
+        "description": "",
+        "operationId": "listInvoicesByDateRange",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/createdFrom"
+          },
+          {
+            "$ref": "#/components/parameters/createdTo"
+          },
+          {
+            "$ref": "#/components/parameters/updatedFrom"
+          },
+          {
+            "$ref": "#/components/parameters/updatedTo"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Invoice"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "accounts:read",
+              "accounts:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Invoices",
+          "Search"
+        ]
+      }
+    },
+    "/v1/leads": {
+      "get": {
+        "description": "",
+        "operationId": "searchLeads",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "phone",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "email",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Lead"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "patients:read",
+              "patients:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Leads",
+          "Search"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createLead",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lead"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "interactions:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Leads"
+        ]
+      }
+    },
+    "/v1/notifications": {
+      "post": {
+        "description": "",
+        "operationId": "createPopupNotification",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PopupNotificationCreatePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PopupNotification"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "notifications:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/v1/oauth/authorize": {
+      "get": {
+        "description": "",
+        "operationId": "authorize",
+        "parameters": [
+          {
+            "description": "",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "response_type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "code"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "redirect_uri",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "state",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "organisationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "practiceIds",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          }
+        },
+        "security": [],
+        "tags": [
+          "OAuth"
+        ],
+        "x-internal": true
+      }
+    },
+    "/v1/oauth/token": {
+      "post": {
+        "description": "",
+        "operationId": "getToken",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "properties": {
+                  "client_id": {
+                    "description": "",
+                    "type": "string"
+                  },
+                  "client_secret": {
+                    "description": "",
+                    "type": "string"
+                  },
+                  "code": {
+                    "description": "",
+                    "type": "string"
+                  },
+                  "grant_type": {
+                    "description": "",
+                    "enum": [
+                      "authorization_code",
+                      "refresh_token"
+                    ],
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "description": "",
+                    "type": "string"
+                  },
+                  "refresh_token": {
+                    "description": "",
+                    "type": "string"
+                  },
+                  "scope": {
+                    "description": "",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "access_token": {
+                      "type": "string"
+                    },
+                    "expires_in": {
+                      "type": "integer"
+                    },
+                    "refresh_token": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string"
+                    },
+                    "token_type": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          }
+        },
+        "security": [],
+        "tags": [
+          "OAuth"
+        ]
+      }
+    },
+    "/v1/patients": {
+      "get": {
+        "description": "",
+        "operationId": "searchPatients",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateOfBirth",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "phoneNumber",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Patient"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "patients:read",
+              "patients:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Patients",
+          "Search"
+        ]
+      },
+      "post": {
+        "operationId": "createPatient",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Patient"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "GetPatientById": {
+                "operationId": "getPatient",
+                "parameters": {
+                  "patientId": "$response.body#/id"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "patients:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}": {
+      "get": {
+        "operationId": "getPatient",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Patient"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "Self": {
+                "operationId": "updatePatient",
+                "parameters": {
+                  "patientId": "$request.path.patientId"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "patients:read",
+              "patients:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Patients"
+        ]
+      },
+      "patch": {
+        "operationId": "updatePatient",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Patient"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "Self": {
+                "operationId": "getPatient",
+                "parameters": {
+                  "patientId": "$request.path.patientId"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "patients:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/account-credits": {
+      "get": {
+        "description": "",
+        "operationId": "listAccountCredits",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/AccountCredit"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "accounts:read",
+              "accounts:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Account Credits"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/account-credits/{accountCreditId}": {
+      "get": {
+        "description": "",
+        "operationId": "getAccountCredit",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/accountCreditId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountCredit"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "accounts:read",
+              "accounts:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Account Credits"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/appointments": {
+      "get": {
+        "operationId": "listAppointments",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Appointment"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "appointments:read",
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Appointments"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createAppointment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Appointment"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "GetAppointment": {
+                "operationId": "getAppointment",
+                "parameters": {
+                  "appointmentId": "$response.body#/id",
+                  "patientId": "$request.path.patientId"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "409": {
+            "$ref": "#/components/responses/ConflictError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/appointments/{appointmentId}": {
+      "get": {
+        "operationId": "getAppointment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/appointmentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Appointment"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "appointments:read",
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/appointments/{appointmentId}/allowed-statuses": {
+      "get": {
+        "description": "",
+        "operationId": "listAllowedAppointmentStatuses",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/appointmentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/AppointmentStatus"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "appointments:read",
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/appointments/{appointmentId}/availability": {
+      "get": {
+        "description": "",
+        "operationId": "searchRescheduleAvailability",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/appointmentId"
+          },
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "practitionerId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Availability"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "availability:read"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Appointments",
+          "Availability",
+          "Search"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/appointments/{appointmentId}/cancel": {
+      "post": {
+        "description": "",
+        "operationId": "cancelAppointment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/appointmentId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentCancel"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "204": {
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "409": {
+            "$ref": "#/components/responses/ConflictError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/appointments/{appointmentId}/interactions": {
+      "post": {
+        "description": "",
+        "operationId": "createAppointmentInteraction",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/appointmentId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InteractionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentInteraction"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "interactions:write",
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Appointments",
+          "Interactions"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/appointments/{appointmentId}/reschedule": {
+      "post": {
+        "description": "",
+        "operationId": "rescheduleAppointment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/appointmentId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentReschedule"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "409": {
+            "$ref": "#/components/responses/ConflictError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/appointments/{appointmentId}/status": {
+      "patch": {
+        "operationId": "updateAppointmentStatus",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/appointmentId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "status": {
+                    "$ref": "#/components/schemas/AppointmentStatus"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/deposits": {
+      "post": {
+        "description": "",
+        "operationId": "createDeposit",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Deposit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "accounts:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Account Credits"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/emails": {
+      "get": {
+        "description": "",
+        "operationId": "listEmails",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Email"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "emails:read",
+              "emails:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Emails"
+        ]
+      },
+      "post": {
+        "operationId": "createEmail",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "emails:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Emails"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/emails/{emailId}": {
+      "get": {
+        "operationId": "getEmail",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/emailId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Email"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "messages:read",
+              "messages:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Emails"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/files": {
+      "get": {
+        "description": "",
+        "operationId": "listPatientFiles",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/File"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "files:read",
+              "files:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Files"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "uploadPatientFile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "description": "",
+                    "format": "binary",
+                    "type": "string"
+                  },
+                  "filename": {
+                    "description": "",
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "additionalProperties": {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean"
+                      ]
+                    },
+                    "description": "",
+                    "propertyNames": {
+                      "minLength": 1,
+                      "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "file",
+                  "filename"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/File"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "GetFile": {
+                "operationId": "getPatientFile",
+                "parameters": {
+                  "fileId": "$response.body#/id",
+                  "patientId": "$request.path.patientId"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "files:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/files/{fileId}": {
+      "get": {
+        "operationId": "getPatientFile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/File"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "files:read",
+              "files:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/files/{fileId}/metadata": {
+      "patch": {
+        "operationId": "updatePatientFile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/fileId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "metadata": {
+                    "additionalProperties": {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean"
+                      ]
+                    },
+                    "description": "",
+                    "propertyNames": {
+                      "minLength": 1,
+                      "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "metadata"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/File"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "Self": {
+                "operationId": "getPatientFile",
+                "parameters": {
+                  "fileId": "$request.path.fileId",
+                  "patientId": "$request.path.patientId"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "files:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/interactions": {
+      "post": {
+        "description": "",
+        "operationId": "createPatientInteraction",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InteractionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientInteraction"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "interactions:write",
+              "patients:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Patients",
+          "Interactions"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/invoices": {
+      "get": {
+        "description": "",
+        "operationId": "listInvoices",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Invoice"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "accounts:read",
+              "accounts:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Invoices"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/invoices/{invoiceId}": {
+      "get": {
+        "operationId": "getInvoice",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/invoiceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "accounts:read",
+              "accounts:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Invoices"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/invoices/{invoiceId}/transactions": {
+      "get": {
+        "description": "",
+        "operationId": "listTransactions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/invoiceId"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Transaction"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "accounts:read",
+              "accounts:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ]
+      },
+      "post": {
+        "operationId": "createTransaction",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/invoiceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "GetTransaction": {
+                "operationId": "getTransaction",
+                "parameters": {
+                  "invoiceId": "$request.path.invoiceId",
+                  "patientId": "$request.path.patientId",
+                  "transactionId": "$response.body#/id"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "accounts:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/invoices/{invoiceId}/transactions/{transactionId}": {
+      "get": {
+        "operationId": "getTransaction",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/invoiceId"
+          },
+          {
+            "$ref": "#/components/parameters/transactionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "accounts:read",
+              "accounts:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ]
+      },
+      "patch": {
+        "operationId": "updateTransaction",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/invoiceId"
+          },
+          {
+            "$ref": "#/components/parameters/transactionId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "pending",
+                      "complete",
+                      "failed"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "Self": {
+                "operationId": "getTransaction",
+                "parameters": {
+                  "invoiceId": "$request.path.invoiceId",
+                  "patientId": "$request.path.patientId",
+                  "transactionId": "$request.path.transactionId"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "accounts:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/sms-messages": {
+      "get": {
+        "description": "",
+        "operationId": "listSMSMessages",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "direction",
+            "required": false,
+            "schema": {
+              "enum": [
+                "inbound",
+                "outbound"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/SMSMessage"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "messages:read",
+              "messages:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "SMS Messages"
+        ]
+      },
+      "post": {
+        "operationId": "createSMSMessage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SMSMessageCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SMSMessage"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "GetMessage": {
+                "operationId": "getSMSMessage",
+                "parameters": {
+                  "patientId": "$request.path.patientId",
+                  "smsMessageId": "$response.body#/id"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "messages:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "SMS Messages"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/sms-messages/{smsMessageId}": {
+      "get": {
+        "operationId": "getSMSMessage",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/smsMessageId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SMSMessage"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "messages:read",
+              "messages:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "SMS Messages"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/treatment-plans": {
+      "get": {
+        "description": "",
+        "operationId": "listPatientTreatmentPlans",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/TreatmentPlan"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "treatment-plans:read",
+              "treatment-plans:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Treatment Plans"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/treatment-plans/{treatmentPlanId}/treatment-steps/{stepId}": {
+      "get": {
+        "description": "",
+        "operationId": "getPatientTreatmentStep",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/treatmentPlanId"
+          },
+          {
+            "$ref": "#/components/parameters/stepId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreatmentStep"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "treatment-plans:read",
+              "treatment-plans:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Treatment Plans"
+        ]
+      }
+    },
+    "/v1/practices": {
+      "get": {
+        "operationId": "listPractices",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Practice"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "availability:read",
+              "appointments:read",
+              "appointments:write",
+              "practices:read"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Practices"
+        ]
+      }
+    },
+    "/v1/practices/{practiceId}": {
+      "get": {
+        "operationId": "getPractice",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/practiceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Practice"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "practices:read"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Practices"
+        ]
+      }
+    },
+    "/v1/practices/{practiceId}/call-events": {
+      "post": {
+        "description": "",
+        "operationId": "createCallEvent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallEventCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallEvent"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "409": {
+            "$ref": "#/components/responses/ConflictError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "interactions:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Interactions"
+        ]
+      }
+    },
+    "/v1/practices/{practiceId}/practitioners": {
+      "get": {
+        "description": "",
+        "operationId": "listPractitioners",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/practiceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Practitioner"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "availability:read",
+              "appointments:read",
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Availability",
+          "Practitioners"
+        ]
+      }
+    },
+    "/v1/practices/{practiceId}/practitioners/{practitionerId}": {
+      "get": {
+        "operationId": "getPractitioner",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/practiceId"
+          },
+          {
+            "$ref": "#/components/parameters/practitionerId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Practitioner"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "availability:read"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Availability",
+          "Practitioners"
+        ]
+      }
+    },
+    "/v1/practices/{practiceId}/treatment-options": {
+      "get": {
+        "operationId": "listTreatmentOptions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/practiceId"
+          },
+          {
+            "in": "query",
+            "name": "practitionerId",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/TreatmentOption"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "availability:read",
+              "appointments:read",
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Treatment Options"
+        ]
+      }
+    },
+    "/v1/practices/{practiceId}/treatment-options/{treatmentOptionId}": {
+      "get": {
+        "operationId": "getTreatmentOption",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/practiceId"
+          },
+          {
+            "$ref": "#/components/parameters/treatmentOptionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreatmentOption"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "availability:read",
+              "appointments:read",
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Treatment Options"
+        ]
+      }
+    },
+    "/v1/tags/appointment": {
+      "get": {
+        "operationId": "listAppointmentTags",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Tag"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "tags:read",
+              "tags:write",
+              "appointments:read",
+              "appointments:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Tags"
+        ]
+      },
+      "post": {
+        "operationId": "createAppointmentTag",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "GetAppointmentTag": {
+                "operationId": "getAppointmentTag",
+                "parameters": {
+                  "practiceId": "$request.query.practiceId",
+                  "tagId": "$response.body#/id"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "tags:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Tags"
+        ]
+      }
+    },
+    "/v1/tags/appointment/{tagId}": {
+      "get": {
+        "operationId": "getAppointmentTag",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/tagId"
+          },
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "tags:read",
+              "tags:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Tags"
+        ]
+      }
+    },
+    "/v1/tags/patient": {
+      "get": {
+        "operationId": "listPatientTags",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Tag"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "tags:read",
+              "tags:write",
+              "patients:read",
+              "patients:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Tags"
+        ]
+      },
+      "post": {
+        "operationId": "createPatientTag",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "GetPatientTag": {
+                "operationId": "getPatientTag",
+                "parameters": {
+                  "practiceId": "$request.query.practiceId",
+                  "tagId": "$response.body#/id"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "tags:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Tags"
+        ]
+      }
+    },
+    "/v1/tags/patient/{tagId}": {
+      "get": {
+        "operationId": "getPatientTag",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/tagId"
+          },
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "tags:read",
+              "tags:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Tags"
+        ]
+      }
+    },
+    "/v1/transactions": {
+      "get": {
+        "description": "",
+        "operationId": "listTransactionsByDateRange",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/createdFrom"
+          },
+          {
+            "$ref": "#/components/parameters/createdTo"
+          },
+          {
+            "$ref": "#/components/parameters/updatedFrom"
+          },
+          {
+            "$ref": "#/components/parameters/updatedTo"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Transaction"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "accounts:read",
+              "accounts:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Transactions",
+          "Search"
+        ]
+      }
+    },
+    "/v1/treatment-plans": {
+      "get": {
+        "description": "",
+        "operationId": "listTreatmentPlansByDateRange",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "practiceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "practitionerId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/createdFrom"
+          },
+          {
+            "$ref": "#/components/parameters/createdTo"
+          },
+          {
+            "$ref": "#/components/parameters/updatedFrom"
+          },
+          {
+            "$ref": "#/components/parameters/updatedTo"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offsetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/TreatmentPlan"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
+              "treatment-plans:read",
+              "treatment-plans:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Treatment Plans",
+          "Search"
+        ]
+      }
+    },
+    "/v1/webhooks": {
+      "get": {
+        "operationId": "listWebhooks",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Webhook"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createWebhook",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "endpointUrl": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "events": {
+                    "items": {
+                      "$ref": "#/components/schemas/WebhookEvent"
+                    },
+                    "type": "array"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "practiceIds": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "endpointUrl",
+                  "secret",
+                  "events",
+                  "practiceIds"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "GetWebhook": {
+                "operationId": "getWebhook",
+                "parameters": {
+                  "webhookId": "$response.body#/id"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/v1/webhooks/{webhookId}": {
+      "delete": {
+        "operationId": "deleteWebhook",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/webhookId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      },
+      "get": {
+        "operationId": "getWebhook",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/webhookId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      },
+      "patch": {
+        "operationId": "updateWebhook",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/webhookId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "",
+                "properties": {
+                  "endpointUrl": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "events": {
+                    "items": {
+                      "$ref": "#/components/schemas/WebhookEvent"
+                    },
+                    "type": "array"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "practiceIds": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "secret": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "enabled",
+                      "disabled"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Webhook"
+                }
+              }
+            },
+            "description": "Response",
+            "links": {
+              "Self": {
+                "operationId": "getWebhook",
+                "parameters": {
+                  "webhookId": "$request.path.webhookId"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": []
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "apiKeyAuth": []
+    },
+    {
+      "oauth2": []
+    }
+  ],
+  "tags": [
+    {
+      "description": "",
+      "name": "Account Credits"
+    },
+    {
+      "description": "",
+      "name": "Appointments"
+    },
+    {
+      "description": "",
+      "name": "Availability"
+    },
+    {
+      "description": "",
+      "name": "Emails"
+    },
+    {
+      "description": "",
+      "name": "Files"
+    },
+    {
+      "description": "",
+      "name": "SMS Messages"
+    },
+    {
+      "description": "",
+      "name": "Interactions"
+    },
+    {
+      "description": "",
+      "name": "Leads"
+    },
+    {
+      "description": "",
+      "name": "Invoices"
+    },
+    {
+      "description": "",
+      "name": "Notifications"
+    },
+    {
+      "description": "",
+      "name": "OAuth"
+    },
+    {
+      "description": "",
+      "name": "Patients"
+    },
+    {
+      "description": "",
+      "name": "Practices"
+    },
+    {
+      "description": "",
+      "name": "Practitioners"
+    },
+    {
+      "description": "",
+      "name": "Search"
+    },
+    {
+      "description": "",
+      "name": "Tags"
+    },
+    {
+      "description": "",
+      "name": "Transactions"
+    },
+    {
+      "description": "",
+      "name": "Treatment Options"
+    },
+    {
+      "description": "",
+      "name": "Treatment Plans"
+    },
+    {
+      "description": "",
+      "name": "Webhooks",
+      "x-displayName": "Webhook Management"
+    }
+  ],
+  "webhooks": {
+    "principleWebhook": {
+      "post": {
+        "description": "",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          }
+        }
+      }
+    }
+  },
+  "x-tagGroups": [
+    {
+      "name": "OAuth",
+      "tags": [
+        "OAuth"
+      ]
+    },
+    {
+      "name": "Search",
+      "tags": [
+        "Search"
+      ]
+    },
+    {
+      "name": "General",
+      "tags": [
+        "Notifications",
+        "Practices",
+        "Practitioners",
+        "Tags",
+        "Treatment Options",
+        "Leads"
+      ]
+    },
+    {
+      "name": "Patients",
+      "tags": [
+        "Account Credits",
+        "Appointments",
+        "Emails",
+        "Files",
+        "Interactions",
+        "Invoices",
+        "Patients",
+        "SMS Messages",
+        "Transactions",
+        "Treatment Plans"
+      ]
+    },
+    {
+      "name": "Managing Webhooks",
+      "tags": [
+        "Webhooks"
+      ]
+    },
+    {
+      "name": "Models & Outbound Webhooks",
+      "tags": []
+    }
+  ]
+}

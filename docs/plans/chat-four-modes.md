@@ -1,86 +1,58 @@
-# Link the chat agent to Principle with the least code: MCP
+# Reliable chat workflows that can be promoted to scheduled tasks
 
-## Context
+## Outcome
 
-The app is an internal chat interface to Principle Dental. A handful of staff use it, behind a
-strict Google login. Its only job is to link the chatbot (ChatKit and the Agents SDK) to
-Principle through four modes, all working from day 1:
-1. API
-2. Firestore
-3. Scripted browser
-4. AI-driven browser
+Explore in chat, produce a working script, review and test it, then schedule the same source.
+Prefer the official API, proven Playwright scripts, verified Firestore reads, then AI browsing.
+Inspect uncertain writes before retry or fallback. Maintenance is the goal; code size is a
+constraint. Preserve the diary and existing task/results pages.
 
-This codebase doesn't control how the chatbot works: no turn limits, rate limits, result caps
-or safeguard layers. The measure of success is fewest lines of code.
+## Implementation
 
-MCP is the standard link between agents and systems. The Agents SDK (0.22, installed) attaches
-MCP servers natively: `Agent(mcp_servers=[...])`. So most of the link is off-the-shelf servers
-plus configuration.
+- FastMCP consumes one released, example-free OpenAPI snapshot. Chat, scripts and the diary use
+  one server factory/client. Retain trusted practice scope, pagination, completeness, response
+  validation and patient-free incompatibility warnings. Delete the bespoke generator/catalogue
+  and duplicate adapter after migrating consumers; keep a small explicit snapshot update command.
+- Firestore supports scoped document reads, queries and aggregations. Renew Firebase tokens;
+  after a rejected refresh, sign in once and fail clearly if that fails. Ship no direct writes.
+- Both browser modes use pinned Microsoft Playwright MCP, an automation-owned profile and one
+  cross-process lock covering the entire workflow. Start/close the server inside that lifetime.
+  Login and workspace selection are automatic and deterministic. API/Firestore work stays concurrent.
+  An inner browser agent supplies the last fallback; scheduled jobs do not invoke a model.
+- Chat saves immutable Python and Playwright drafts with owner, thread, inputs and results.
+  Python executes in supervised worker processes; Playwright uses the server's code runner.
+  Cancellation/shutdown stops the process tree. This is trusted automation, not a sandbox.
+- Remove custom turn/result caps, explicitly set max_turns=None and retain transport timeouts.
+  Before a change, state and check the intended action; afterward read back. Preserve truthful
+  partial/uncertain results. Use docs/principle as the only operational knowledge location.
 
-## The link
+## Promotion
 
-**`src/dental_practice_admin/mcp_server.py`** (ours, about 30 lines), a FastMCP server run
-over stdio:
-- **API:** `FastMCP.from_openapi(spec, client)` turns every operation in Principle's published
-  spec into a tool. The client is an `httpx.AsyncClient` with the `X-API-Key` header and the
-  configured base URL. There's no generator and no hand-written tools.
-- **Firestore:** one pass-through tool, `firestore(method, path, body)`. It calls the
-  Firestore REST API under the workspace's database with a Firebase ID token, from Firebase's
-  REST sign-in using the UI credentials. The model writes the Firestore requests itself
-  (`runQuery`, `runAggregationQuery`, get, patch), so one tool covers queries, reports and
-  updates.
+Export the working source, input contract and synthetic acceptance examples into a PR. Test,
+register a named task and release. Chat and CLI execute the same released script with explicit
+inputs; Windows Task Scheduler alone owns scheduling. No model or silent AI fallback runs in a
+scheduled task. Preserve the diary command and output. Exploratory tool calls require a complete
+deterministic script before promotion. Keep credentials and patient-derived inputs out of Git.
 
-**Browser, both modes:** Microsoft's `@playwright/mcp` via `npx`, with a persistent profile
-(`--user-data-dir` under the data directory).
-- **Login:** a developer logs in to Principle once in that profile. The session persists, so
-  there's no login code.
-- **Scripted mode:** the agent runs steps recorded in the docs, using the server's own
-  code-running and action tools.
-- **AI-driven mode:** the same tools, exploring.
+## Acceptance
 
-**`chat.py`:**
-- `build_agent(..., mcp_servers=[principle, playwright])`, replacing `api_tools`.
-- `INSTRUCTIONS` keeps only what links the two systems:
-  - the four modes and their order of preference
-  - the practice ID
-  - the translation check the owner asked for: before a change, state what will change and
-    check it against the request; after it, read the record back
-  - the content of `principle_docs/` (one folder per mode), read at startup
-- Remove `MAX_TURNS`, so the SDK default applies, and drop "read-only".
-
-**`app.py`:** start the two servers in the FastAPI lifespan; every chat request shares them.
-
-**Config:** `Settings` gains the UI email and password and the Firebase web API key, project
-and database path, per environment.
-
-## Delete (link code that's no longer needed)
-- `principle_tools.py`: the 24k result cap and the coverage wrapper
-- `scripts/address_via_*.py`
-- the address-specific browser experiment on PRs #8/#11
-  (`check_browser_address.py`, procedure, runbook, test) and the address parts of `SKILL.md`.
-  Merge `origin/test/english-browser-address` first so its useful knowledge moves into
-  `principle_docs/`, then delete it and close #8/#11.
-
-**Owner's call, not done without a yes:** with the API served from the spec, the generator
-pipeline only feeds the daily diary and the interface-warning banner:
-- `refresh_spec.py`, `generated_principle.json`, `fingerprint.json`, `compatibility.json`
-- `test_generated_principle.py`, and most of `principle.py`
-
-Replacing the diary's few API calls with plain httpx would let all of that go: well over
-1,000 lines.
-
-## Verification
-- **Hermetic:** one test lists the `principle` server's tools from a small fixture spec and
-  calls an API tool and the Firestore tool against stub transports.
-- **Day-1 acceptance on staging** (`scripts/run.py --preset staging`):
-  - change a Crash Test Dummy's address once per mode, then restore it
-  - "which patients changed today?"
-  - "create a report on the average lab fee"
-  - "move <test appointment> to 3pm"
-  - a button-only action on the website
-- **Line counts** from `scripts/code_size.py`, before and after, are reported in the PR.
+- Equal outcomes from chat and scheduled execution of the same source/inputs; no scheduled model.
+- Startup rejects missing/inconsistent config; environments cannot share credentials/profiles.
+- Expired tokens and signed-out profiles recover; invalid credentials fail explicitly.
+- Browser workflows cannot interleave across chats/jobs; cancellation releases locks/stops children.
+- Preserve diary, pagination, completeness, authentication and conversation isolation behaviour.
+- Check uncertain writes before retries; verify persisted edits, unrelated fields and restoration.
+- Promote and execute a synthetic draft unchanged through the CLI.
+- Staging proves API edit/restoration, Firestore changed-patients query, scripted browser and AI
+  fallback. No Firestore write is required. Check reporting arithmetic against known fixtures.
+- Run the release gate and 2,000-line budget. Verify service-account execution and unattended login
+  after restart before staff deployment.
 
 ## Delivery
-- One PR, #12 (`chat-full-api`), merged after acceptance passes.
-- Commit and push each step. When done: ready, then `gh pr merge --auto --merge`, then remove
-  the worktree and branch.
+
+ADR 0005 is a separate commit. Work stays in PR #12. Migrate API/diary first, then Firestore,
+browser, drafts and promotion. Move experimental knowledge into existing docs/tests before
+deleting the address experiments; reconcile PRs #8/#11 without importing disposable code.
+Install pinned dependencies at deployment; do not download packages/specs at startup. Reuse the
+existing history, pages and warnings. Commit/push each working step; merge after acceptance and
+remove the worktree only after confirmed merge.

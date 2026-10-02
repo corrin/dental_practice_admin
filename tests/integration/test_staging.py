@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 from dental_practice_admin.config import Settings

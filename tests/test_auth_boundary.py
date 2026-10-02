@@ -25,6 +25,13 @@ def configured(tmp_path: Path, environment: Environment = Environment.FAKE) -> S
         google_client_secret=SecretStr("fake-secret"),
         staff_emails="staff@fake.invalid",
         openai_api_key=SecretStr("fake-ai-key"),
+        ui_email="fake@fake.invalid",
+        ui_password=SecretStr("fake-password"),
+        firebase_key="fake-key",
+        firebase_project="principle-staging" if environment is Environment.STAGING else "principle",
+        firestore_root="organisations/fake/brands/fake",
+        workspace="Synthetic workspace",
+        workspace_slug="fake",
     )
 
 

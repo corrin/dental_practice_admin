@@ -16,11 +16,12 @@ import sqlite3
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+from pydantic.dataclasses import dataclass
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS task_runs (
@@ -233,15 +234,4 @@ class Storage:
 
 
 def _row_to_run(row: sqlite3.Row) -> TaskRun:
-    return TaskRun(
-        run_id=row["run_id"],
-        task=row["task"],
-        initiator=row["initiator"],
-        principle=row["principle"],
-        started_at=row["started_at"],
-        finished_at=row["finished_at"],
-        outcome=Outcome(row["outcome"]),
-        coverage=Coverage(row["coverage"]),
-        summary=row["summary"],
-        detail=json.loads(row["detail"]) if row["detail"] else None,
-    )
+    return TaskRun(**{**dict(row), "detail": json.loads(row["detail"]) if row["detail"] else None})
