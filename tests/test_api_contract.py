@@ -59,8 +59,7 @@ async def test_generated_search_is_scoped_and_never_claims_a_patient_total(
             json.dumps({"name": "fake-patient", "dateOfBirth": None, "phoneNumber": None}),
         )
     )
-    assert result["coverage"] == "partial"
-    assert result["result"] == {"data": []}
+    assert result == {"result": {"data": []}}
     assert requests[0].url.params["practiceId"] == fake_settings.practice_id
     assert requests[0].url.params["name"] == "fake-patient"
     assert "dateOfBirth" not in requests[0].url.params
