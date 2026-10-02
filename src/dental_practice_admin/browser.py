@@ -12,7 +12,9 @@ from typing import Any
 
 import portalocker
 from agents.mcp import MCPServerStdio
+from mcp.types import CallToolResult
 
+from dental_practice_admin.audit import observed
 from dental_practice_admin.config import PRINCIPLE_WEB_URLS, Settings
 
 LOGIN = Path(__file__).with_name("browser_login.js")
@@ -23,6 +25,16 @@ BROWSER_TOOLS = {"browser_click", "browser_fill_form", "browser_type", "browser_
                  "browser_hover", "browser_drag", "browser_tabs", "browser_take_screenshot"}
 
 
+class AuditedBrowser(MCPServerStdio):
+    """Browser exploration emits the same local call evidence as deterministic scripts."""
+
+    @observed("browser")
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any] | None,
+                        meta: dict[str, Any] | None = None) -> CallToolResult:
+        return await super().call_tool(tool_name, arguments, meta)
+
+
+@observed("playwright")
 async def code(server: MCPServerStdio, source: str, inputs: dict[str, Any]) -> Any:
     """Execute the same Playwright function for drafts and released tasks."""
     result = await server.call_tool(CODE_TOOL, {"code":
@@ -60,7 +72,7 @@ async def session(settings: Settings, waiting: Callable[[], Awaitable[None]] | N
                    PRINCIPLE_WORKSPACE=settings.workspace,
                    PRINCIPLE_WORKSPACE_SLUG=settings.workspace_slug)
         try:
-            async with MCPServerStdio(
+            async with AuditedBrowser(
                 params={"command": sys.executable, "args": ["-m", "dental_practice_admin.processes",
                     "node", str(settings.playwright_mcp_path.resolve()),
                     "--headless", "--browser", "chromium",

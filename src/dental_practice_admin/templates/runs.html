@@ -2,8 +2,7 @@
 {% block body %}
 <p><a href="/chat" data-automation-id="chat-link">Ask about the diary &rarr;</a></p>
 <h1>Tasks</h1>
-<p class="quiet">Schedules are owned by Windows Task Scheduler. This page shows what each
-task is and what its runs found, not when it will next fire.</p>
+<p><a href="/tasks/manage">Manage task files, reviews and schedules</a></p>
 <table data-automation-id="task-list">
   <tr><th>Task</th><th>Command</th><th>What it does</th></tr>
   {% for task in tasks %}

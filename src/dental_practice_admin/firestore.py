@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx2 as httpx
 
+from dental_practice_admin.audit import observed
 from dental_practice_admin.config import PRINCIPLE_WEB_URLS, Settings
 
 
@@ -57,6 +58,7 @@ class Firestore:
             self.expires = time.monotonic() + int(value["expiresIn"]) - 60
             return self.token
 
+    @observed("firestore")
     async def read(self, path: str, query: dict[str, Any] | None = None,
                    aggregate: bool = False) -> Any:
         """Read a relative document or query parent; mutation endpoints are not accepted."""

@@ -3,6 +3,7 @@
 {% block body %}
 <p><a href="/">&larr; All runs</a></p>
 <h1 data-automation-id="run-title">{{ run.task }}</h1>
+{% if has_audit %}<p><a href="/runs/{{ run.run_id }}/audit">Download local execution audit</a></p>{% endif %}
 
 {% if not run.is_trustworthy %}
 <p class="banner" data-automation-id="not-complete-warning">

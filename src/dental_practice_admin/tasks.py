@@ -198,9 +198,11 @@ async def run_daily_diary(settings: Settings, on_date: date, initiator: str) -> 
 def _parse(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="dental-practice-admin")
     tasks = parser.add_subparsers(dest="task", required=True)
+    tasks.add_parser("run-due", help="run locally installed tasks due within five minutes")
     task = tasks.add_parser("run", help="run a reviewed task without a model")
     task.add_argument("name")
     task.add_argument("--inputs", type=Path, required=True)
+    task.add_argument("--revision", help="installed approved revision")
     diary = tasks.add_parser("diary", help="report one day's appointments")
     diary.add_argument(
         "--date",
@@ -220,14 +222,23 @@ def main(argv: list[str] | None = None) -> int:
     """Entry point Task Scheduler calls with an absolute interpreter path."""
     arguments = _parse(argv)
     settings = Settings()
+    if arguments.task == "run-due":
+        from dental_practice_admin.schedules import run_due
+        settings.require_credentials()
+        return asyncio.run(run_due(settings))
     if settings.environment is not Environment.FAKE:
         settings.require_credentials()
     if arguments.task == "run":
         from dental_practice_admin.scripts import released
         from dental_practice_admin.scripts import run as run_script
         settings.require_automation_configured()
-        script = released(arguments.name, json.loads(arguments.inputs.read_text(encoding="utf-8")),
-                          f"windows:{getpass.getuser()}")
+        inputs = json.loads(arguments.inputs.read_text(encoding="utf-8"))
+        owner = f"windows:{getpass.getuser()}"
+        if arguments.revision:
+            from dental_practice_admin.task_files import load
+            script = load(settings, arguments.name, arguments.revision, inputs, owner)
+        else:
+            script = released(arguments.name, inputs, owner)
         run_id = asyncio.run(run_script(settings, script, arguments.name))
     else:
         on_date = arguments.date or (datetime.now(tz=PRACTICE_TZ).date() + timedelta(days=1))

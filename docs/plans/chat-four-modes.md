@@ -28,11 +28,12 @@ constraint. Preserve the diary and existing task/results pages.
 
 ## Promotion
 
-Export the working source, input contract and synthetic acceptance examples into a PR. Test,
-register a named task and release. Chat and CLI execute the same released script with explicit
-inputs; Windows Task Scheduler alone owns scheduling. No model or silent AI fallback runs in a
-scheduled task. Preserve the diary command and output. Exploratory tool calls require a complete
-deterministic script before promotion. Keep credentials and patient-derived inputs out of Git.
+Export working source, input contract and synthetic tests onto a clean branch in the practice's
+private repository. After review, install the merged revision locally. Chat and CLI execute the
+same installed script with explicit inputs. The application owns schedules; Windows launches
+the due-task check every five minutes. No model or silent AI fallback runs in a scheduled task.
+Preserve the diary command and output. Exploratory tool calls require a complete deterministic
+script before promotion. Draft history, credentials, patient inputs and audits are not exported.
 
 ## Acceptance
 

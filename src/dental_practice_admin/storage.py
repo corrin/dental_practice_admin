@@ -66,6 +66,7 @@ class Outcome(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     UNCERTAIN = "uncertain"
+    MISSED = "missed"
 
 
 class Coverage(StrEnum):
@@ -152,9 +153,10 @@ class Storage:
             raise
         self.db.execute("COMMIT")
 
-    def start_run(self, task: str, initiator: str, principle: str) -> str:
+    def start_run(self, task: str, initiator: str, principle: str,
+                  run_id: str | None = None) -> str:
         """Record that a run began, returning its identifier."""
-        run_id = uuid.uuid4().hex
+        run_id = run_id or uuid.uuid4().hex
         with self._write() as db:
             db.execute(
                 "INSERT INTO task_runs (run_id, task, initiator, principle, started_at,"

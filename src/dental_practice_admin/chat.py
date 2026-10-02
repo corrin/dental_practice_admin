@@ -35,6 +35,7 @@ from httpx2 import AsyncBaseTransport
 from openai import AsyncOpenAI
 
 from dental_practice_admin.auth import StaffUser
+from dental_practice_admin.automation import record_tool
 from dental_practice_admin.automation import tools as automation_tools
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import ConfigurationError, Settings
@@ -69,8 +70,12 @@ Use run_script to develop a reusable task. Python scripts define async run(servi
 services.api.call(operation, arguments) and services.api.rows support API reads/writes and paging;
 services.firestore.read supplies scoped reads; services.browser runs a Playwright function.
 Return {"summary": str, "detail": object, "coverage": "complete" or "partial"} from Python.
-Keep credentials out of script source. Drafts are trusted code, not a sandbox. Promotion requires
-a reviewed PR and a release; run_task executes released tasks and never changes their schedule.
+Keep credentials out of scripts and inputs. Put patient-derived values in inputs, not reusable
+source or tests. Drafts are trusted code, not a sandbox. Pass the returned
+task_id to run_script when refining the same task. Draft branches and audits stay local.
+Standalone reuse requires a merged private-repository PR and installation through the Tasks page.
+Use that page for review, installed revisions and schedule edits.
+run_task needs an installed revision.
 """.strip()
 
 
@@ -118,9 +123,9 @@ async def build_tools(deps: ChatDeps) -> list[object]:
         tomorrow = datetime.now(tz=PRACTICE_TZ).date() + timedelta(days=1)
         return _describe(await _diary(deps, tomorrow))
 
-    return [diary_for_date, diary_for_tomorrow,
+    return [record_tool(deps.settings, tool) for tool in [diary_for_date, diary_for_tomorrow,
             *await api_tools(deps.settings, deps.transport),
-            *automation_tools(deps.settings, deps.model)]
+            *automation_tools(deps.settings, deps.model)]]
 
 
 async def _diary(deps: ChatDeps, day: date) -> DiaryReport:
