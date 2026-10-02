@@ -15,10 +15,11 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-import httpx
+import httpx2 as httpx
 from pydantic import SecretStr
 
 from dental_practice_admin.config import (
+    ENVIRONMENT_FIELDS,
     FAKE_API_KEY,
     FAKE_API_URL,
     FAKE_PRACTICE_ID,
@@ -77,7 +78,7 @@ def child_environment(settings: Settings) -> dict[str, str]:
     for name, field in Settings.model_fields.items():
         key = field.validation_alias or f"ADMIN_{name.upper()}"
         assert isinstance(key, str)
-        if name in {"api_base_url", "api_key", "practice_id"}:
+        if name in ENVIRONMENT_FIELDS:
             suffix = environment_suffix(settings.environment)
             key = f"{key}_{suffix}"
         value = getattr(settings, name)

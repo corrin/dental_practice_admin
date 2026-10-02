@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 from dental_practice_admin.config import Environment, Settings

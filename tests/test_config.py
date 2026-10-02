@@ -196,7 +196,7 @@ def test_environments_do_not_share_state() -> None:
         practice_id="p",
     )
     assert staging.database_path != production.database_path
-    assert staging.browser_state_path != production.browser_state_path
+    assert staging.data_dir / "browser-profile" != production.data_dir / "browser-profile"
 
 
 @pytest.mark.parametrize(

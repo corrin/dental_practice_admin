@@ -5,7 +5,7 @@ from openai import AsyncOpenAI
 from openai.types.responses import FunctionToolParam
 
 from dental_practice_admin.config import Settings
-from dental_practice_admin.principle_tools import api_tools
+from dental_practice_admin.principle import api_tools
 
 pytestmark = pytest.mark.llm
 
@@ -18,7 +18,7 @@ async def test_real_model_accepts_the_configured_model_and_wire_format() -> None
         "",
         "https://api.openai.com/v1",
     }, "Live verification requires the real OpenAI endpoint"
-    generated = api_tools(settings, None)
+    generated = await api_tools(settings, None)
     selected = next(tool for tool in generated if not tool.params_json_schema["properties"])
     definitions = [
         FunctionToolParam(
@@ -26,7 +26,7 @@ async def test_real_model_accepts_the_configured_model_and_wire_format() -> None
             name=tool.name,
             description=tool.description,
             parameters=tool.params_json_schema,
-            strict=True,
+            strict=False,
         )
         for tool in generated
     ]

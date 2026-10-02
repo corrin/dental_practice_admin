@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
 
-import httpx
+import httpx2 as httpx
 
 from tests.fake.store import FAKE_API_KEY, SERVER_DEFAULT_LIMIT, FakeStore, Page, seed
 

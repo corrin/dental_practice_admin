@@ -13,16 +13,18 @@ from __future__ import annotations
 import argparse
 import asyncio
 import getpass
+import json
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from dental_practice_admin.config import Environment, Settings
 from dental_practice_admin.principle import PrincipleClient, check_web_build
-from dental_practice_admin.storage import Coverage, Outcome, Storage
+from dental_practice_admin.storage import Coverage, Storage
 
 PRACTICE_TZ = ZoneInfo("Pacific/Auckland")
 
@@ -188,36 +190,17 @@ async def daily_diary(
 
 async def run_daily_diary(settings: Settings, on_date: date, initiator: str) -> str:
     """Execute the diary task and record the run. Returns the run id."""
-    storage = Storage(settings.database_path)
-    run_id = storage.start_run(
-        task="daily_diary", initiator=initiator, principle=settings.environment.value
-    )
-    try:
-        async with PrincipleClient(settings) as client:
-            report = await daily_diary(client, on_date)
-    except Exception as failure:
-        storage.finish_run(
-            run_id,
-            outcome=Outcome.FAILED,
-            coverage=Coverage.PARTIAL,
-            summary=f"{type(failure).__name__}: {failure}",
-        )
-        storage.close()
-        raise
-    storage.finish_run(
-        run_id,
-        outcome=Outcome.SUCCEEDED,
-        coverage=report.coverage,
-        summary=report.summary(),
-        detail=report.as_detail(),
-    )
-    storage.close()
-    return run_id
+    from dental_practice_admin.scripts import released, run
+    script = released("daily_diary", {"date": on_date.isoformat()}, initiator)
+    return await run(settings, script, "daily_diary")
 
 
 def _parse(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="dental-practice-admin")
     tasks = parser.add_subparsers(dest="task", required=True)
+    task = tasks.add_parser("run", help="run a reviewed task without a model")
+    task.add_argument("name")
+    task.add_argument("--inputs", type=Path, required=True)
     diary = tasks.add_parser("diary", help="report one day's appointments")
     diary.add_argument(
         "--date",
@@ -239,9 +222,17 @@ def main(argv: list[str] | None = None) -> int:
     settings = Settings()
     if settings.environment is not Environment.FAKE:
         settings.require_credentials()
-    on_date = arguments.date or (datetime.now(tz=PRACTICE_TZ).date() + timedelta(days=1))
-    initiator = arguments.initiator or f"windows:{getpass.getuser()}"
-    run_id = asyncio.run(run_daily_diary(settings, on_date, initiator))
+    if arguments.task == "run":
+        from dental_practice_admin.scripts import released
+        from dental_practice_admin.scripts import run as run_script
+        settings.require_automation_configured()
+        script = released(arguments.name, json.loads(arguments.inputs.read_text(encoding="utf-8")),
+                          f"windows:{getpass.getuser()}")
+        run_id = asyncio.run(run_script(settings, script, arguments.name))
+    else:
+        on_date = arguments.date or (datetime.now(tz=PRACTICE_TZ).date() + timedelta(days=1))
+        initiator = arguments.initiator or f"windows:{getpass.getuser()}"
+        run_id = asyncio.run(run_daily_diary(settings, on_date, initiator))
     if settings.environment is not Environment.FAKE:
         check_web_build(settings)
     storage = Storage(settings.database_path)

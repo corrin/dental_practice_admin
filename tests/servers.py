@@ -17,7 +17,7 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 from tests.fake.store import FAKE_API_KEY, FAKE_PRACTICE_ID

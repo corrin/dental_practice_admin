@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
+from shutil import which
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -51,8 +52,9 @@ PRINCIPLE_URLS = {
 }
 
 
-# Principle's web app, which uses the same Firestore the API reads. The fake has none.
+# Principle's web origins; the fake uses an unroutable origin unless a test supplies one.
 PRINCIPLE_WEB_URLS = {
+    Environment.FAKE: "https://fake.principle.invalid",
     Environment.STAGING: "https://staging.principle.dental",
     Environment.PRODUCTION: "https://app.principle.dental",
 }
@@ -89,6 +91,11 @@ class ConfigurationError(Exception):
     """Configuration that would send a request somewhere it must not go."""
 
 
+ENVIRONMENT_FIELDS = ("api_base_url", "api_key", "practice_id", "ui_email", "ui_password",
+                      "firebase_key", "firebase_project", "firestore_root",
+                      "workspace", "workspace_slug")
+
+
 class Settings(BaseSettings):
     """Resolved runtime configuration for one process."""
 
@@ -108,6 +115,14 @@ class Settings(BaseSettings):
     api_base_url: str = Field(default="", validation_alias="PRINCIPLE_API_BASE_URL")
     api_key: SecretStr = Field(default=SecretStr(""), validation_alias="PRINCIPLE_API_KEY")
     practice_id: str = Field(default="", validation_alias="PRINCIPLE_PRACTICE_ID")
+    ui_email: str = Field(default="", validation_alias="PRINCIPLE_UI_EMAIL")
+    ui_password: SecretStr = Field(default=SecretStr(""), validation_alias="PRINCIPLE_UI_PASSWORD")
+    firebase_key: str = Field(default="", validation_alias="PRINCIPLE_FIREBASE_KEY")
+    firebase_project: str = Field(default="", validation_alias="PRINCIPLE_FIREBASE_PROJECT")
+    firestore_root: str = Field(default="", validation_alias="PRINCIPLE_FIRESTORE_ROOT")
+    workspace: str = Field(default="", validation_alias="PRINCIPLE_WORKSPACE")
+    workspace_slug: str = Field(default="", validation_alias="PRINCIPLE_WORKSPACE_SLUG")
+    playwright_mcp_path: Path = Path("node_modules/@playwright/mcp/cli.js")
 
     # Staff sign-in. Google holds the credentials; this application holds only the list of
     # people allowed in, so there is no password store to leak or reset.
@@ -178,7 +193,7 @@ class Settings(BaseSettings):
             values.update(initial)
             environment = values.get("environment", values.get("PRINCIPLE_ENVIRONMENT", "staging"))
             suffix = environment_suffix(environment)
-            for field in ("api_base_url", "api_key", "practice_id"):
+            for field in ENVIRONMENT_FIELDS:
                 alias = f"PRINCIPLE_{field.upper()}"
                 values.pop(alias, None)
                 for source in sources:
@@ -202,11 +217,6 @@ class Settings(BaseSettings):
     def database_path(self) -> Path:
         """SQLite file holding run history and conversations."""
         return self.data_dir / "dental_practice_admin.db"
-
-    @property
-    def browser_state_path(self) -> Path:
-        """Playwright storage_state for the automation-owned Principle session."""
-        return self.data_dir / "principle.storage_state.json"
 
     @property
     def allowed_emails(self) -> frozenset[str]:
@@ -324,8 +334,29 @@ class Settings(BaseSettings):
         """Validate the complete web configuration before accepting requests."""
         self.require_sign_in_configured()
         self.require_credentials()
+        self.require_automation_configured()
         if not self.openai_api_key.get_secret_value():
             raise ConfigurationError("Chat needs OPENAI_API_KEY")
+
+    def require_automation_configured(self) -> None:
+        """Validate automation settings once before accepting real work."""
+        if self.environment is Environment.FAKE:
+            return
+        if any(not getattr(self, name) for name in ENVIRONMENT_FIELDS[3:]):
+            raise ConfigurationError("Automation needs scoped credentials and workspace settings")
+        staging = self.environment is Environment.STAGING
+        if (self.firebase_project == "principle-staging") != staging:
+            raise ConfigurationError("Firebase project and environment disagree")
+        import re
+        root_pattern = r"organisations/[A-Za-z0-9_-]+/brands/[A-Za-z0-9_-]+"
+        if not re.fullmatch(root_pattern, self.firestore_root):
+            raise ConfigurationError("Firestore requires an organisation/brand root")
+        if not re.fullmatch(r"[a-z0-9-]+", self.workspace_slug):
+            raise ConfigurationError("Invalid workspace slug")
+        if not self.playwright_mcp_path.is_file():
+            raise ConfigurationError("Install the locked Playwright MCP package before startup")
+        if which("node") is None:
+            raise ConfigurationError("Install Node.js before startup")
 
 
 def current_settings(request: Request) -> Settings:

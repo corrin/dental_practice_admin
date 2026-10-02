@@ -1,0 +1,13 @@
+{
+  "title": "Daily diary",
+  "command": "dental-practice-admin diary",
+  "description": "Tomorrow's appointments grouped by practitioner.",
+  "language": "python",
+  "source": "diary.py",
+  "inputs": {
+    "type": "object",
+    "properties": {"date": {"type": "string", "format": "date"}},
+    "required": ["date"],
+    "additionalProperties": false
+  }
+}

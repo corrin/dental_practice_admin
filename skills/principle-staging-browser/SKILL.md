@@ -12,15 +12,15 @@ named records and operations; this skill does not authorise patient edits by its
 
 - Staging UI origin: `https://staging.principle.dental`. The workspace is
   **Massey Smiles Dental**. Do not infer the UI environment from API credentials.
-- Browser login uses `PRINCIPLE_UI_EMAIL` and `PRINCIPLE_UI_PASSWORD` in this repo's
+- Browser login uses `PRINCIPLE_UI_EMAIL_STAGING` and `PRINCIPLE_UI_PASSWORD_STAGING` in this repo's
   ignored `.env`. Do not depend on a sibling repository's configuration.
-- Reuse `scripts.check_staging.staging_browser` and its login helper. The helper returns
-  when Firebase issues a token; the page can still contain the password field. Wait
-  for that field to disappear before taking screenshots or sending page text to an LLM.
+- Reuse `dental_practice_admin.browser.session` and `browser.code`. The session owns
+  automatic login, workspace selection and the cross-process workflow lock. Require the
+  password field to disappear before taking screenshots or sending page text to an LLM.
 - Workspace selection is a dropdown. Its option text is not visible until it is opened.
   Several workspace names are similar. Match both the display name and the option's
-  `massey-smiles-dental` identifier on the full option element. Set the login redirect
-  to the intended workspace path; the root redirect can enter Principle Platform.
+  `massey-smiles-dental` identifier on the full option element. Verify the configured
+  workspace prefix after login; a different workspace must fail before the workflow starts.
 - Browser launch reporting a missing executable can mean sandbox access is denied to
   the installed Playwright browser directory. Check the actual error before installing
   another browser or treating browser control as unavailable.
@@ -41,17 +41,16 @@ named records and operations; this skill does not authorise patient edits by its
   patient to its record ID and visible identity; use DOB when supplied. Account for
   active/inactive filters. Never select a different record just to make a test pass.
 - Profile names can include a parenthesised preferred name between first and last name.
-  Use the identity fields and record ID rather than requiring a literal display-name match.
-- Coordinate record ownership with concurrent sessions. The fourth-method script has
-  explicit exclusions for the other session's two Crash Test Dummy records.
+  Use identity fields and record ID rather than requiring a literal display-name match.
+- Coordinate record ownership with concurrent sessions. Never edit a record another
+  agent is testing.
 
 ## English-directed test
 
-Run `uv run python -m scripts.check_browser_address` from the repository root.
-Read [the runner notes](../../scripts/browser_address_test.md) before running or changing it.
-The model follows [the English procedure](../../scripts/browser_address_procedure.md);
-the Python runner supplies browser tools and checks outcomes. ChatKit is the chat UI,
-not the browser driver. This diagnostic does not add writes to staff chat.
+Read [the website knowledge](../../docs/principle/website.md) before testing.
+Exercise the shared script runner or browser fallback through chat, binding the exact
+authorised patient and operation. Keep patient-derived inputs in ignored runtime storage.
+Promote only source, input schemas and synthetic behaviour tests through a reviewed release.
 
 Capture the persisted Profile address before opening the editor. Verify persistence by
 reloading and reading the field again; neither a filled input nor a model's completion

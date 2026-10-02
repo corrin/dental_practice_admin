@@ -7,7 +7,7 @@
 {% if not run.is_trustworthy %}
 <p class="banner" data-automation-id="not-complete-warning">
   This run is <strong>{{ run.outcome.value }}</strong> with <strong>{{ run.coverage.value }}</strong>
-  coverage. It does not describe the whole day and must not be read as though it did.
+  coverage. Completion has not been established.
   {% if run.detail and run.detail.coverageNote %}<br>{{ run.detail.coverageNote }}{% endif %}
 </p>
 {% endif %}
@@ -45,5 +45,8 @@
   <tr><td>{{ status }}</td><td>{{ count }}</td></tr>
   {% endfor %}
 </table>
+{% endif %}
+{% if run.detail and not run.detail.byPractitioner %}
+<pre>{{ run.detail | tojson(indent=2) }}</pre>
 {% endif %}
 {% endblock %}

@@ -155,12 +155,14 @@ async def test_the_assistant_reply_is_persisted(
 
 
 async def test_generated_tool_result_reaches_the_model_and_saved_reply(
-    chat_store: SqliteChatStore, chat_settings: Settings,
+    chat_store: SqliteChatStore,
+    chat_settings: Settings,
 ) -> None:
     ai = FakeAi()
     thread_id = await _turn(chat_store, chat_settings, ai, message="List our practitioners")
     page = await chat_store.load_thread_items(
-        thread_id, after=None, limit=10, order="asc", context=STAFF)
+        thread_id, after=None, limit=10, order="asc", context=STAFF
+    )
     assert len(ai.requests) == 2
     assert "Dr " in json.dumps(ai.requests[1]["input"])
     assert any("Dr " in str(item) and MARKER in str(item) for item in page.data)
@@ -187,7 +189,7 @@ async def test_a_partial_report_reaches_the_model_labelled_as_partial(
     finally:
         fake.close()
 
-    assert "INCOMPLETE" in json.dumps(ai.requests[1]["input"])
+    assert "PARTIAL" in json.dumps(ai.requests[1]["input"])
 
 
 async def test_no_tool_accepts_a_practice_id(chat_settings: Settings) -> None:
@@ -197,7 +199,7 @@ async def test_no_tool_accepts_a_practice_id(chat_settings: Settings) -> None:
     arguments are the least trustworthy input in the system. This asserts the signature, because
     the absence of a parameter is the mechanism -- not a validation rule someone could relax.
     """
-    tools = build_tools(ChatDeps(settings=chat_settings, model="unused"))
+    tools = await build_tools(ChatDeps(settings=chat_settings, model="unused"))
     for tool in tools:
         schema = getattr(tool, "params_json_schema", {})
         properties = set(schema.get("properties", {}))
@@ -211,18 +213,25 @@ async def test_tools_expose_scoped_reads_and_diary_operations(chat_settings: Set
     A tool set that grows by accident is how a chat interface acquires abilities nobody decided
     to give it.
     """
-    tools = build_tools(ChatDeps(settings=chat_settings, model="x"))
+    tools = await build_tools(ChatDeps(settings=chat_settings, model="x"))
     names = {getattr(tool, "name", "") for tool in tools}
-    assert names == {"diary_for_date", "diary_for_tomorrow"} | {
-        call.name for call in CATALOGUE if call.definition["exposed"]
-    }
+    assert names == {
+        "diary_for_date",
+        "diary_for_tomorrow",
+        "firestore_read",
+        "run_script",
+        "run_task",
+        "browse",
+    } | {call.name for call in CATALOGUE if call.name != "listPractices"}
     assert "listPractices" not in names
-    assert all(call.method == "GET" for call in CATALOGUE)
+    assert any(call.method == "PATCH" for call in CATALOGUE)
 
 
 @pytest.mark.parametrize("appointments", [0, 3, 9])
 async def test_chat_agrees_with_the_diary_operation_for_different_workloads(
-    chat_store: SqliteChatStore, chat_settings: Settings, appointments: int,
+    chat_store: SqliteChatStore,
+    chat_settings: Settings,
+    appointments: int,
 ) -> None:
     """Chat and scheduled reporting must give the same result as the underlying records vary."""
     fake = seed(appointments_per_day=appointments, days=1)

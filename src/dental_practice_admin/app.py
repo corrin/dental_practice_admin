@@ -12,10 +12,11 @@ Opening one per request costs nothing next to a page render.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from chatkit.server import StreamingResult
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
@@ -23,11 +24,12 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from dental_practice_admin.auth import AccessControl, CurrentStaff, build_oauth
+from dental_practice_admin.auth import AccessControl, CurrentStaff, StaffUser, build_oauth
 from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import Environment, Settings, SignIn, current_settings
+from dental_practice_admin.scripts import WORKFLOWS, load_draft
 from dental_practice_admin.storage import Storage, TaskRun
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -36,15 +38,10 @@ TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 # short enough that a laptop left at home is not signed in next week.
 SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
 
-# What the task list shows. A task exists here when a command implements it; the schedule
-# that fires it lives in Windows.
-CONFIGURED_TASKS = (
-    {
-        "name": "daily_diary",
-        "title": "Daily diary",
-        "command": "dental-practice-admin diary",
-        "description": "Tomorrow's appointments grouped by practitioner.",
-    },
+# Released task definitions own their display metadata; Windows owns their schedules.
+CONFIGURED_TASKS = tuple(
+    {"name": path.stem, **json.loads(path.read_text(encoding="utf-8"))}
+    for path in sorted(WORKFLOWS.glob("*.json"))
 )
 
 
@@ -60,6 +57,16 @@ def storage(
         yield store
     finally:
         store.close()
+
+
+def render(request: Request, template: str, staff: StaffUser, configured: Settings,
+           store: Storage, **context: Any) -> HTMLResponse:
+    """Every staff page displays the same identity, environment and interface warnings."""
+    return TEMPLATES.TemplateResponse(request, template, {
+        "staff": staff, "environment": configured.environment,
+        "is_fake": configured.environment is Environment.FAKE,
+        "chatkit_domain_key": configured.chatkit_domain_key,
+        "interface_warnings": store.interface_warnings(), **context})
 
 
 router = APIRouter()
@@ -117,18 +124,9 @@ def index(
     store: Annotated[Storage, Depends(storage)],
 ) -> HTMLResponse:
     """The configured tasks and the most recent runs."""
-    return TEMPLATES.TemplateResponse(
-        request,
-        "runs.html",
-        {
-            "tasks": CONFIGURED_TASKS,
-            "runs": store.recent_runs(),
-            "interface_warnings": store.interface_warnings(),
-            "staff": staff,
-            "environment": configured.environment,
-            "is_fake": configured.environment is Environment.FAKE,
-        },
-    )
+    runs = [run for run in store.recent_runs()
+            if not run.task.startswith("draft:") or run.initiator == staff.email]
+    return render(request, "runs.html", staff, configured, store, runs=runs, tasks=CONFIGURED_TASKS)
 
 
 @router.get("/chat", response_class=HTMLResponse)
@@ -139,17 +137,7 @@ def chat_page(
     store: Annotated[Storage, Depends(storage)],
 ) -> HTMLResponse:
     """The page hosting the ChatKit web component."""
-    return TEMPLATES.TemplateResponse(
-        request,
-        "chat.html",
-        {
-            "staff": staff,
-            "chatkit_domain_key": configured.chatkit_domain_key,
-            "interface_warnings": store.interface_warnings(),
-            "environment": configured.environment,
-            "is_fake": configured.environment is Environment.FAKE,
-        },
-    )
+    return render(request, "chat.html", staff, configured, store)
 
 
 @router.post("/chatkit")
@@ -214,16 +202,17 @@ def run_detail(
 ) -> HTMLResponse:
     """One run's result, with its coverage stated rather than implied."""
     run: TaskRun | None = store.run(run_id)
-    if run is None:
+    if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
         raise HTTPException(status_code=404, detail=f"no run {run_id}")
-    return TEMPLATES.TemplateResponse(
-        request,
-        "run.html",
-        {
-            "run": run,
-            "interface_warnings": store.interface_warnings(),
-            "staff": staff,
-            "environment": configured.environment,
-            "is_fake": configured.environment is Environment.FAKE,
-        },
-    )
+    return render(request, "run.html", staff, configured, store, run=run)
+
+
+@router.get("/drafts/{identifier}")
+def draft_source(identifier: str, staff: CurrentStaff,
+                 configured: Annotated[Settings, Depends(settings)]) -> Response:
+    """Export only source; credentials and patient-derived inputs stay out of promotion files."""
+    try:
+        draft = load_draft(configured, identifier, staff.email)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404) from None
+    return Response(draft.source, media_type="text/plain")

@@ -18,6 +18,12 @@ jobs:
         with:
           enable-cache: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - run: npm ci
+      - run: node node_modules/@playwright/mcp/cli.js install-browser chrome-for-testing
       - run: uv sync --frozen
 
       - name: Locate Playwright browser cache
@@ -38,7 +44,7 @@ jobs:
       - name: Lint
         run: uv run ruff check .
 
-      - name: Generated Principle interface
+      - name: Released Principle interface
         run: uv run python -m scripts.refresh_spec --check
 
       - name: Types

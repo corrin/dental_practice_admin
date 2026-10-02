@@ -42,7 +42,9 @@ flowchart TD
     CLI --> Store
 ```
 
-The agent runs in our application and calls ordinary Python tools. MCP is unnecessary for this staff interface and is excluded from the initial implementation. These operations can be exposed through MCP later if there is an actual external-client requirement.
+FastMCP consumes the released OpenAPI snapshot in process. Microsoft's pinned Playwright
+MCP server owns browser tools and script execution. Both browser modes share automatic
+login and one cross-process workflow lock; API and Firestore calls remain concurrent.
 
 The web application and chat server run locally; model inference uses the OpenAI API. Self-hosting the application does not make AI inference local.
 
@@ -55,8 +57,8 @@ The web application and chat server run locally; model inference uses the OpenAI
 | Staff chat | ChatKit web component and Python server SDK | Reuse the chat interface and streaming protocol |
 | Agent execution | OpenAI Agents SDK | Reuse model/tool orchestration |
 | Task and result pages | Jinja2 templates with minimal JavaScript | Avoid a separate frontend application and build pipeline |
-| Principle REST access | Generated operation definitions and agent schemas, with one HTTPX executor | Avoid hand-maintaining endpoint wrappers |
-| Browser automation | Playwright Python with headless Chromium | Script repeatable web-only operations |
+| Principle REST access | FastMCP from the released OpenAPI snapshot | Avoid hand-maintaining endpoint wrappers |
+| Browser automation | Microsoft Playwright MCP with headless Chromium | Script repeatable web-only operations |
 | Local persistence | SQLite with a small storage adapter | No database server to operate |
 | Web service lifecycle | Stable WinSW release | Windows service management through configuration |
 | Scheduling | Windows Task Scheduler | Scheduling and process launch supplied by Windows |
@@ -74,16 +76,11 @@ Use the current published OpenAPI specification as the source for documented end
 
 Workspace API-key authentication is already used by the existing integration. Configure environment, base URL, practice scope, and credentials explicitly. Production and staging must have distinct configuration and browser session files.
 
-Generate the operation catalogue and agent schemas from a committed normalized OpenAPI snapshot.
-Use the shared HTTPX executor directly; do not maintain another client model or per-endpoint
-wrapper functions. Scope, authentication, request validation and paging belong to that executor
-and its shared tool adapter. Expose only read operations with an enforceable practice parameter;
-patient-specific paths and administration are excluded from generated chat tools.
-
-Generation is offline and reproducible. Pre-commit checks staged inputs in isolation; CI checks
-the committed artifact. Live integration/release checks compare the published interface with the
-snapshot. An explicit update command fetches changes, regenerates and runs focused tests. Updates
-enter production through an application release, never runtime discovery or regeneration.
+FastMCP constructs operations directly from the committed example-free OpenAPI document.
+The shared client binds practice scope, validates requests/responses and handles paging.
+Patient operations check ownership before acting. OAuth and webhook administration are excluded.
+Snapshot updates are explicit and reviewed; startup never fetches a specification or package.
+Pre-commit validates staged schema; CI validates the release; live checks compare upstream content.
 
 Production requests validate responses against the released interface. Possible incompatibilities
 persist as deduplicated, patient-free warnings on authenticated admin pages. A changed interface
@@ -109,7 +106,14 @@ An operation is a Python function that performs a useful action, such as reading
 
 Chat tools validate their inputs and call these functions. Scheduled commands call the same functions directly, without involving a model. Practice selection and permitted actions come from trusted application configuration and the authenticated user's context, rather than solely from model-provided arguments.
 
-Expose a small, purposeful tool set to the agent. Browser sessions, credentials, and arbitrary execution facilities are implementation details, not general tools for staff chat.
+Chat can execute trusted Python and Playwright scripts under the automation account.
+Save immutable drafts with owner, conversation and explicit inputs. Supervised workers stop
+their descendants on cancellation. Draft source and results remain owner-scoped.
+Promote unchanged working source and an input schema through a reviewed PR with synthetic
+behaviour tests. Chat and scheduled commands use that released source; schedules remain in Windows.
+Prefer API, proven browser scripts, verified Firestore reads, then AI browsing as the last fallback.
+Scheduled tasks never use AI fallback. Direct Firestore writes require a verified complete operation;
+the current interface is read-only. See ADR 0005.
 
 The staff interface contains:
 

@@ -22,7 +22,6 @@ from datetime import UTC, date, datetime, tzinfo
 from pathlib import Path
 from typing import Self
 
-import httpx
 import pytest
 import uvicorn
 from pydantic import SecretStr
@@ -176,7 +175,7 @@ async def test_a_successful_run_is_recorded_with_the_report_it_produced(
     assert sum(run.detail["byStatus"].values()) == EXPECTED_BOOKED
 
 
-async def test_a_run_that_cannot_reach_principle_is_recorded_failed_and_still_raises(
+async def test_a_run_that_cannot_reach_principle_is_untrustworthy_and_still_raises(
     tmp_path: Path,
 ) -> None:
     """A failed fetch leaves a finished, untrustworthy row, and the exception still escapes.
@@ -185,11 +184,11 @@ async def test_a_run_that_cannot_reach_principle_is_recorded_failed_and_still_ra
     known failure among genuinely crashed runs, where a missing finish is the only signal.
     """
     settings = _settings(_unreachable(), tmp_path)
-    with pytest.raises(httpx.HTTPError):
+    with pytest.raises(RuntimeError, match="Script failed"):
         await run_daily_diary(settings, SEEDED_DAY, "windows:test")
 
     [run] = _runs(settings.database_path)
-    assert run.outcome is Outcome.FAILED
+    assert run.outcome is Outcome.UNCERTAIN
     assert run.coverage is Coverage.PARTIAL
     assert not run.is_trustworthy
     assert run.finished_at is not None

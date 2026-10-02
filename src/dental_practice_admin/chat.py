@@ -1,7 +1,7 @@
 """Staff chat: a ChatKit server driving the OpenAI Agents SDK over our own operations.
 
-The agent runs in this process and calls ordinary Python functions. There is no MCP hop: these
-are our functions, called by our agent, for our staff.
+The agent uses the shared API, Firestore and script integrations. Browser work uses the pinned
+Playwright MCP server, with an inner browser agent supplying the last fallback.
 
 **The model is the seam.** `build_agent` takes a `model`, and tests pass a scripted one while
 everything else stays real -- the real `Runner`, the real ChatKit event conversion, the real
@@ -19,9 +19,11 @@ Two rules the tools obey, both tested rather than trusted:
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from importlib.metadata import distribution
 
 from agents import Agent, RunConfig, Runner, function_tool
 from agents.models.interface import Model
@@ -29,26 +31,23 @@ from agents.models.openai_responses import OpenAIResponsesModel
 from chatkit.agents import AgentContext, ThreadItemConverter, stream_agent_response
 from chatkit.server import ChatKitServer
 from chatkit.types import ThreadItem, ThreadMetadata, ThreadStreamEvent, UserMessageItem
-from httpx import AsyncBaseTransport
+from httpx2 import AsyncBaseTransport
 from openai import AsyncOpenAI
 
 from dental_practice_admin.auth import StaffUser
+from dental_practice_admin.automation import tools as automation_tools
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import ConfigurationError, Settings
-from dental_practice_admin.principle import PrincipleClient
-from dental_practice_admin.principle_tools import api_tools
+from dental_practice_admin.principle import PrincipleClient, api_tools
 from dental_practice_admin.tasks import PRACTICE_TZ, DiaryReport, daily_diary
 
 # How much history the agent is given. Bounded because a year of chat is neither affordable nor
 # useful; the whole conversation stays in the store either way.
 HISTORY_ITEMS = 100
 
-# A runaway tool loop costs money and time. Enough turns for a question, a lookup and an answer.
-MAX_TURNS = 8
-
 INSTRUCTIONS = """
 You help staff at a dental practice with administrative questions about their Principle Dental
-records. You have read-only access.
+records. You can read and update records through the configured practice integrations.
 
 Be brief and concrete. Staff are busy and mid-task.
 
@@ -60,8 +59,16 @@ Use the diary tools for daily appointment reports. Generated API tools can retur
 or a limited search result. searchPatients cannot establish the total number of patients.
 Never turn page size or meta.total into a population count.
 
-You cannot change anything in Principle. If asked to, say so and describe what the person would
-do in Principle itself.
+Prefer the official API, proven Playwright scripts, verified Firestore reads, then AI browsing.
+Before changing a record, state what will change and check it against the request. Afterwards,
+read saved state back. After an uncertain write inspect state before retrying or changing route.
+Never write directly to Firestore. Report partial or uncertain outcomes explicitly.
+Use run_script to develop a reusable task. Python scripts define async run(services, inputs).
+services.api.call(operation, arguments) and services.api.rows support API reads/writes and paging;
+services.firestore.read supplies scoped reads; services.browser runs a Playwright function.
+Return {"summary": str, "detail": object, "coverage": "complete" or "partial"} from Python.
+Keep credentials out of script source. Drafts are trusted code, not a sandbox. Promotion requires
+a reviewed PR and a release; run_task executes released tasks and never changes their schedule.
 """.strip()
 
 
@@ -82,10 +89,9 @@ class ChatDeps:
     transport: AsyncBaseTransport | None = None
 
 
-def build_tools(deps: ChatDeps) -> list[object]:
-    """The tool set exposed to the agent: small, purposeful, read-only.
+async def build_tools(deps: ChatDeps) -> list[object]:
+    """Practice-scoped operations and trusted script execution for staff chat.
 
-    Browser sessions, credentials and arbitrary execution are implementation details, not tools.
     Each function here closes over `deps`, which is how practice scope reaches it without
     passing through the model.
     """
@@ -110,7 +116,9 @@ def build_tools(deps: ChatDeps) -> list[object]:
         tomorrow = datetime.now(tz=PRACTICE_TZ).date() + timedelta(days=1)
         return _describe(await _diary(deps, tomorrow))
 
-    return [diary_for_date, diary_for_tomorrow, *api_tools(deps.settings, deps.transport)]
+    return [diary_for_date, diary_for_tomorrow,
+            *await api_tools(deps.settings, deps.transport),
+            *automation_tools(deps.settings, deps.model)]
 
 
 async def _diary(deps: ChatDeps, day: date) -> DiaryReport:
@@ -121,18 +129,7 @@ async def _diary(deps: ChatDeps, day: date) -> DiaryReport:
 
 def _describe(report: DiaryReport) -> str:
     """The report as text for the model, with coverage stated rather than implied."""
-    lines = [report.summary()]
-    for day in report.by_practitioner:
-        lines.append(
-            f"- {day.name}: {day.attending} attending of {day.appointments} booked"
-            f" ({day.first_from or '?'}-{day.last_to or '?'})"
-        )
-    note = report.coverage_note
-    if note:
-        lines.append(
-            f"INCOMPLETE: {note}. Say this in your reply; do not present it as a full day."
-        )
-    return "\n".join(lines)
+    return json.dumps({"summary": report.summary(), **report.as_detail()})
 
 
 def model_for(settings: Settings) -> Model:
@@ -152,13 +149,16 @@ def model_for(settings: Settings) -> Model:
     return OpenAIResponsesModel(settings.agent_model, client)
 
 
-def build_agent(deps: ChatDeps) -> Agent[AgentContext[StaffUser]]:
+async def build_agent(deps: ChatDeps) -> Agent[AgentContext[StaffUser]]:
     """The agent for one turn. `deps.model` is the injection point tests use."""
+    knowledge = distribution("dental-practice-admin").locate_file("dental_practice_admin/knowledge")
     return Agent[AgentContext[StaffUser]](
         name="Massey Smiles Admin assistant",
-        instructions=INSTRUCTIONS,
+        instructions=INSTRUCTIONS + "\n" + "\n".join(
+            (knowledge / name).read_text(encoding="utf-8")
+            for name in ("README.md", "website.md", "firestore.md")),
         model=deps.model,
-        tools=build_tools(deps),  # type: ignore[arg-type]
+        tools=await build_tools(deps),  # type: ignore[arg-type]
     )
 
 
@@ -191,10 +191,10 @@ class StaffChatServer(ChatKitServer[StaffUser]):
         )
         agent_input = await ThreadItemConverter().to_agent_input(history)
         result = Runner.run_streamed(
-            build_agent(self.deps),
+            await build_agent(self.deps),
             input=agent_input,
             context=agent_context,
-            max_turns=MAX_TURNS,
+            max_turns=None,
             # Traces would send conversation content to OpenAI's dashboard. Patient-adjacent
             # material does not leave this practice beyond the inference call itself.
             run_config=RunConfig(tracing_disabled=True),

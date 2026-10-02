@@ -154,49 +154,72 @@ staging/OpenAI credentials. Missing prerequisites fail the gate. Run individual 
 diagnosis; partial checks do not certify a release. No release command exercises production
 records.
 
-## Generated Principle interface
+## Principle interface and workflow promotion
 
-Endpoint definitions and chat tool schemas are generated from the committed
-[`tests/spec/fingerprint.json`](tests/spec/fingerprint.json) snapshot.
-[`generated_principle.json`](src/dental_practice_admin/generated_principle.json) is a generated
-artifact: do not edit it. The shared HTTP executor supplies authentication, practice scope,
-validation and pagination. No endpoint-specific wrapper functions are maintained.
+FastMCP builds operations from `src/dental_practice_admin/principle_openapi.json`, the
+released example-free OpenAPI snapshot. Chat, Python drafts and scheduled tasks share
+its executor, practice scope, response validation and pagination. No endpoint generator
+or generated adapter needs maintaining.
 
 ```powershell
-# Offline regeneration and verification
-uv run python -m scripts.refresh_spec --generate
-uv run python -m scripts.refresh_spec --check
-
-# Read the published specification without changing files
-uv run python -m scripts.refresh_spec --upstream-check
-
-# Fetch, show changes, regenerate, and run focused tests
-uv run python -m scripts.refresh_spec --update
+uv run python -m scripts.refresh_spec --check          # offline schema validation
+uv run python -m scripts.refresh_spec --upstream-check # compare published interface
+uv run python -m scripts.refresh_spec --update         # explicit reviewed update
 ```
 
-The update leaves a normal working-tree diff for review. Commit the snapshot, compatibility
-configuration and generated output together, run the release gate, and release the application.
-The running app never fetches or adopts a new interface automatically. The API's `/v1` and
-OpenAPI version string do not establish compatibility; checks compare content.
+Updates enter production through a release. The pre-commit hook validates the staged
+snapshot; CI validates the committed snapshot. Live release checks compare content,
+since the upstream version string does not reliably identify changes.
 
-Run [`scripts/install_hooks.ps1`](scripts/install_hooks.ps1) once per clone to install the
-pre-commit hook. After the leak scan it checks the **staged** generator, snapshot, compatibility
-configuration and artifact in a temporary directory. It neither contacts Principle nor edits or
-stages files. CI checks the same deterministic output offline; the integration/release tier checks
-the published interface. Missing files, incompatible changes and unavailable upstream checks fail
-explicitly.
+Chat can use scoped API reads and writes, verified Firestore reads, deterministic
+Playwright scripts and an AI browser fallback. Search results and pages carry partial
+coverage unless completeness is established. The diary uses the same tested pagination.
+Read saved state after a write and before retrying an uncertain operation.
 
-[`tests/spec/compatibility.json`](tests/spec/compatibility.json) holds verified deviations and
-coverage rules. Its patches name the expected upstream value, so an upstream fix requires review
-instead of silently applying an obsolete exception. Additional unused response fields are
-accepted. Missing required fields, wrong types and invalid response envelopes are refused.
+`run_script` saves an immutable Python or Playwright draft, its explicit inputs and its
+owner, then runs it in a supervised process. This is trusted automation under the service
+account, not a sandbox. The owner can export source from the returned draft link.
+Both languages return `summary`, `detail` and `coverage` (`complete` or `partial`).
+Python defines `async run(services, inputs)`; Playwright defines `async (page, inputs)`.
+`services.api`, `services.firestore.read` and `services.browser` share the chat integrations.
 
-Chat exposes generated, practice-scoped business reads and the diary tools. Patient-specific
-paths without a proven practice boundary, administration and writes are excluded. Generated
-searches and pages are labelled partial unless complete coverage has been verified. Patient
-search cannot establish a whole-practice patient total. Large results require a narrower query.
-The diary fake models verified diary behaviour; synthetic generation/transport tests exercise
-the generic adapter without claiming to verify other live endpoints.
+To promote a working draft, put its unchanged source in `src/dental_practice_admin/workflows/`,
+add a JSON definition with `language`, `source`, an `inputs` JSON Schema and the task page's
+`title`, `command` and `description`, and synthetic
+behaviour tests in a PR. The diary definition is the example. Do not commit patient inputs
+or credentials. After review and release, invoke the same source from chat's `run_task` or:
+
+```powershell
+dental-practice-admin run daily_diary --inputs path/to/diary-inputs.json
+```
+
+The input file is `{"date":"2026-10-02"}` for this example. Windows Task Scheduler alone
+owns the schedule. Scheduled execution never invokes a model. A failed or interrupted
+script is recorded as uncertain; inspect saved state before repeating a change.
+
+### Automation installation and login
+
+Install Node.js and the locked server and browser under the automation identity:
+
+```powershell
+npm ci
+node node_modules/@playwright/mcp/cli.js install-browser chrome-for-testing
+uv sync --locked
+```
+
+Set `PRINCIPLE_UI_EMAIL`, `PRINCIPLE_UI_PASSWORD`, `PRINCIPLE_FIREBASE_KEY`,
+`PRINCIPLE_FIREBASE_PROJECT`, `PRINCIPLE_FIRESTORE_ROOT`, `PRINCIPLE_WORKSPACE` and
+`PRINCIPLE_WORKSPACE_SLUG`, each suffixed `_STAGING` or `_PROD`, alongside the API
+settings. Unscoped Principle credentials are ignored. The workspace value is the exact
+accessible dropdown option; the slug is the URL segment, which can differ from the
+option's subtitle. The Firestore root is `organisations/{org}/brands/{brand}`.
+
+Browser login runs automatically before each workflow. The persistent profile, browser
+output and cross-process lock live under the environment's data directory. Only one
+browser workflow runs at a time; API and Firestore work can continue. Firebase reads
+refresh their tokens and sign in once if a refresh is rejected. Invalid credentials
+fail explicitly. No Firestore writes are exposed. Set `ADMIN_PLAYWRIGHT_MCP_PATH` when
+the locked Node package lives outside the application's working directory.
 
 ### Production incompatibility warning
 

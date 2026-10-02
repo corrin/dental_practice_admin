@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-  Install the pre-commit hook: check for leaks, verify generated interfaces, and review the diff.
+  Install the pre-commit hook: check for leaks, validate the released interface, and review the diff.
 
 .DESCRIPTION
-  CI and the local suite enforce leaks and generation independently of this hook, which is
+  CI and the local suite enforce leaks and schema validity independently of this hook, which is
   absent on a fresh clone and skipped by --no-verify. Run this once per clone.
 
   The smell review is advisory and never refuses a commit. It sends the staged diff to Anthropic,
@@ -32,5 +32,5 @@ exit 0
 
 Write-Host "Installed $hook" -ForegroundColor Green
 Write-Host 'Commits are now refused if they carry patient data, staff identities or credentials.'
-Write-Host 'Generated interfaces are checked against staged inputs without network access.'
+Write-Host 'The released interface is validated from staged content without network access.'
 Write-Host 'Each commit is then scored against AGENTS.md by Claude; that score never blocks it.'
