@@ -12,6 +12,7 @@ Opening one per request costs nothing next to a page render.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
@@ -28,7 +29,7 @@ from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import Environment, Settings, SignIn, current_settings
-from dental_practice_admin.scripts import load_draft
+from dental_practice_admin.scripts import WORKFLOWS, load_draft
 from dental_practice_admin.storage import Storage, TaskRun
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -37,15 +38,10 @@ TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 # short enough that a laptop left at home is not signed in next week.
 SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
 
-# What the task list shows. A task exists here when a command implements it; the schedule
-# that fires it lives in Windows.
-CONFIGURED_TASKS = (
-    {
-        "name": "daily_diary",
-        "title": "Daily diary",
-        "command": "dental-practice-admin diary",
-        "description": "Tomorrow's appointments grouped by practitioner.",
-    },
+# Released task definitions own their display metadata; Windows owns their schedules.
+CONFIGURED_TASKS = tuple(
+    {"name": path.stem, **json.loads(path.read_text(encoding="utf-8"))}
+    for path in sorted(WORKFLOWS.glob("*.json"))
 )
 
 

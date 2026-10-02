@@ -122,7 +122,7 @@ async def run(settings: Settings, script: Script, task: str) -> str:
             stderr=asyncio.subprocess.PIPE)
         stdout, _stderr = await worker.communicate(payload.encode())
         if worker.returncode:
-            raise RuntimeError("Script failed; inspect saved state before repeating a change")
+            raise RuntimeError(f"Script failed ({stdout.decode().strip()}); inspect saved state")
         result = Result.model_validate_json(stdout)
         storage.finish_run(run_id, Outcome.SUCCEEDED, result.coverage, result.summary,
                            {**result.detail, "inputs": script.inputs})
@@ -134,7 +134,7 @@ async def run(settings: Settings, script: Script, task: str) -> str:
     finally:
         if worker is not None and worker.returncode is None:
             worker.kill()
-            await worker.wait()
+            await worker.communicate()
         storage.close()
 
 
@@ -145,8 +145,12 @@ def main() -> int:
     settings = Settings(**{"_env_file": None, **payload["settings"]})
     settings.require_credentials()
     script = Script.model_validate(payload["script"])
-    with contextlib.redirect_stdout(sys.stderr):
-        result = asyncio.run(execute(settings, script))
+    try:
+        with contextlib.redirect_stdout(sys.stderr):
+            result = asyncio.run(execute(settings, script))
+    except Exception as error:
+        print(type(error).__name__)
+        return 1
     print(result.model_dump_json())
     return 0
 

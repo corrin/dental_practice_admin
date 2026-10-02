@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from pathlib import Path
+from shutil import which
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -53,6 +54,7 @@ PRINCIPLE_URLS = {
 
 # Principle's web app, which uses the same Firestore the API reads. The fake has none.
 PRINCIPLE_WEB_URLS = {
+    Environment.FAKE: "https://fake.principle.invalid",
     Environment.STAGING: "https://staging.principle.dental",
     Environment.PRODUCTION: "https://app.principle.dental",
 }
@@ -353,6 +355,8 @@ class Settings(BaseSettings):
             raise ConfigurationError("Invalid workspace slug")
         if not self.playwright_mcp_path.is_file():
             raise ConfigurationError("Install the locked Playwright MCP package before startup")
+        if which("node") is None:
+            raise ConfigurationError("Install Node.js before startup")
 
 
 def current_settings(request: Request) -> Settings:

@@ -171,7 +171,8 @@ class PrincipleClient:
         tool = await self.server.get_tool(name)
         if tool is None:
             raise CallError("Operation unavailable")
-        values = {k: v for k, v in arguments.items() if v is not None}
+        parameters = {p["name"] for p in call.parameters}
+        values = {k: v for k, v in arguments.items() if v is not None or k not in parameters}
         if set(values) - set(tool.parameters["properties"]):
             raise CallError(f"{name} does not accept these arguments")
         if "practiceId" in tool.parameters["properties"]:
@@ -202,8 +203,10 @@ class PrincipleClient:
         output = result.structured_content
         if not isinstance(output, dict):
             raise self._incompatible(call, "missing_data")
-        if name == "getPatient" and output["practiceId"] != self.settings.practice_id:
-            raise CallError("Patient is outside the configured practice")
+        if name == "getPatient":
+            scoped = await self.call("searchPatients", {"name": output["name"]})
+            if not any(row["id"] == patient_id for row in scoped["data"]):
+                raise CallError("Patient is outside this practice or search is inconclusive")
         return output
 
     async def get(self, name: str, *, path_params: Mapping[str, Any] | None = None,

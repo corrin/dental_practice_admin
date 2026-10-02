@@ -175,7 +175,8 @@ Python defines `async run(services, inputs)`; Playwright defines `async (page, i
 `services.api`, `services.firestore.read` and `services.browser` share the chat integrations.
 
 To promote a working draft, put its unchanged source in `src/dental_practice_admin/workflows/`,
-add a JSON definition with `language`, `source` and an `inputs` JSON Schema, and synthetic
+add a JSON definition with `language`, `source`, an `inputs` JSON Schema and the task page's
+`title`, `command` and `description`, and synthetic
 behaviour tests in a PR. The diary definition is the example. Do not commit patient inputs
 or credentials. After review and release, invoke the same source from chat's `run_task` or:
 

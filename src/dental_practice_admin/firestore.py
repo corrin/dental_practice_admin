@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx2 as httpx
 
-from dental_practice_admin.config import Settings
+from dental_practice_admin.config import PRINCIPLE_WEB_URLS, Settings
 
 
 class Firestore:
@@ -16,7 +16,8 @@ class Firestore:
     def __init__(self, settings: Settings,
                  transport: httpx.AsyncBaseTransport | None = None) -> None:
         self.settings = settings
-        self.client = httpx.AsyncClient(transport=transport, timeout=60)
+        self.client = httpx.AsyncClient(transport=transport, timeout=60,
+            headers={"Referer": PRINCIPLE_WEB_URLS[settings.environment] + "/"})
         self.token, self.refresh_token, self.expires = "", "", 0.0
         self.lock = asyncio.Lock()
         self.root = (f"projects/{settings.firebase_project}/databases/(default)/documents/"

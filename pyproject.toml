@@ -90,5 +90,5 @@ module = ["authlib.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["jsonschema.*", "jsonref.*", "win32api", "win32job"]
+module = ["jsonschema.*", "jsonref.*", "win32api", "win32job", "win32event"]
 ignore_missing_imports = true

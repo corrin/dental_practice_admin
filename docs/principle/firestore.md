@@ -8,8 +8,10 @@ documents, so Firestore is the source of truth behind both.
 **What:** a staff login's Firebase ID token authorises Firestore REST calls with that staff
 member's permissions. It expires after an hour.
 **Used for:** reads the API cannot answer.
+The Firebase key requires the selected Principle site's `Referer` header for password sign-in
+and token renewal. A missing referrer returns `API_KEY_HTTP_REFERRER_BLOCKED`.
 **Verified:** `StagingBrowser.token` in `scripts/check_staging.py`, used by
-the staging Firestore address experiment. Staging, 2026-10-01, build `main.ecfbec0077a05029.js`.
+[the staging Firestore address experiment](https://github.com/corrin/dental_practice_admin/blob/8b251fc/scripts/address_via_firestore.py). Staging, 2026-10-01, build `main.ecfbec0077a05029.js`.
 
 The token may run structured queries (`:runQuery`) over a whole collection, not only fetch
 documents by name.
@@ -49,7 +51,7 @@ none. A document path built from the wrong pair returns 404, not an error about 
 patient changed since then.
 **Used for:** "which patients changed today". The API cannot answer this: its patient search
 has no date filter.
-**Verified:** the staging changed-since query. Staging, 2026-10-01,
+**Verified:** [the staging changed-since query](https://github.com/corrin/dental_practice_admin/blob/8b251fc/scripts/address_via_firestore.py). Staging, 2026-10-01,
 build `main.ecfbec0077a05029.js`. It returned exactly the patients changed that day through
 the API and the website.
 
@@ -64,5 +66,9 @@ and no address verification runs.
 audit fields. Documents also hold copies Principle maintains (`accountSummary`), which a
 direct write can leave inconsistent.
 **Rule:** never write to Firestore directly. Write through the API.
-**Verified:** the staging direct-write comparison.
+**Verified:** [the staging direct-write comparison](https://github.com/corrin/dental_practice_admin/blob/8b251fc/scripts/address_via_firestore.py).
 Staging, 2026-10-01, build `main.ecfbec0077a05029.js`.
+
+The shared read-only client passed a staging changed-since query and matching count aggregation
+on 2026-10-03, including token renewal. Authentication and rejected-refresh behaviour have
+synthetic coverage in [`test_automation.py`](../../tests/test_automation.py).

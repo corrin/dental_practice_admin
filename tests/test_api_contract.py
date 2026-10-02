@@ -9,12 +9,39 @@ from agents.tool_context import ToolContext
 from pydantic import SecretStr
 
 from dental_practice_admin.config import Environment, Settings
-from dental_practice_admin.principle import PrincipleClient, PrincipleError, api_tools
+from dental_practice_admin.principle import CallError, PrincipleClient, PrincipleError, api_tools
 from dental_practice_admin.storage import Storage
 
 
 def _context(name: str) -> ToolContext[None]:
     return ToolContext(context=None, tool_name=name, tool_call_id="fake-call", tool_arguments="{}")
+
+
+@pytest.mark.parametrize("in_scope", [True, False])
+async def test_patient_without_practice_field_requires_scoped_id_match(
+    fake_settings: Settings, in_scope: bool,
+) -> None:
+    patient = {"id": "fake-patient", "name": "Fake Dummy", "email": "fake@example.invalid",
+               "gender": "notSpecified", "address": "Fake address", "dateOfBirth": "2000-01-01"}
+    requests = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path.endswith("/fake-patient"):
+            return httpx.Response(200, json=patient)
+        assert request.url.params["practiceId"] == fake_settings.practice_id
+        assert request.url.params["name"] == patient["name"]
+        return httpx.Response(200, json={"data": [patient] if in_scope else []})
+
+    async with PrincipleClient(fake_settings, transport=httpx.MockTransport(respond)) as client:
+        if in_scope:
+            assert await client.call("getPatient", {"patientId": patient["id"]}) == patient
+        else:
+            with pytest.raises(CallError, match="outside"):
+                await client.call("updatePatient", {
+                    **{k: v for k, v in patient.items() if k != "id"},
+                    "patientId": patient["id"], "address": "Fake edit"})
+    assert all(request.method == "GET" for request in requests)
 
 async def test_generated_search_is_scoped_and_never_claims_a_patient_total(
     fake_settings: Settings,

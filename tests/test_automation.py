@@ -4,16 +4,77 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from pathlib import Path
 
 import httpx2 as httpx
 import pytest
 from pydantic import SecretStr
 
-from dental_practice_admin.config import Environment, Settings
+from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.scripts import Script, execute, load_draft, released, run, save_draft
 from dental_practice_admin.storage import Coverage, Outcome, Storage
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows process ownership")
+async def test_cancelling_a_draft_stops_its_spawned_children(tmp_path: Path) -> None:
+    import win32api
+    import win32event
+
+    marker = tmp_path / "child.pid"
+    source = '''import asyncio, subprocess, sys
+from pathlib import Path
+async def run(services, inputs):
+    child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(300)'])
+    Path(inputs['marker']).write_text(str(child.pid))
+    await asyncio.sleep(300)
+'''
+    script = draft().model_copy(update={"source": source, "inputs": {"marker": str(marker)}})
+    task = asyncio.create_task(run(settings(tmp_path), script, "fake-process-test"))
+
+    async def child_started() -> None:
+        while not marker.exists():
+            if task.done():
+                await task
+            await asyncio.sleep(0.05)
+
+    try:
+        await asyncio.wait_for(child_started(), 30)
+        handle = win32api.OpenProcess(0x00100000, False, int(marker.read_text()))
+        try:
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            assert win32event.WaitForSingleObject(handle, 5000) == win32event.WAIT_OBJECT_0
+        finally:
+            handle.Close()
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+def test_draft_source_and_results_are_private_on_staff_pages(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from dental_practice_admin.app import create_app
+    from dental_practice_admin.auth import FAKE_STAFF
+
+    configured = settings(tmp_path).model_copy(update={
+        "sign_in": SignIn.DEVELOPER,
+        "openai_api_key": SecretStr("fake-ai"),
+    })
+    own = save_draft(configured, draft().model_copy(update={"owner": FAKE_STAFF}))
+    foreign = save_draft(configured, draft())
+    store = Storage(configured.database_path)
+    identifier = store.start_run("draft:" + foreign, draft().owner, "fake")
+    store.finish_run(identifier, Outcome.SUCCEEDED, Coverage.COMPLETE, "fake-private-summary")
+    store.close()
+    with TestClient(create_app(configured)) as client:
+        assert client.get(f"/drafts/{own}").text == SOURCE
+        assert client.get(f"/drafts/{foreign}").status_code == 404
+        assert client.get(f"/runs/{identifier}").status_code == 404
+        assert "fake-private-summary" not in client.get("/").text
 
 
 def settings(tmp_path: Path) -> Settings:
@@ -157,11 +218,16 @@ async def test_draft_and_promoted_source_produce_identical_results(
     promoted = released("report", draft().inputs, draft().owner)
     assert promoted.source == draft().source
     assert (await execute(configured, promoted)) == (await execute(configured, draft()))
-    identifier = await run(configured, promoted, "report")
+    from dental_practice_admin.tasks import main
+
+    inputs = tmp_path / "inputs.json"
+    inputs.write_text(json.dumps(draft().inputs), encoding="utf-8")
+    monkeypatch.setattr("dental_practice_admin.tasks.Settings", lambda: configured)
+    assert await asyncio.to_thread(main, ["run", "report", "--inputs", str(inputs)]) == 0
     store = Storage(configured.database_path)
     try:
-        result = store.run(identifier)
-        assert result is not None
+        result = store.recent_runs()[0]
+        assert result.task == "report"
         assert result.outcome is Outcome.SUCCEEDED
         assert result.coverage is Coverage.COMPLETE
         assert result.detail is not None and result.detail["total"] == 7
