@@ -27,7 +27,6 @@ SPEC = json.loads(SPEC_BYTES)
 INTERFACE_ID = hashlib.sha256(SPEC_BYTES).hexdigest()
 RESOLVED = jsonref.replace_refs(SPEC, lazy_load=False)
 VALIDATOR = OpenAPI.from_dict(SPEC)
-COMPLETE_LISTINGS = frozenset({"listPractitioners", "listPractices"})
 
 
 class CallError(ValueError):
@@ -256,8 +255,7 @@ async def api_tools(settings: Settings, transport: httpx.AsyncBaseTransport | No
             try:
                 async with PrincipleClient(settings, transport) as api:
                     output = await api.call(tool.name, json.loads(arguments))
-                return json.dumps({"result": output,
-                    "coverage": "complete" if tool.name in COMPLETE_LISTINGS else "partial"})
+                return json.dumps({"result": output})
             except (CallError, PrincipleError, httpx.HTTPError, ValueError):
                 return "Principle operation failed. Inspect saved state before retrying a write."
         return FunctionTool(name=tool.name, description=tool.name,
