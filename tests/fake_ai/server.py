@@ -51,6 +51,11 @@ def decide(body: dict[str, Any]) -> list[dict[str, Any]]:
     tools = {tool.get("name") for tool in body.get("tools") or []}
 
     outputs = _tool_outputs(body.get("input"))
+    if "prepare_script" in tools and not any("/tasks/prepare/" in output for output in outputs):
+        from tests.test_saved_scripts import DEFINITION, SOURCE, TESTS
+        return [_function_call("prepare_script", {"source": SOURCE, "language": "python",
+            "definition_json": DEFINITION.model_dump_json(), "tests": TESTS,
+            "previous_draft": ""})]
     if outputs:
         return [_message(f"{MARKER} {' '.join(outputs)}")]
 

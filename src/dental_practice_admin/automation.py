@@ -59,8 +59,8 @@ def tools(settings: Settings, model: Model | str) -> list[Any]:
     @function_tool
     async def run_task(ctx: RunContextWrapper[AgentContext[StaffUser]], name: str,
                        inputs_json: str, revision: str) -> str:
-        """Run an installed reviewed revision with explicit inputs; scheduling is separate."""
-        from dental_practice_admin.task_files import load
+        """Run a saved or installed script with explicit inputs; scheduling is separate."""
+        from dental_practice_admin.saved_scripts import load
         script = load(settings, name, revision, json.loads(inputs_json),
                       ctx.context.request_context.email)
         return json.dumps(await execute(script, name))

@@ -8,7 +8,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import APIRouter, HTTPException, Request
 from jsonschema import ValidationError as SchemaError
 
-from dental_practice_admin import schedules, scripts, task_files
+from dental_practice_admin import saved_scripts, schedules, scripts, task_files
 from dental_practice_admin.audit import Audit
 from dental_practice_admin.auth import CurrentStaff
 
@@ -30,7 +30,18 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
     installed = []
     for path in (settings.data_dir / "installed").glob("*/*/task.json"):
         definition, _ = task_files.installed(settings, path.parent.parent.name, path.parent.name)
-        installed.append({**definition.model_dump(), "revision": path.parent.name})
+        installed.append({**definition.model_dump(), "revision": path.parent.name,
+                          "reviewed": True})
+    for path in (settings.data_dir / "saved").glob("*/*/task.json"):
+        definition = task_files.Definition.model_validate_json(path.read_text(encoding="utf-8"))
+        if any(task["reviewed"] and task["name"] == definition.name and
+               (settings.data_dir / "installed" / task["name"] / task["revision"] / "source.txt"
+                ).read_bytes() == (path.parent / "source.txt").read_bytes()
+               and task_files.Definition.model_validate(task) == definition for task in installed):
+            continue
+        installed.append({**definition.model_dump(), "revision": path.parent.name,
+                          "reviewed": False,
+                          "requested": (path.parent / "review-request.json").exists()})
     titles = {task["name"]: task["title"] for task in installed}
     with schedules.open_schedules(settings) as scheduler:
         jobs = []
@@ -61,6 +72,23 @@ async def act(action: str, payload: dict[str, Any], request: Request, staff: Cur
     import asyncio
     settings = request.app.state.settings
     try:
+        if action in {"save", "test"}:
+            script, data = saved_scripts.candidate(settings, payload["draft_id"], staff.email)
+            if action == "save":
+                saved_scripts.save(settings, payload["draft_id"], staff.email, payload["title"])
+                return {"url": "/tasks/manage"}
+            from jsonschema import FormatChecker, validate
+            validate(payload["inputs"], data["definition"]["inputs"],
+                     format_checker=FormatChecker())
+            script.inputs = payload["inputs"]
+            await scripts.run(settings, script, "draft:" + payload["draft_id"])
+            return {"url": "/tasks/prepare/" + payload["draft_id"]}
+        if action == "request-review":
+            import json
+            path = saved_scripts.folder(settings, payload["name"], payload["revision"])
+            (path / "review-request.json").write_text(json.dumps({"initiator": staff.email,
+                "at": datetime.now(UTC).isoformat()}), encoding="utf-8")
+            return {"saved": True}
         if action == "review":
             return {"url": await asyncio.to_thread(task_files.publish, settings,
                      task_files.Review.model_validate(payload), staff.email)}
@@ -71,7 +99,7 @@ async def act(action: str, payload: dict[str, Any], request: Request, staff: Cur
             return {"revision": await asyncio.to_thread(task_files.install, settings,
                                                          payload["task_id"], staff.email)}
         if action == "run":
-            script = task_files.load(settings, payload["name"], payload["revision"],
+            script = saved_scripts.load(settings, payload["name"], payload["revision"],
                                      payload["inputs"], staff.email)
             return {"url": "/runs/" + await scripts.run(settings, script, payload["name"])}
         if action == "schedule":
@@ -89,3 +117,17 @@ async def act(action: str, payload: dict[str, Any], request: Request, staff: Cur
         raise HTTPException(400, str(error)) from error
     except (KeyError, FileNotFoundError) as error:
         raise HTTPException(404, "Task or review unavailable") from error
+
+
+@router.get("/tasks/prepare/{identifier}")
+def prepare_page(identifier: str, request: Request, staff: CurrentStaff) -> Any:
+    """Show the named candidate and explicit testing and saving actions."""
+    from dental_practice_admin.app import TEMPLATES
+    settings = request.app.state.settings
+    try:
+        script, data = saved_scripts.candidate(settings, identifier, staff.email)
+    except FileNotFoundError as error:
+        raise HTTPException(404) from error
+    return TEMPLATES.TemplateResponse(request, "prepare.html", {
+        "staff": staff, "is_fake": settings.environment.value == "fake", "candidate": data,
+        "identifier": identifier, "tested": saved_scripts.tested(settings, identifier, script)})
