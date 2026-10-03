@@ -37,11 +37,12 @@ nowhere else. Never write to Firestore directly: see [firestore.md](firestore.md
 ## When Principle releases a new version
 
 The web app's build is identified by the hashed name of its main script, `main.<hash>.js`,
-which changes with every release. The daily task records a warning when the production
-build differs from the one this repository last accepted, and staff pages show it.
+which changes with every release. `principle.check_web_build(settings)` records a warning when the production build differs from
+the one this repository last accepted, and staff pages show it. A practice task must invoke this
+check if automatic monitoring is wanted; the generic due-task launcher does not fetch the website.
 
 When the warning appears:
 
 1. Run the scripts and tests for the tasks in use against staging.
 2. Fix anything that broke, and update the entries it affects.
-3. Accept the new build in a pull request. The warning clears on the next daily run.
+3. Accept the new build in a pull request. The warning clears when the check next runs.

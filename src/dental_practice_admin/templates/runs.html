@@ -1,19 +1,8 @@
 {% extends "base.html" %}
 {% block body %}
-<p><a href="/chat" data-automation-id="chat-link">Ask about the diary &rarr;</a></p>
+<p><a href="/chat" data-automation-id="chat-link">Chat &rarr;</a></p>
 <h1>Tasks</h1>
 <p><a href="/tasks/manage">Manage task files, reviews and schedules</a></p>
-<table data-automation-id="task-list">
-  <tr><th>Task</th><th>Command</th><th>What it does</th></tr>
-  {% for task in tasks %}
-  <tr>
-    <td data-automation-id="task-name">{{ task.title }}</td>
-    <td><code>{{ task.command }}</code></td>
-    <td>{{ task.description }}</td>
-  </tr>
-  {% endfor %}
-</table>
-
 <h1>Recent runs</h1>
 {% if not runs %}
 <p class="quiet" data-automation-id="no-runs">No runs recorded yet.</p>

@@ -32,7 +32,6 @@ from playwright.sync_api import (
 )
 
 from tests.fake_ai import MARKER
-from tests.servers import DIARY_DATE, EXPECTED_BOOKED
 
 pytestmark = pytest.mark.smoke
 
@@ -165,12 +164,12 @@ def test_a_staff_member_can_ask_a_question_and_get_an_answer(
     page.goto(f"{spine['APP_URL']}/chat", wait_until="load")
     expect(composer(page)).to_be_visible(timeout=COMPONENT_TIMEOUT_MS)
 
-    composer(page).fill(f"How many appointments on {DIARY_DATE}?")
+    composer(page).fill("List our practitioners")
     composer(page).press("Enter")
 
     answer = chat_ui(page).get_by_text(MARKER, exact=False).first
     expect(answer).to_be_visible(timeout=COMPONENT_TIMEOUT_MS)
-    assert f"of {EXPECTED_BOOKED} booked" in answer.inner_text(), (
+    assert "Dr " in answer.inner_text(), (
         "the reply does not carry the fake Principle's numbers, so the tool did not run"
     )
     watched.assert_clean("asking a question")

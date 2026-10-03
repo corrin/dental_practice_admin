@@ -8,7 +8,6 @@ Opening one per request costs nothing next to a page render.
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
@@ -25,7 +24,7 @@ from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import Environment, Settings, SignIn, current_settings
-from dental_practice_admin.scripts import WORKFLOWS, load_draft
+from dental_practice_admin.scripts import load_draft
 from dental_practice_admin.storage import Storage, TaskRun
 from dental_practice_admin.task_ui import router as task_router
 
@@ -34,13 +33,6 @@ TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 # A signed-in session lasts a working day. Long enough that nobody signs in twice during a shift,
 # short enough that a laptop left at home is not signed in next week.
 SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
-
-# Packaged examples remain available through the compatibility CLI.
-CONFIGURED_TASKS = tuple(
-    {"name": path.stem, **json.loads(path.read_text(encoding="utf-8"))}
-    for path in sorted(WORKFLOWS.glob("*.json"))
-)
-
 
 settings = current_settings
 
@@ -121,10 +113,10 @@ def index(
     configured: Annotated[Settings, Depends(settings)],
     store: Annotated[Storage, Depends(storage)],
 ) -> HTMLResponse:
-    """The configured tasks and the most recent runs."""
+    """The most recent runs visible to this staff member."""
     runs = [run for run in store.recent_runs()
             if not run.task.startswith("draft:") or run.initiator == staff.email]
-    return render(request, "runs.html", staff, configured, store, runs=runs, tasks=CONFIGURED_TASKS)
+    return render(request, "runs.html", staff, configured, store, runs=runs)
 
 
 @router.get("/chat", response_class=HTMLResponse)

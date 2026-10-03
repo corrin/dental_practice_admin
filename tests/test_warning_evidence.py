@@ -1,7 +1,6 @@
 """Warning relevance and exact counts from synthetic appointment evidence."""
 import json
 from collections.abc import Iterator
-from datetime import date
 from typing import Any, Literal
 
 import httpx2 as httpx
@@ -13,12 +12,9 @@ from pydantic import BaseModel
 from dental_practice_admin.chat import INSTRUCTIONS, model_for
 from dental_practice_admin.config import Settings
 from dental_practice_admin.principle import PrincipleClient, PrincipleError, api_tools
-from dental_practice_admin.tasks import daily_diary, local_day_window
 from tests.fake import FakeStore, seed, transport
-from tests.servers import DIARY_DATE
 
-DAY = date.fromisoformat(DIARY_DATE)
-WINDOW = local_day_window(DAY)
+WINDOW = {"from": "2026-09-27T11:00:00Z", "to": "2026-09-28T11:00:00Z"}
 
 
 @pytest.fixture
@@ -127,8 +123,8 @@ async def test_real_model_warns_only_about_affected_claims(
         appointments.db.execute("DELETE FROM practitioners")
         appointments.db.commit()
         async with PrincipleClient(fake_settings, transport=transport(appointments)) as api:
-            report = await daily_diary(api, DAY)
-        evidence = report.as_detail()
+            names = [row async for row in api.rows("listPractitioners")]
+        evidence = {"appointments": pages, "practitioners": names}
         question = "How many booked appointments are there?"
         expected_counts = (23, None)
         if scenario == "missing_names_breakdown":

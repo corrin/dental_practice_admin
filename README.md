@@ -2,7 +2,7 @@
 
 Administrative tooling for one dental practice, over [Principle
 Dental](https://principle.dental), the patient management system. Staff get a small web page of task
-results and a chat interface; Windows Task Scheduler runs the tasks.
+results and a chat interface; the application owns schedules and Windows launches its runner.
 
 Published in case it is useful to someone, not offered as a product. It is specific to how this
 practice works and deeply tied to Principle; there is no abstraction over the patient management
@@ -15,9 +15,8 @@ and tooling are reported but not budgeted: none of them has ever caused a phone 
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and its constraints.
 
-> **Status: walking skeleton.** The daily diary report exists to prove the channels work —
-> scheduled task, CLI, web page, chat — not because anyone needs that particular report. Expect
-> to replace it with whatever your practice actually needs.
+> Practice reports and other tasks live in each practice's private repository. The application
+> supplies chat, execution, review, results and scheduling.
 
 ## Licence, and why AGPL
 
@@ -173,7 +172,7 @@ since the upstream version string does not reliably identify changes.
 
 Chat can use scoped API reads and writes, verified Firestore reads, deterministic
 Playwright scripts and an AI browser fallback. Search results and pages carry partial
-coverage unless completeness is established. The diary uses the same tested pagination.
+coverage unless completeness is established. Scripts share the tested API pagination.
 Read saved state after a write and before retrying an uncertain operation.
 
 `run_script` saves an immutable Python or Playwright draft, its explicit inputs and its
@@ -197,14 +196,12 @@ The repository must already exist and have a default branch. PyGithub exports on
 are uploaded. These GitHub settings are optional for local development and installed execution.
 
 After the private PR is merged, **Check review and install** retrieves that exact revision.
-Staff can run it from the page, chat's `run_task`, or the CLI:
+Staff can run it from the page, chat's `run_task`, or an application schedule.
+The `dental-practice-admin` command (also `python -m dental_practice_admin.schedules`) checks
+which installed tasks are due and exits with failure if any execution is missed or untrustworthy.
 
-```powershell
-dental-practice-admin run task_name --revision approved_commit_sha --inputs path/to/inputs.json
-```
-
-The packaged `diary` command remains available for compatibility. Practice tasks do not require
-an application release. Development branches expire after 90 days without edits or runs when
+Practice tasks do not require an application release. Development branches expire after 90 days
+without edits or runs when
 the task page is opened or another draft is saved; open reviews are protected. Local audit files
 and immutable source snapshots survive cleanup. Back up the entire runtime data directory.
 
@@ -306,7 +303,7 @@ only refuse in words nobody invented. See [tests/recordings/README.md](tests/rec
 src/dental_practice_admin/     the application (budgeted with deploy/: 2,000 lines)
   config.py              which Principle, and where local data lives
   principle.py           the API client and the catalogue of calls it may make
-  tasks.py               business operations and the command Task Scheduler runs
+  schedules.py           application schedules and the command Task Scheduler runs
   storage.py             run history
   app.py, templates/     staff pages
 tests/
@@ -337,7 +334,7 @@ the reboot, the unattended run and the restore drill.
 
 Register `deploy/task-runner.xml` as `Massey Smiles Admin\Task runner` under the designated
 unattended account. Disable and remove the old `Massey Smiles Admin\Daily diary` Windows task
-before enabling application schedules; it directly invokes the compatibility command.
+before enabling application schedules; its diary command is not provided by this application.
 Approve and install each real practice task through its private PR, then create its schedule
 in the app. Reboot verification must include a due approved task, not just an empty poll.
 

@@ -167,3 +167,14 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
         launcher.release()
         store.close()
     return int(failed > 0)
+
+
+def main() -> int:
+    """Check due tasks once for the Windows launcher."""
+    settings = Settings()
+    settings.require_credentials()
+    return asyncio.run(run_due(settings))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

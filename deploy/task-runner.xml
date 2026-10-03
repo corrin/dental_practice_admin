@@ -15,7 +15,7 @@
   </Settings>
   <Actions Context="Author"><Exec>
     <Command>C:\Program Files\DentalPracticeAdmin\.venv\Scripts\python.exe</Command>
-    <Arguments>-m dental_practice_admin.tasks run-due</Arguments>
+    <Arguments>-m dental_practice_admin.schedules</Arguments>
     <WorkingDirectory>C:\Program Files\DentalPracticeAdmin</WorkingDirectory>
   </Exec></Actions>
 </Task>

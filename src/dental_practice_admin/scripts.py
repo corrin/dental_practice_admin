@@ -9,11 +9,9 @@ import sys
 import uuid
 from collections.abc import Awaitable, Callable
 from importlib.metadata import version
-from pathlib import Path
 from typing import Any, Literal
 
 import portalocker
-from jsonschema import FormatChecker, validate
 from pydantic import BaseModel, SecretStr
 
 from dental_practice_admin import browser
@@ -23,8 +21,6 @@ from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.principle import PrincipleClient
 from dental_practice_admin.processes import own_process_tree
 from dental_practice_admin.storage import Coverage, Outcome, Storage
-
-WORKFLOWS = Path(__file__).with_name("workflows")
 
 
 class Script(BaseModel):
@@ -71,17 +67,6 @@ def load_draft(settings: Settings, identifier: str, owner: str) -> Script:
     if script.owner != owner:
         raise FileNotFoundError("Draft unavailable")
     return script
-
-
-def released(name: str, inputs: dict[str, Any], initiator: str) -> Script:
-    """Load a reviewed source file and validate its inputs against the released contract."""
-    if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
-        raise ValueError("Invalid task name")
-    definition = json.loads((WORKFLOWS / f"{name}.json").read_text(encoding="utf-8"))
-    validate(inputs, definition["inputs"], format_checker=FormatChecker())
-    return Script(language=definition["language"],
-                  source=(WORKFLOWS / definition["source"]).read_text(encoding="utf-8"),
-                  inputs=inputs, owner=initiator, thread="", task_id=name)
 
 
 class Services:

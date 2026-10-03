@@ -93,16 +93,7 @@ def record_tool(settings: Settings, tool: FunctionTool) -> FunctionTool:
         source = ("async def run(services, inputs):\n"
             f"    result = await services.api.call({tool.name!r}, inputs)\n"
             "    return {'summary': 'API result', 'detail': result, 'coverage': 'partial'}\n")
-        if tool.name.startswith("diary_for_"):
-            source = ("from datetime import datetime, timedelta, date\n"
-                "from dental_practice_admin.tasks import PRACTICE_TZ, daily_diary\n"
-                "async def run(services, inputs):\n"
-                "    day = (date.fromisoformat(inputs['on_date']) if 'on_date' in inputs\n"
-                "           else datetime.now(PRACTICE_TZ).date() + timedelta(days=1))\n"
-                "    report = await daily_diary(services.api, day)\n"
-                "    return {'summary': report.summary(), 'detail': report.as_detail(),\n"
-                "            'coverage': report.coverage.value}\n")
-        elif tool.name == "firestore_read":
+        if tool.name == "firestore_read":
             source = ("import json\nasync def run(services, inputs):\n"
                 "    query = inputs.get('query_json')\n"
                 "    result = await services.firestore.read(inputs['path'],\n"

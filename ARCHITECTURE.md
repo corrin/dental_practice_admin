@@ -172,7 +172,7 @@ dental_practice_admin/
     chat.py                # ChatKit server and agent tools
     principle.py           # Documented API access and configuration
     browser.py             # Task-specific Playwright routines
-    tasks.py               # Business operations and command-line entry point
+    schedules.py           # Application schedules and the due-task entry point
     storage.py             # Chat persistence and task-run records
     templates/             # Small staff pages
   tests/

@@ -53,7 +53,7 @@ Check 'Application schedule launcher is configured for unattended execution' {
         throw 'task does not use the installed interpreter'
     }
     if ($action.WorkingDirectory -ne $InstallRoot -or
-        $action.Arguments -ne '-m dental_practice_admin.tasks run-due') {
+        $action.Arguments -ne '-m dental_practice_admin.schedules') {
         throw 'task does not invoke the installed due-task runner'
     }
     $pollSeconds = & $expected -c 'from dental_practice_admin.schedules import POLL_SECONDS; print(POLL_SECONDS)'

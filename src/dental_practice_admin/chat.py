@@ -13,19 +13,15 @@ Two rules the tools obey, both tested rather than trusted:
   * **Practice scope comes from configuration, never from the model.** A tool signature that
     accepted a practice id would let a prompt widen what it can read, and the model's arguments
     are the least trustworthy input in the system.
-  * **Chat and the command line call the same function.** `daily_diary` is the operation; this
-    module is a thin wrapper over it, so what the tests prove about it holds for both.
 """
 
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
 from importlib.metadata import distribution
 
-from agents import Agent, RunConfig, Runner, function_tool
+from agents import Agent, RunConfig, Runner
 from agents.models.interface import Model
 from agents.models.openai_responses import OpenAIResponsesModel
 from chatkit.agents import AgentContext, ThreadItemConverter, stream_agent_response
@@ -39,8 +35,7 @@ from dental_practice_admin.automation import record_tool
 from dental_practice_admin.automation import tools as automation_tools
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import ConfigurationError, Settings
-from dental_practice_admin.principle import PrincipleClient, api_tools
-from dental_practice_admin.tasks import PRACTICE_TZ, DiaryReport, daily_diary
+from dental_practice_admin.principle import api_tools
 
 # How much history the agent is given. Bounded because a year of chat is neither affordable nor
 # useful; the whole conversation stays in the store either way.
@@ -55,7 +50,7 @@ Be brief and concrete. Staff are busy and mid-task.
 Warn only about evidenced problems affecting requested claims; resolve gaps before answering.
 Explain what remains missing and which claim it affects, rather than repeating a partial label.
 Absent labels do not prove completeness; irrelevant missing fields do not invalidate a count.
-Use diary tools for daily reports. For range totals, use run_script with services.api.rows to
+For reports and totals, use run_script with services.api.rows to
 finish pagination before calculating; failed remaining pages prevent complete totals.
 Count unique patients from patient IDs on complete appointments, without a directory search.
 Generated API results can be single pages or limited searches: neither page size nor meta.total
@@ -102,41 +97,9 @@ async def build_tools(deps: ChatDeps) -> list[object]:
     Each function here closes over `deps`, which is how practice scope reaches it without
     passing through the model.
     """
-
-    @function_tool
-    async def diary_for_date(on_date: str) -> str:
-        """Report the practice's appointments for one day.
-
-        Args:
-            on_date: The day to report, as YYYY-MM-DD in the practice's local time.
-
-        """
-        try:
-            day = date.fromisoformat(on_date)
-        except ValueError:
-            return f"{on_date!r} is not a date in YYYY-MM-DD form."
-        return _describe(await _diary(deps, day))
-
-    @function_tool
-    async def diary_for_tomorrow() -> str:
-        """Report the practice's appointments for tomorrow."""
-        tomorrow = datetime.now(tz=PRACTICE_TZ).date() + timedelta(days=1)
-        return _describe(await _diary(deps, tomorrow))
-
-    return [record_tool(deps.settings, tool) for tool in [diary_for_date, diary_for_tomorrow,
+    return [record_tool(deps.settings, tool) for tool in [
             *await api_tools(deps.settings, deps.transport),
             *automation_tools(deps.settings, deps.model)]]
-
-
-async def _diary(deps: ChatDeps, day: date) -> DiaryReport:
-    """The same operation the scheduled command runs, against the same client."""
-    async with PrincipleClient(deps.settings, transport=deps.transport) as client:
-        return await daily_diary(client, day)
-
-
-def _describe(report: DiaryReport) -> str:
-    """The report as text for the model, with coverage stated rather than implied."""
-    return json.dumps({"summary": report.summary(), **report.as_detail()})
 
 
 def model_for(settings: Settings) -> Model:

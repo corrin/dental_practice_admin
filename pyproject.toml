@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [project.scripts]
-dental-practice-admin = "dental_practice_admin.tasks:main"
+dental-practice-admin = "dental_practice_admin.schedules:main"
 
 [dependency-groups]
 dev = [

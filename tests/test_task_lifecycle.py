@@ -24,8 +24,8 @@ CONTRACT = {"type": "object", "properties": {"numbers": {"type": "array",
             "items": {"type": "number"}}}, "required": ["numbers"], "additionalProperties": False}
 
 
-def install_fake(root: Path) -> task_files.Definition:
-    definition = task_files.Definition(name="fake_report", title="Fake report",
+def install_fake(root: Path, name: str = "fake_report") -> task_files.Definition:
+    definition = task_files.Definition(name=name, title="Fake report",
         description="Synthetic arithmetic", inputs=CONTRACT)
     folder = settings(root).data_dir / "installed" / definition.name / REVISION
     folder.mkdir(parents=True)

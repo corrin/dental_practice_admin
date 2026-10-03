@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import os
 import shutil
 import socket
 import subprocess
 import sys
 import time
-from datetime import date
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -28,8 +26,6 @@ from dental_practice_admin.config import (
     SignIn,
     environment_suffix,
 )
-from dental_practice_admin.storage import Storage
-from dental_practice_admin.tasks import run_daily_diary
 
 ROOT = Path(__file__).resolve().parents[1]
 STAGING_ORIGIN = "https://massey-admin-dev.ngrok-free.app"
@@ -101,17 +97,6 @@ def wait_for_server(url: str, child: subprocess.Popen[bytes], statuses: set[int]
     raise TimeoutError(f"Server did not answer {url} within 45 seconds")
 
 
-def seed_runs(settings: Settings) -> None:
-    """Populate an empty fake run history from the fake's deterministic diary."""
-    store = Storage(settings.database_path)
-    try:
-        has_runs = bool(store.recent_runs(limit=1))
-    finally:
-        store.close()
-    if not has_runs:
-        asyncio.run(run_daily_diary(settings, date(2026, 9, 28), "fake-setup"))
-
-
 def run(settings: Settings) -> None:
     """Own the foreground processes and stop them if any required service exits."""
     children: list[subprocess.Popen[bytes]] = []
@@ -150,8 +135,6 @@ def run(settings: Settings) -> None:
             child = subprocess.Popen(command, cwd=ROOT, env=env)
             children.append(child)
             wait_for_server(f"http://127.0.0.1:{port}{path}", child, statuses)
-        if settings.environment is Environment.FAKE and settings.api_base_url == FAKE_SERVER_URL:
-            seed_runs(settings)
         if tunnel:
             children.append(
                 subprocess.Popen(
