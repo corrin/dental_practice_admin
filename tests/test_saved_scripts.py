@@ -1,5 +1,6 @@
 """Saving shares immutable code without repeating a live operation."""
 import json
+import shutil
 from contextlib import closing
 from pathlib import Path
 
@@ -111,3 +112,21 @@ def test_staff_flow_and_server_schedule_guard(tmp_path: Path) -> None:
         assert request["initiator"] == FAKE_STAFF
         with closing(Storage(configured.database_path)) as store:
             assert len(store.recent_runs()) == 1
+        reviewed = "b" * 40
+        shutil.copytree(path.parent, configured.data_dir / "installed" / DEFINITION.name / reviewed)
+        assert client.post("/tasks/schedule", json={**payload,
+            "revision": reviewed}).status_code == 200
+        assert path.parent.name not in client.get("/tasks/manage").text
+
+
+async def test_incomplete_result_cannot_be_saved(tmp_path: Path) -> None:
+    configured = settings(tmp_path)
+    script = scripts.Script(source=SOURCE.replace("'complete'", "'partial'"),
+        language="python", inputs={}, owner=FAKE_STAFF, thread="private")
+    identifier = saved_scripts.prepare(configured, script, DEFINITION, TESTS)
+    script = scripts.load_draft(configured, identifier, FAKE_STAFF)
+    script.inputs = {"marker": str(tmp_path / "marker")}
+    await scripts.run(configured, script, "draft:" + identifier)
+    assert not saved_scripts.tested(configured, identifier, script)
+    with pytest.raises(ValueError):
+        saved_scripts.save(configured, identifier, FAKE_STAFF, "Incomplete script")

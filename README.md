@@ -191,6 +191,22 @@ Open **Reports & scripts** from Results to run installed reports, inspect recent
 logs, or set automatic runs. Input contracts appear as labelled fields. Running a report shows
 activity immediately and opens its result when execution finishes.
 
+In chat, **Save to Reports & scripts** prepares the selected answer as a deterministic script.
+The preparation action can create files and run synthetic tests, but cannot execute against the
+practice. The **Test run** button explicitly runs the candidate with the entered inputs; **Save**
+requires successful execution of that exact source and never repeats it. An identical previously
+executed draft can reuse its evidence. Saved scripts are available to all signed-in staff while
+the source conversation and draft executions remain private. Reports and scripts are one type.
+
+**Request review for scheduling** records a local request in the saved version's
+`review-request.json`. Maintainers inspect pending requests under the environment's
+`saved/*/*/` directory, including source, input contract and synthetic tests. After checking for
+patient data, `saved_scripts.publish_review(settings, name, revision, True)` exports that
+version through the existing review process. This action sends no notification. Install the
+merged version with `task_files.install_existing`; the matching saved entry then gives way to
+the reviewed version and scheduling becomes available. Existing schedules retain their pins.
+Shared packages survive private draft cleanup. Back them up with the runtime data directory.
+
 Maintainers publish reviewed source, its input contract and synthetic tests using
 `task_files.publish`, then install merged revisions with `task_files.install_existing`.
 Configure `ADMIN_TASK_REPOSITORY` as `owner/private-repository` and `ADMIN_GITHUB_TOKEN` with

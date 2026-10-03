@@ -88,3 +88,17 @@ associate appointments with practitioner column headings without extracting pati
 Verified on staging, 2026-10-03, build `main.ecfbec0077a05029.js`: tomorrow's empty diary and
 a populated day both matched the calendar. Source provenance and local execution audits were
 also checked. Production acceptance remains separate.
+
+## Staff account report
+
+Workspace Users settings separates enabled accounts from disabled accounts. This is system
+access, not employment headcount; the practitioner API alone does not enumerate all staff.
+The disabled list is inside a collapsible container following its heading, whereas the active
+list is directly beside its heading. Selecting only the immediate sibling for both lists
+does not select the disabled navigation list.
+
+Verified on staging, 2026-10-03, by the private practice task
+[`count_staff_user_accounts`](https://github.com/massey-reception-coder/admin_scripts/pull/4).
+Its source owns the selectors and synthetic tests. The corrected candidate passed an explicit
+test run, was saved without another execution, and then ran from Reports & scripts with
+matching account totals. Runtime inputs, account identities and audits remain on the host.

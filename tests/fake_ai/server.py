@@ -23,6 +23,7 @@ against the vendor. Compatibility with the real API is what `-m llm` is for.
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Awaitable, Callable, MutableMapping
 from typing import Any
 from urllib.parse import urlparse
@@ -82,7 +83,7 @@ def _tool_outputs(sent_input: Any) -> list[str]:
 
 def _message(text: str) -> dict[str, Any]:
     return {
-        "id": "msg_fake",
+        "id": "msg_" + uuid.uuid4().hex,
         "type": "message",
         "role": "assistant",
         "status": "completed",

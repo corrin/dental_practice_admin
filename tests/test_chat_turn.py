@@ -150,6 +150,28 @@ async def test_the_assistant_reply_is_persisted(
     assert any("Dr " in str(item) for item in page.data)
 
 
+async def test_prepare_action_uses_only_the_preparation_tool(
+    chat_store: SqliteChatStore, chat_settings: Settings,
+) -> None:
+    from chatkit.actions import Action
+    from chatkit.types import AssistantMessageItem
+    ai = FakeAi()
+    thread_id = await _turn(chat_store, chat_settings, ai)
+    thread = await chat_store.load_thread(thread_id, STAFF)
+    items = await chat_store.load_thread_items(thread_id, None, 100, "desc", STAFF)
+    answer = next(item for item in items.data if isinstance(item, AssistantMessageItem))
+    server = StaffChatServer(chat_store, ChatDeps(chat_settings, fake_ai_model(ai)))
+    events = [event async for event in server.action(thread,
+        Action(type="prepare_script", payload={"answer_id": answer.id}), None, STAFF)]
+    assert "/tasks/prepare/" in str(events)
+    assert {tool["name"] for tool in ai.requests[-1]["tools"]} == {"prepare_script"}
+    other = StaffUser(email="other@fake.invalid", name="Other")
+    from dental_practice_admin.chat_store import ThreadNotFoundError
+    with pytest.raises(ThreadNotFoundError):
+        await anext(server.action(thread, Action(type="prepare_script",
+            payload={"answer_id": answer.id}), None, other))
+
+
 async def test_generated_tool_result_reaches_the_model_and_saved_reply(
     chat_store: SqliteChatStore,
     chat_settings: Settings,

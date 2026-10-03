@@ -16,7 +16,7 @@ from jsonschema import FormatChecker, validate
 from dental_practice_admin import scripts, task_files
 from dental_practice_admin.audit import Audit
 from dental_practice_admin.config import Settings
-from dental_practice_admin.storage import Outcome, Storage
+from dental_practice_admin.storage import Coverage, Outcome, Storage
 
 
 def candidate(settings: Settings, identifier: str,
@@ -53,7 +53,7 @@ def prepare(settings: Settings, script: scripts.Script, definition: task_files.D
             env={key: value for key, value in os.environ.items()
                  if key.upper() in {"SYSTEMROOT", "TEMP", "TMP", "PATH"}},
             capture_output=True, text=True, timeout=30)
-        if result.returncode or "Ran 0 tests" in result.stderr:
+        if result.returncode or "Ran 0 tests" in result.stderr or "skipped=" in result.stderr:
             raise ValueError("Synthetic tests did not pass: " + result.stderr[-2000:])
     path.write_text(json.dumps(data), encoding="utf-8")
     return identifier
@@ -62,8 +62,9 @@ def prepare(settings: Settings, script: scripts.Script, definition: task_files.D
 def tested(settings: Settings, identifier: str, script: scripts.Script) -> bool:
     """Only successful execution of this immutable source counts as evidence."""
     with closing(Storage(settings.database_path)) as store:
-        rows = store.db.execute("SELECT run_id FROM task_runs WHERE task=? AND outcome=?",
-                                ("draft:" + identifier, Outcome.SUCCEEDED.value))
+        rows = store.db.execute("SELECT run_id FROM task_runs WHERE task=? AND outcome=? "
+                               "AND coverage=?", ("draft:" + identifier,
+                                Outcome.SUCCEEDED.value, Coverage.COMPLETE.value))
         for row in rows:
             audit = settings.data_dir / "audits" / (row[0] + ".jsonl")
             if not audit.exists():

@@ -128,6 +128,14 @@ def prepare_page(identifier: str, request: Request, staff: CurrentStaff) -> Any:
         script, data = saved_scripts.candidate(settings, identifier, staff.email)
     except FileNotFoundError as error:
         raise HTTPException(404) from error
+    from contextlib import closing
+
+    from dental_practice_admin.storage import Storage
+    with closing(Storage(settings.database_path)) as store:
+        row = store.db.execute("SELECT run_id FROM task_runs WHERE task=? "
+            "ORDER BY started_at DESC LIMIT 1", ("draft:" + identifier,)).fetchone()
+        latest = store.run(row[0]) if row else None
     return TEMPLATES.TemplateResponse(request, "prepare.html", {
         "staff": staff, "is_fake": settings.environment.value == "fake", "candidate": data,
-        "identifier": identifier, "tested": saved_scripts.tested(settings, identifier, script)})
+        "identifier": identifier, "latest": latest,
+        "tested": saved_scripts.tested(settings, identifier, script)})

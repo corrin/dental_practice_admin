@@ -86,7 +86,7 @@ source or tests. Drafts are trusted code, not a sandbox. Pass the returned
 task_id to run_script when refining the same task. Draft branches and audits stay local.
 Scripts saved through the Save to Reports & scripts action are available for manual reuse.
 Staff use Reports & scripts for results and schedules; task publication is handled separately.
-run_task needs an installed revision.
+run_task needs a saved or installed revision.
 """.strip()
 
 
@@ -218,7 +218,8 @@ class StaffChatServer(ChatKitServer[StaffUser]):
                     self.deps.settings, script,
                     task_files.Definition.model_validate_json(definition_json),
                     tests, previous_draft)
-                return f"[Test and save this script](/tasks/prepare/{identifier})"
+                return ("Synthetic tests passed. Preparation did not run the practice script. "
+                        f"[Test and save this script](/tasks/prepare/{identifier})")
 
             evidence = []
             for path in (self.deps.settings.data_dir / "drafts").glob("*.json"):
@@ -235,11 +236,14 @@ class StaffChatServer(ChatKitServer[StaffUser]):
                         evidence[-1]["execution_evidence"] = (
                             audit.read_text(encoding="utf-8")[-60000:])
             agent.tools = [prepare_script]
-            agent.instructions = INSTRUCTIONS + """
+            agent.instructions = str(agent.instructions) + """
 Prepare a repeatable script for the selected answer. Do not execute anything. Use prepare_script
 to provide complete deterministic code, its plain-language purpose and synthetic unittest tests.
 Describe changes precisely for scripts that modify records. Do not include real record values in
 source, tests, description or schema defaults/examples; expose those values as input fields.
+Keep staff options about their work. Derive the environment from services.settings in Python or
+page.url() in Playwright; never ask staff for a base URL, credentials or practice identifiers.
+Preserve the requested output: a count must calculate and return a count, not just list records.
 Reuse a previous draft only if it already computes the requested result with identical source.
 Browser exploration is evidence, not runnable source. If evidence is insufficient, explain what
 needs to be established in chat rather than inventing selectors or claiming a script is tested.
