@@ -1,6 +1,7 @@
 """File-backed development and approved local execution, independent of GitHub."""
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -37,7 +38,7 @@ def test_local_refinements_share_history_without_any_remote(tmp_path: Path) -> N
     configured = settings(tmp_path)
     first = draft()
     first_id = scripts.save_draft(configured, first)
-    second = first.model_copy(update={"source": SOURCE + "\n# Synthetic refinement\n"})
+    second = first.model_copy(update={"source": SOURCE + "\n# Synthetic fixture inputs.\n"})
     second_id = scripts.save_draft(configured, second)
     assert first.task_id == second.task_id
     assert scripts.load_draft(configured, first_id, first.owner).source == SOURCE
@@ -101,7 +102,7 @@ async def test_due_runs_use_local_approved_files_and_do_not_repeat(tmp_path: Pat
         pytest.fail("Runtime execution attempted Git/GitHub access")
 
     monkeypatch.setattr(task_files, "repository", unavailable)
-    monkeypatch.setattr(task_files, "Repo", unavailable)
+    monkeypatch.setenv("GIT_PYTHON_GIT_EXECUTABLE", "fake-missing-git")
     assert await schedules.run_due(configured, at) == 0
     assert await schedules.run_due(configured, at) == 0
     store = Storage(configured.database_path)
@@ -124,7 +125,7 @@ async def test_missed_occurrence_is_visible_and_not_executed(tmp_path: Path) -> 
     at = datetime(2026, 10, 4, 3, 10, tzinfo=UTC)
     with schedules.open_schedules(configured) as scheduler:
         scheduler.get_job(schedule.id).modify(next_run_time=at - timedelta(minutes=10))
-    assert await schedules.run_due(configured, at) == 0
+    assert await schedules.run_due(configured, at) == 1
     store = Storage(configured.database_path)
     try:
         assert [run.outcome for run in store.recent_runs()] == [Outcome.MISSED]
@@ -167,7 +168,8 @@ def test_cleanup_expires_only_inactive_unsubmitted_drafts(tmp_path: Path) -> Non
     (task_files.folder_for(configured, reviewed.task_id) / "review.json").write_text("{}")
     Audit(configured, "retained").write("started", source=SOURCE)
     task_files.cleanup(configured)
-    assert not task_files.folder_for(configured, expired.task_id).exists()
+    with Repo(task_files.folder_for(configured, expired.task_id)) as repo:
+        assert not repo.heads
     assert task_files.folder_for(configured, active.task_id).exists()
     assert task_files.folder_for(configured, reviewed.task_id).exists()
     assert (configured.data_dir / "audits" / "retained.jsonl").exists()
@@ -247,5 +249,53 @@ async def test_restart_marks_abandoned_occurrence_uncertain_without_replaying(
         await schedules.run_due(configured)
         assert store.run(identifier).outcome is Outcome.UNCERTAIN  # type: ignore[union-attr]
         assert len(store.recent_runs()) == 1
+    finally:
+        store.close()
+
+
+async def test_schedule_management_does_not_wait_for_a_running_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    schedule = schedules.Schedule(name="fake_report", revision=REVISION, inputs={"numbers": [2]})
+    schedules.save(configured, schedule, "fake-staff")
+    at = datetime.now(UTC)
+    with schedules.open_schedules(configured) as scheduler:
+        scheduler.get_job(schedule.id).modify(next_run_time=at)
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def work(*args: Any) -> scripts.Result:
+        started.set()
+        await release.wait()
+        return scripts.Result(summary="fake", detail={}, coverage="complete")  # type: ignore[arg-type]
+
+    def read_schedules() -> int:
+        with schedules.open_schedules(configured) as scheduler:
+            return len(scheduler.get_jobs())
+
+    monkeypatch.setattr(scripts, "worker_run", work)
+    running = asyncio.create_task(schedules.run_due(configured, at))
+    try:
+        await asyncio.wait_for(started.wait(), 5)
+        assert await asyncio.wait_for(asyncio.to_thread(read_schedules), 3) == 1
+    finally:
+        release.set()
+        await running
+
+
+async def test_long_missed_interval_is_reported_without_building_a_backlog(tmp_path: Path) -> None:
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    schedule = schedules.Schedule(name="fake_report", revision=REVISION,
+                                  inputs={"numbers": [2]}, minutes=5)
+    schedules.save(configured, schedule, "fake-staff")
+    at = datetime.now(UTC)
+    with schedules.open_schedules(configured) as scheduler:
+        scheduler.get_job(schedule.id).modify(next_run_time=at - timedelta(days=90))
+    assert await schedules.run_due(configured, at) == 1
+    store = Storage(configured.database_path)
+    try:
+        assert [r.outcome for r in store.recent_runs()] == [Outcome.MISSED]
     finally:
         store.close()

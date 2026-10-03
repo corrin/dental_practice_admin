@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-16"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!-- One unattended launcher; business schedules live in the application's local database. -->
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo><Description>Check application schedules every five minutes.</Description>
@@ -11,7 +11,7 @@
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <StartWhenAvailable>true</StartWhenAvailable><Enabled>true</Enabled>
-    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <ExecutionTimeLimit>PT30M</ExecutionTimeLimit>
   </Settings>
   <Actions Context="Author"><Exec>
     <Command>C:\Program Files\DentalPracticeAdmin\.venv\Scripts\python.exe</Command>

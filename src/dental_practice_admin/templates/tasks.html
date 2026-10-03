@@ -1,23 +1,26 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block body %}
-<p><a href="/">Results</a> Â· <a href="/chat">Chat</a></p>
+<p><a href="/">Results</a> &middot; <a href="/chat">Chat</a></p>
 <h1>Tasks and schedules</h1>
+{% if not launcher_recent %}
+<p class="banner">The launcher has not completed a recent check. Last check: {{ launcher_checked or 'none' }}. Check the host's Task runner.</p>
+{% endif %}
 <p id="status" role="status"></p>
 <h2>Approved tasks</h2>
 <form id="task-form">
   <label>Task and version <select id="task" required>
-  {% for task in installed %}<option value="{{ loop.index0 }}">{{ task.title }} â€” {{ task.revision[:8] }}</option>{% endfor %}
+  {% for task in installed %}<option value="{{ loop.index0 }}">{{ task.title }} &mdash; {{ task.revision[:8] }}</option>{% endfor %}
   </select></label>
   <p id="input-help"></p>
   <label>Inputs (JSON) <textarea id="inputs" required>{}</textarea></label>
   <button type="submit">Run now</button>
-  <fieldset><legend>Schedule â€” Auckland time</legend>
+  <fieldset><legend>Schedule &mdash; Auckland time</legend>
     <input id="schedule-id" type="hidden">
     <label>Time <input id="at" type="time" value="16:00" required></label>
     <label>Days <select id="weekdays"><option value="mon-fri">Weekdays</option><option value="*">Every day</option><option value="mon">Monday</option><option value="tue">Tuesday</option><option value="wed">Wednesday</option><option value="thu">Thursday</option><option value="fri">Friday</option><option value="sat">Saturday</option><option value="sun">Sunday</option></select></label>
     <label>Or repeat every <input id="minutes" type="number" min="0" step="5" value="0"> minutes (0 uses time and days)</label>
     <button type="button" id="save-schedule">Save schedule</button>
-    <button type="button" onclick="document.getElementById('schedule-id').value=''">New schedule</button>
+    <button type="button" onclick="el('schedule-id').value=''">New schedule</button>
   </fieldset>
 </form>
 <h2>Schedules</h2>
@@ -29,9 +32,12 @@
 <h2>Your drafts</h2>
 <p>Drafts and run audits stay on this computer. Only reviewed source, its input contract and synthetic tests are submitted to the private repository.</p>
 {% for draft in drafts %}
-<details><summary>Draft {{ draft.task_id[:8] }} â€” {{ draft.revision[:8] }}</summary>
+<details><summary>Draft {{ draft.task_id[:8] }} &mdash; {{ draft.revision[:8] }}</summary>
 <p><a href="/drafts/{{ draft.id }}">Download source</a></p><pre>{{ draft.source }}</pre>
-{% if draft.reusable %}
+{% if draft.review %}
+<p><a href="{{ draft.review.url }}">Open review PR</a></p>
+<button onclick="change('install', {task_id:'{{ draft.task_id }}'})">Check review and install</button>
+{% elif draft.reusable %}
 <form class="review" data-draft="{{ draft.id }}" data-language="{{ draft.language }}">
 <label>Task name <input name="name" pattern="[a-z][a-z0-9_]{0,63}" required></label>
 <label>Title <input name="title" required></label><label>Description <input name="description" required></label>
@@ -40,27 +46,73 @@
 <label><input type="checkbox" name="checked" required>I checked the source, contract and tests for patient details and credentials.</label>
 <button type="submit">Create review PR</button>
 </form>{% else %}<p>Browser exploration needs a deterministic script before review.</p>{% endif %}
-<button onclick="change('install', {task_id:'{{ draft.task_id }}'})">Check review and install</button>
 </details>{% endfor %}
 <script>
 const tasks = {{ installed|tojson }}, jobs = {{ jobs|tojson }};
 const el = id => document.getElementById(id);
 async function change(action, payload) {
-  el('status').textContent = 'Workingâ€¦';
+  el('status').textContent = 'Working...';
   try {
-    const response = await fetch('/tasks/' + action, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-    if (!response.ok) throw new Error('Action failed (' + response.status + '). Check the task, inputs and review state; a run may need inspection in Results.');
+    const response = await fetch('/tasks/' + action, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(typeof error.detail === 'string' ? error.detail :
+        'Action failed. Check inputs and inspect Results before retrying a run.');
+    }
     const result = await response.json();
-    if (result.url) location.href = result.url; else location.reload();
+    if (result.url) location.href = result.url;
+    else location.reload();
   } catch(error) { el('status').textContent = error.message; }
 }
-function taskInputs() { const task = tasks[el('task').value]; return {name:task.name, revision:task.revision, inputs:JSON.parse(el('inputs').value)}; }
-function inputHelp() { el('input-help').textContent = tasks.length ? 'Input contract: ' + JSON.stringify(tasks[el('task').value].inputs) : 'No approved tasks installed yet.'; }
-el('task').onchange = inputHelp; inputHelp();
-el('task-form').onsubmit = event => { event.preventDefault(); try { change('run', taskInputs()); } catch(error) { el('status').textContent = error.message; } };
-el('save-schedule').onclick = () => { try { const data = {...taskInputs(), at:el('at').value, weekdays:el('weekdays').value, minutes:Number(el('minutes').value)}; if(el('schedule-id').value) { data.id=el('schedule-id').value; data.paused=jobs.find(j=>j.id===data.id).next==='Paused'; } change('schedule', data); } catch(error) { el('status').textContent=error.message; } };
-function editSchedule(index) { const job=jobs[index]; el('schedule-id').value=job.id; el('task').value=tasks.findIndex(t=>t.name===job.name && t.revision===job.revision); el('inputs').value=JSON.stringify(job.inputs); el('at').value=job.at; el('minutes').value=job.minutes; el('weekdays').value=job.weekdays; inputHelp(); el('task-form').scrollIntoView(); }
-document.querySelectorAll('form.review').forEach(form => form.onsubmit = event => { event.preventDefault(); try { const data=new FormData(form); change('review', {draft_id:form.dataset.draft, definition:{name:data.get('name'), title:data.get('title'), description:data.get('description'), language:form.dataset.language, inputs:JSON.parse(data.get('schema'))}, tests:data.get('tests'), checked_for_patient_data:data.get('checked')==='on'}); } catch(error) { el('status').textContent=error.message; } });
+function taskInputs() {
+  const task = tasks[el('task').value];
+  return {name:task.name, revision:task.revision, inputs:JSON.parse(el('inputs').value)};
+}
+function inputHelp() {
+  el('input-help').textContent = tasks.length
+    ? 'Input contract: ' + JSON.stringify(tasks[el('task').value].inputs)
+    : 'No approved tasks installed yet.';
+}
+el('task').onchange = inputHelp;
+inputHelp();
+el('task-form').onsubmit = event => {
+  event.preventDefault();
+  try { change('run', taskInputs()); }
+  catch(error) { el('status').textContent = error.message; }
+};
+el('save-schedule').onclick = () => {
+  try {
+    const data = {...taskInputs(), at:el('at').value,
+      weekdays:el('weekdays').value, minutes:Number(el('minutes').value)};
+    if(el('schedule-id').value) {
+      data.id = el('schedule-id').value;
+      data.paused = jobs.find(j => j.id === data.id).next === 'Paused';
+    }
+    change('schedule', data);
+  } catch(error) { el('status').textContent = error.message; }
+};
+function editSchedule(index) {
+  const job = jobs[index];
+  el('schedule-id').value = job.id;
+  el('task').value = tasks.findIndex(t => t.name === job.name && t.revision === job.revision);
+  el('inputs').value = JSON.stringify(job.inputs);
+  el('at').value = job.at;
+  el('minutes').value = job.minutes;
+  el('weekdays').value = job.weekdays;
+  inputHelp();
+  el('task-form').scrollIntoView();
+}
+document.querySelectorAll('form.review').forEach(form => form.onsubmit = event => {
+  event.preventDefault();
+  try {
+    const data = new FormData(form);
+    change('review', {draft_id:form.dataset.draft, definition:{
+      name:data.get('name'), title:data.get('title'), description:data.get('description'),
+      language:form.dataset.language, inputs:JSON.parse(data.get('schema'))},
+      tests:data.get('tests'), checked_for_patient_data:data.get('checked') === 'on'});
+  } catch(error) { el('status').textContent = error.message; }
+});
 </script>
 {% endblock %}
-

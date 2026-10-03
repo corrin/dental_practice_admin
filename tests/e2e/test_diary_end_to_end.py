@@ -63,12 +63,12 @@ def test_the_run_appears_on_the_page_with_the_right_numbers(
     expect(page.get_by_test_id("fake-banner")).to_be_visible()
     expect(page.get_by_test_id("task-name")).to_have_text("Daily diary")
 
-    rows = page.get_by_test_id("run-row")
+    rows = page.get_by_test_id("run-row").filter(has_text="daily_diary")
     expect(rows).to_have_count(1)
-    expect(page.get_by_test_id("run-outcome")).to_have_text("succeeded")
-    expect(page.get_by_test_id("run-coverage")).to_have_count(0)
+    expect(rows.get_by_test_id("run-outcome")).to_have_text("succeeded")
+    expect(rows.get_by_test_id("run-coverage")).to_have_count(0)
 
-    page.get_by_test_id("run-link").click()
+    rows.get_by_test_id("run-link").click()
     expect(page.get_by_test_id("run-title")).to_have_text("daily_diary")
     expect(page.get_by_test_id("not-complete-warning")).to_have_count(0)
     expect(page.get_by_test_id("run-principle")).to_have_text("fake")
@@ -82,10 +82,11 @@ def test_the_run_appears_on_the_page_with_the_right_numbers(
     assert "cancelled" in status_table
 
 
-def test_the_page_never_offers_a_next_run_time(page: Page, spine: dict[str, str]) -> None:
-    """Windows owns the schedule, and the rendered page must not imply otherwise."""
+def test_results_link_to_application_schedules(page: Page, spine: dict[str, str]) -> None:
+    """Staff reach the application's own schedule controls from results."""
     page.goto(spine["APP_URL"])
-    assert "next run" not in page.content().lower()
+    page.get_by_role("link", name="Manage task files, reviews and schedules").click()
+    expect(page.get_by_role("columnheader", name="Next due")).to_be_visible()
 
 
 def test_an_unknown_run_is_not_rendered_as_an_empty_report(

@@ -141,15 +141,10 @@ def test_compatible_pages_have_no_interface_warning(pages: Pages) -> None:
     assert 'data-automation-id="principle-interface-warning"' not in pages.client.get("/").text
 
 
-def test_no_page_claims_a_next_run_time(pages: Pages) -> None:
-    """Windows owns the schedule.
-
-    A next-run time computed here would be a second schedule definition, and it would go on
-    displaying a time after someone changed or disabled the real task.
-    """
+def test_results_link_to_application_schedule_controls(pages: Pages) -> None:
+    """The application owns schedules and provides staff controls for them."""
     body = pages.client.get("/").text.lower()
-    assert "next run" not in body
-    assert "next scheduled" not in body
+    assert 'href="/tasks/manage"' in body
 
 
 def test_a_partial_run_is_flagged_on_its_page(pages: Pages) -> None:

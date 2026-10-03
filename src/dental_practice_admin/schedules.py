@@ -11,7 +11,7 @@ from typing import Any
 
 import portalocker
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.base import BaseScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from pydantic import BaseModel, Field, model_validator
@@ -25,12 +25,27 @@ POLL_SECONDS = 300
 TIMEZONE = "Pacific/Auckland"
 
 
+class ScheduleStore(BaseScheduler):  # type: ignore[misc]
+    """APScheduler's job API without a background execution loop.
+
+    BackgroundScheduler can process due jobs while waking to shut down. Only the explicit
+    launcher may claim work; viewing or editing schedules must never execute a task.
+    """
+
+    def wakeup(self) -> None:
+        """The Windows launcher supplies wakeups through run_due."""
+
+    def shutdown(self, wait: bool = True) -> None:
+        """Close the library's job stores and executors."""
+        super().shutdown(wait)
+
+
 @contextmanager
 def open_schedules(settings: Settings) -> Iterator[Any]:
     """Serialize APScheduler job-store access across web and launcher processes."""
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     with portalocker.Lock(str(settings.data_dir / "schedules.lock"), timeout=30):
-        scheduler = BackgroundScheduler(timezone=TIMEZONE, jobstores={"default":
+        scheduler = ScheduleStore(timezone=TIMEZONE, jobstores={"default":
             SQLAlchemyJobStore(url="sqlite:///" + settings.database_path.as_posix())})
         scheduler.start(paused=True)
         try:
@@ -93,7 +108,10 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
     observed_at = at or datetime.now(UTC)
     store = Storage(settings.database_path)
     failed = 0
+    pending = []
+    launcher = portalocker.Lock(str(settings.data_dir / "launcher.lock"), timeout=0)
     try:
+        launcher.acquire()
         with open_schedules(settings) as scheduler:
             interrupted = store.db.execute(
                 "SELECT run_id FROM task_runs WHERE initiator='scheduler' AND outcome='running'")
@@ -109,27 +127,43 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
                     if previous is None:
                         store.start_run(job.name, "scheduler", settings.environment.value,
                                         identifier)
-                    next_due = job.trigger.get_next_fire_time(due, due + timedelta(microseconds=1))
+                    late = (observed_at - due).total_seconds() > POLL_SECONDS
+                    next_due = (job.trigger.get_next_fire_time(
+                        None, observed_at - timedelta(seconds=POLL_SECONDS)) if late else
+                        job.trigger.get_next_fire_time(due, due + timedelta(microseconds=1)))
                     job.modify(next_run_time=next_due)
                     if previous is not None:
                         failed += int(previous.outcome is not Outcome.SUCCEEDED)
-                    elif ((at or datetime.now(UTC)) - due).total_seconds() > POLL_SECONDS:
-                        Audit(settings, identifier).write("missed", schedule=job.id, due=due)
+                    elif late:
+                        Audit(settings, identifier).write("missed", schedule=job.id,
+                                                          due=due, until=next_due)
                         store.finish_run(identifier, Outcome.MISSED, Coverage.PARTIAL,
-                                         f"Missed scheduled execution: {due.isoformat()}")
+                                         f"Missed scheduled work from {due.isoformat()}")
+                        failed += 1
                     else:
-                        try:
-                            script = task_files.load(settings, job.args[0], job.args[1],
-                                                     job.args[2], "scheduler")
-                            await scripts.recorded(settings, script, job.name,
-                                partial(scripts.worker_run, settings, script), identifier)
-                        except Exception:
-                            Audit(settings, identifier).write("failed", schedule=job.id)
-                            store.finish_run(identifier, Outcome.UNCERTAIN, Coverage.PARTIAL,
-                                             "Scheduled execution incomplete; inspect its audit")
-                            failed += 1
+                        pending.append((identifier, due, job))
                     due = next_due
-            Audit(settings, "launcher").write("checked", failures=failed)
+        for identifier, due, job in pending:
+            try:
+                if ((at or datetime.now(UTC)) - due).total_seconds() > POLL_SECONDS:
+                    Audit(settings, identifier).write("missed", schedule=job.id, due=due)
+                    store.finish_run(identifier, Outcome.MISSED, Coverage.PARTIAL,
+                                     "Execution window passed while another task was running")
+                    failed += 1
+                    continue
+                script = task_files.load(settings, job.args[0], job.args[1],
+                                         job.args[2], "scheduler")
+                await scripts.recorded(settings, script, job.name,
+                    partial(scripts.worker_run, settings, script), identifier)
+                result = store.run(identifier)
+                failed += int(result is None or not result.is_trustworthy)
+            except Exception:
+                Audit(settings, identifier).write("failed", schedule=job.id)
+                store.finish_run(identifier, Outcome.UNCERTAIN, Coverage.PARTIAL,
+                                 "Scheduled execution incomplete; inspect its audit")
+                failed += 1
+        Audit(settings, "launcher").write("checked", failures=failed)
     finally:
+        launcher.release()
         store.close()
     return int(failed > 0)

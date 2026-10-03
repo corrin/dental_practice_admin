@@ -1,10 +1,13 @@
 """Staff controls for local drafts, approved tasks, reviews and schedules."""
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from typing import Any
 
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import APIRouter, HTTPException, Request
+from jsonschema import ValidationError as SchemaError
 
 from dental_practice_admin import schedules, scripts, task_files
 from dental_practice_admin.audit import Audit
@@ -19,13 +22,20 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
     from dental_practice_admin.app import TEMPLATES
     settings = request.app.state.settings
     task_files.cleanup(settings)
+    heartbeat = settings.data_dir / "audits" / "launcher.jsonl"
+    checked = datetime.fromtimestamp(heartbeat.stat().st_mtime, UTC) if heartbeat.exists() else None
+    recent = checked and (datetime.now(UTC) - checked).total_seconds() <= 2 * schedules.POLL_SECONDS
     drafts = {}
     paths = (settings.data_dir / "drafts").glob("*.json")
     for path in sorted(paths, key=lambda p: p.stat().st_mtime):
         draft = scripts.Script.model_validate_json(path.read_text(encoding="utf-8"))
-        if (draft.task_id and draft.owner == staff.email
-                and task_files.folder_for(settings, draft.task_id).exists()):
-            drafts[draft.task_id] = {"id": path.stem, **draft.model_dump()}
+        if not draft.task_id or draft.owner != staff.email:
+            continue
+        folder = task_files.folder_for(settings, draft.task_id)
+        if not (folder / "expired").exists() and not (folder / "installed").exists():
+            review = folder / "review.json"
+            drafts[draft.task_id] = {"id": path.stem, **draft.model_dump(),
+                "review": json.loads(review.read_text()) if review.exists() else None}
     installed = []
     for path in (settings.data_dir / "installed").glob("*/*/task.json"):
         definition, _ = task_files.installed(settings, path.parent.parent.name, path.parent.name)
@@ -43,7 +53,8 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
                 "weekdays": "*" if interval else fields["day_of_week"]})
     return TEMPLATES.TemplateResponse(request, "tasks.html", {
         "staff": staff, "is_fake": settings.environment.value == "fake",
-        "drafts": list(drafts.values()), "installed": installed, "jobs": jobs})
+        "drafts": list(drafts.values()), "installed": installed, "jobs": jobs,
+        "launcher_recent": recent, "launcher_checked": checked})
 
 
 @router.post("/tasks/{action}")
@@ -71,5 +82,9 @@ async def act(action: str, payload: dict[str, Any], request: Request, staff: Cur
         else:
             raise HTTPException(404)
         return {"saved": True}
-    except (ValueError, KeyError, FileNotFoundError) as error:
-        raise HTTPException(400, "Invalid task, inputs, or review state") from error
+    except SchemaError as error:
+        raise HTTPException(422, "Inputs do not match this task's input contract") from error
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    except (KeyError, FileNotFoundError) as error:
+        raise HTTPException(404, "Task or review unavailable") from error

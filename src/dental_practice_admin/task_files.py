@@ -10,8 +10,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 import portalocker
-from git import Actor, Repo
-from git.util import rmtree
 from github import Auth, Github, InputGitTreeElement, UnknownObjectException
 from jsonschema import Draft202012Validator, FormatChecker, validate
 from pydantic import BaseModel, Field, model_validator
@@ -49,12 +47,13 @@ def folder_for(settings: Settings, identifier: str) -> Path:
 def save(settings: Settings, source: str, metadata: dict[str, Any],
          task_id: str) -> tuple[str, str]:
     """Commit a draft locally without a remote, retaining one branch per task."""
+    from git import Actor, Repo
     identifier = task_id or uuid.uuid4().hex
     folder = folder_for(settings, identifier)
     folder.mkdir(parents=True, exist_ok=True)
     with portalocker.Lock(str(folder / "edit.lock"), timeout=30):
-        if (folder / "installed").exists():
-            raise ValueError("Start a new draft to refine an installed task")
+        if (folder / "installed").exists() or (folder / "expired").exists():
+            raise ValueError("Start a new draft to refine an installed or expired task")
         audit = Audit(settings, "draft-check")
         if audit.clean(source) != source:
             raise ValueError("Task source contains a configured credential")
@@ -93,10 +92,12 @@ def load(settings: Settings, name: str, revision: str, inputs: dict[str, Any], o
 
 def cleanup(settings: Settings, at: datetime | None = None) -> None:
     """Expire inactive local drafts; open reviews and execution evidence survive."""
+    from git import Repo
     cutoff = (at or datetime.now(UTC)) - timedelta(days=90)
     root = settings.data_dir / "task-drafts"
     for folder in root.glob("*"):
-        if not re.fullmatch(IDENTIFIER, folder.name) or (folder / "review.json").exists():
+        if (not re.fullmatch(IDENTIFIER, folder.name) or (folder / "review.json").exists()
+                or (folder / "expired").exists()):
             continue
         activity = folder / "activity"
         if not activity.is_file() or datetime.fromisoformat(activity.read_text()) >= cutoff:
@@ -104,12 +105,10 @@ def cleanup(settings: Settings, at: datetime | None = None) -> None:
         with portalocker.Lock(str(folder / "edit.lock"), timeout=0):
             if datetime.fromisoformat(activity.read_text()) >= cutoff:
                 continue
-            tombstone = folder / "expired"
-            tombstone.touch()
-        target = folder.resolve()
-        if target.parent != root.resolve() or folder.is_symlink():
-            raise ValueError("Draft cleanup escaped its data directory")
-        rmtree(str(target))
+            with Repo(folder) as repo:
+                repo.head.reference = repo.head.commit
+                repo.delete_head("draft", force=True)
+            (folder / "expired").touch()
 
 
 class Review(BaseModel):
@@ -163,6 +162,7 @@ def publish(settings: Settings, review: Review, owner: str) -> str:
 
 def install(settings: Settings, task_id: str, owner: str) -> str:
     """Install only the merged PR's files, then retire its local development branch."""
+    from git import Repo
     folder = folder_for(settings, task_id)
     metadata = json.loads((folder / "draft.json").read_text(encoding="utf-8"))
     if metadata["owner"] != owner:
