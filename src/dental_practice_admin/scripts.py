@@ -7,20 +7,20 @@ import json
 import re
 import sys
 import uuid
-from pathlib import Path
+from collections.abc import Awaitable, Callable
+from importlib.metadata import version
 from typing import Any, Literal
 
-from jsonschema import FormatChecker, validate
+import portalocker
 from pydantic import BaseModel, SecretStr
 
 from dental_practice_admin import browser
+from dental_practice_admin.audit import Audit, recording
 from dental_practice_admin.config import Settings
 from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.principle import PrincipleClient
 from dental_practice_admin.processes import own_process_tree
 from dental_practice_admin.storage import Coverage, Outcome, Storage
-
-WORKFLOWS = Path(__file__).with_name("workflows")
 
 
 class Script(BaseModel):
@@ -31,6 +31,9 @@ class Script(BaseModel):
     inputs: dict[str, Any]
     owner: str
     thread: str
+    task_id: str = ""
+    revision: str = ""
+    reusable: bool = True
 
 
 class Result(BaseModel):
@@ -43,11 +46,15 @@ class Result(BaseModel):
 
 def save_draft(settings: Settings, script: Script) -> str:
     """Create a new immutable version; identifiers never contain caller-controlled paths."""
+    from dental_practice_admin.task_files import cleanup, save
+    cleanup(settings)
+    script.task_id, script.revision = save(settings, script.source,
+        script.model_dump(exclude={"source", "revision", "inputs"}), script.task_id)
     identifier = uuid.uuid4().hex
     folder = settings.data_dir / "drafts"
     folder.mkdir(parents=True, exist_ok=True)
     with (folder / f"{identifier}.json").open("x", encoding="utf-8") as output:
-        output.write(script.model_dump_json())
+        output.write(json.dumps(Audit(settings, identifier).clean(script.model_dump())))
     return identifier
 
 
@@ -60,17 +67,6 @@ def load_draft(settings: Settings, identifier: str, owner: str) -> Script:
     if script.owner != owner:
         raise FileNotFoundError("Draft unavailable")
     return script
-
-
-def released(name: str, inputs: dict[str, Any], initiator: str) -> Script:
-    """Load a reviewed source file and validate its inputs against the released contract."""
-    if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
-        raise ValueError("Invalid task name")
-    definition = json.loads((WORKFLOWS / f"{name}.json").read_text(encoding="utf-8"))
-    validate(inputs, definition["inputs"], format_checker=FormatChecker())
-    return Script(language=definition["language"],
-                  source=(WORKFLOWS / definition["source"]).read_text(encoding="utf-8"),
-                  inputs=inputs, owner=initiator, thread="")
 
 
 class Services:
@@ -106,8 +102,45 @@ async def execute(settings: Settings, script: Script) -> Result:
 
 async def run(settings: Settings, script: Script, task: str) -> str:
     """Record each attempt and stop the complete worker tree on cancellation."""
+    return await recorded(settings, script, task,
+                          lambda run_id: worker_run(settings, script, run_id))
+
+
+def execution_lock(settings: Settings, script: Script) -> portalocker.Lock:
+    """The executing process holds this lock, including if its launcher disappears."""
+    name = uuid.uuid5(uuid.NAMESPACE_URL, script.task_id or script.source).hex
+    folder = settings.data_dir / "locks"
+    folder.mkdir(parents=True, exist_ok=True)
+    return portalocker.Lock(str(folder / (name + ".lock")), timeout=0)
+
+
+async def recorded(settings: Settings, script: Script, task: str,
+                   operation: Callable[[str], Awaitable[Result]], run_id: str | None = None) -> str:
+    """File evidence precedes execution; SQLite indexes the same run for staff pages."""
+    identifier = run_id or uuid.uuid4().hex
+    audit = Audit(settings, identifier)
     storage = Storage(settings.database_path)
-    run_id = storage.start_run(task, script.owner, settings.environment.value)
+    run_id = run_id or storage.start_run(task, script.owner, settings.environment.value, identifier)
+    try:
+        audit.write("started", run_id=run_id, task=task, script=script.model_dump(),
+                    application=version("dental-practice-admin"), environment=settings.environment)
+        with recording(audit):
+            result = await operation(run_id)
+        audit.write("finished", result=result.model_dump())
+        storage.finish_run(run_id, Outcome.SUCCEEDED, result.coverage, result.summary,
+                           {**result.detail, "inputs": script.inputs, "revision": script.revision})
+        return run_id
+    except BaseException as error:
+        storage.finish_run(run_id, Outcome.UNCERTAIN, Coverage.PARTIAL,
+                           "Execution incomplete; inspect the audit before retrying")
+        audit.write("interrupted", error=type(error).__name__)
+        raise
+    finally:
+        storage.close()
+
+
+async def worker_run(settings: Settings, script: Script, run_id: str) -> Result:
+    """Execute trusted source in a supervised subprocess with its own audit context."""
     worker: asyncio.subprocess.Process | None = None
     try:
         values = settings.model_dump(mode="json")
@@ -115,7 +148,8 @@ async def run(settings: Settings, script: Script, task: str) -> str:
             value = getattr(settings, name)
             if isinstance(value, SecretStr):
                 values[name] = value.get_secret_value()
-        payload = json.dumps({"settings": values, "script": script.model_dump(mode="json")})
+        payload = json.dumps({"settings": values, "script": script.model_dump(mode="json"),
+                              "run_id": run_id})
         worker = await asyncio.create_subprocess_exec(
             sys.executable, "-m", "dental_practice_admin.scripts", "--worker",
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
@@ -123,19 +157,11 @@ async def run(settings: Settings, script: Script, task: str) -> str:
         stdout, _stderr = await worker.communicate(payload.encode())
         if worker.returncode:
             raise RuntimeError(f"Script failed ({stdout.decode().strip()}); inspect saved state")
-        result = Result.model_validate_json(stdout)
-        storage.finish_run(run_id, Outcome.SUCCEEDED, result.coverage, result.summary,
-                           {**result.detail, "inputs": script.inputs})
-        return run_id
-    except BaseException:
-        storage.finish_run(run_id, Outcome.UNCERTAIN, Coverage.PARTIAL,
-                           "Script interrupted or failed; completion has not been established")
-        raise
+        return Result.model_validate_json(stdout)
     finally:
         if worker is not None and worker.returncode is None:
             worker.kill()
             await worker.communicate()
-        storage.close()
 
 
 def main() -> int:
@@ -146,7 +172,8 @@ def main() -> int:
     settings.require_credentials()
     script = Script.model_validate(payload["script"])
     try:
-        with contextlib.redirect_stdout(sys.stderr):
+        with (contextlib.redirect_stdout(sys.stderr),
+              recording(Audit(settings, payload["run_id"])), execution_lock(settings, script)):
             result = asyncio.run(execute(settings, script))
     except Exception as error:
         print(type(error).__name__)

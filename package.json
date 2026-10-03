@@ -1,5 +1,7 @@
 {
   "dependencies": {
-    "@playwright/mcp": "0.0.83"
+    "@json-editor/json-editor": "2.17.2",
+    "@playwright/mcp": "0.0.83",
+    "bootstrap": "5.3.8"
   }
 }

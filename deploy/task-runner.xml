@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- One unattended launcher; business schedules live in the application's local database. -->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo><Description>Check application schedules every five minutes.</Description>
+    <URI>\Massey Smiles Admin\Task runner</URI></RegistrationInfo>
+  <Triggers><TimeTrigger><Repetition><Interval>PT5M</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition>
+    <StartBoundary>2026-10-03T00:00:00</StartBoundary><Enabled>true</Enabled></TimeTrigger></Triggers>
+  <Principals><Principal id="Author"><LogonType>Password</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <StartWhenAvailable>true</StartWhenAvailable><Enabled>true</Enabled>
+    <ExecutionTimeLimit>PT30M</ExecutionTimeLimit>
+  </Settings>
+  <Actions Context="Author"><Exec>
+    <Command>C:\Program Files\DentalPracticeAdmin\.venv\Scripts\python.exe</Command>
+    <Arguments>-m dental_practice_admin.schedules</Arguments>
+    <WorkingDirectory>C:\Program Files\DentalPracticeAdmin</WorkingDirectory>
+  </Exec></Actions>
+</Task>

@@ -3,12 +3,12 @@
 {% block body %}
 <p><a href="/">&larr; All runs</a></p>
 <h1 data-automation-id="run-title">{{ run.task }}</h1>
+{% if has_audit %}<p><a href="/runs/{{ run.run_id }}/audit">Download local execution audit</a></p>{% endif %}
 
 {% if not run.is_trustworthy %}
 <p class="banner" data-automation-id="not-complete-warning">
   This run is <strong>{{ run.outcome.value }}</strong> with <strong>{{ run.coverage.value }}</strong>
   coverage. Completion has not been established.
-  {% if run.detail and run.detail.coverageNote %}<br>{{ run.detail.coverageNote }}{% endif %}
 </p>
 {% endif %}
 
@@ -21,32 +21,7 @@
   <dt>Summary</dt><dd data-automation-id="run-summary">{{ run.summary }}</dd>
 </dl>
 
-{% if run.detail and run.detail.byPractitioner %}
-<h1>By practitioner</h1>
-<table data-automation-id="practitioner-table">
-  <tr><th>Practitioner</th><th>Booked</th><th>Attending</th><th>First</th><th>Last</th></tr>
-  {% for day in run.detail.byPractitioner %}
-  <tr data-automation-id="practitioner-row">
-    <td>{{ day.name }}</td>
-    <td>{{ day.appointments }}</td>
-    <td>{{ day.attending }}</td>
-    <td class="mono">{{ day.first_from or '' }}</td>
-    <td class="mono">{{ day.last_to or '' }}</td>
-  </tr>
-  {% endfor %}
-</table>
-{% endif %}
-
-{% if run.detail and run.detail.byStatus %}
-<h1>By status</h1>
-<table data-automation-id="status-table">
-  <tr><th>Status</th><th>Count</th></tr>
-  {% for status, count in run.detail.byStatus.items() %}
-  <tr><td>{{ status }}</td><td>{{ count }}</td></tr>
-  {% endfor %}
-</table>
-{% endif %}
-{% if run.detail and not run.detail.byPractitioner %}
+{% if run.detail %}
 <pre>{{ run.detail | tojson(indent=2) }}</pre>
 {% endif %}
 {% endblock %}

@@ -4,6 +4,8 @@
 <p><a href="/">&larr; Tasks and runs</a></p>
 <h1>Practice admin</h1>
 <p class="quiet">Ask questions or request changes to Principle records.</p>
+<button id="save-script" class="btn btn-outline-primary mb-3" disabled>Save to Reports & scripts</button>
+<p id="save-status" role="status"></p>
 
 <openai-chatkit id="chat" data-automation-id="chatkit" style="display:block;height:32rem"></openai-chatkit>
 
@@ -19,7 +21,17 @@
   // names no missing field. It is registered per domain with OpenAI; see
   // tests/smoke/ for the test that catches this going wrong again.
   customElements.whenDefined('openai-chatkit').then(() => {
-    document.getElementById('chat').setOptions({
+    const chat = document.getElementById('chat'), save = document.getElementById('save-script');
+    chat.addEventListener('chatkit.thread.change', event => { save.disabled = !event.detail.threadId; });
+    chat.addEventListener('chatkit.response.start', () => { save.disabled = true; });
+    chat.addEventListener('chatkit.response.end', () => { save.disabled = false; });
+    save.onclick = async () => {
+      save.disabled = true;
+      try { await chat.sendCustomAction({type:'prepare_script'}); }
+      catch(error) { document.getElementById('save-status').textContent = 'Preparation failed. Your conversation is saved; try again.'; }
+      finally { save.disabled = false; }
+    };
+    chat.setOptions({
       api: { url: '/chatkit', domainKey: {{ chatkit_domain_key | tojson }} },
     });
   });

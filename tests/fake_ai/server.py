@@ -11,8 +11,8 @@ One implementation, two ways in, exactly like `tests/fake/`:
                                       separate process pointed at it by OPENAI_BASE_URL
 
 **It decides, it does not replay.** Given the conversation so far it chooses what a model
-plausibly would: asked a question, call the diary tool; handed a tool result, summarise it. That
-makes a full chat turn — tool call, tool execution against the fake Principle, and an answer
+plausibly would: asked a question, call the practitioner tool; handed a tool result, summarise it.
+That makes a full chat turn — tool call, tool execution against the fake Principle, and an answer
 grounded in the result — run end to end with no network and no cost.
 
 What it deliberately does not do is prove anything about OpenAI. It answers in the Responses
@@ -23,7 +23,7 @@ against the vendor. Compatibility with the real API is what `-m llm` is for.
 from __future__ import annotations
 
 import json
-import re
+import uuid
 from collections.abc import Awaitable, Callable, MutableMapping
 from typing import Any
 from urllib.parse import urlparse
@@ -36,9 +36,6 @@ FAKE_AI_KEY = "fake-openai-key"
 # mistaken for one a model wrote.
 MARKER = "[simulated assistant]"
 
-DATE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
-
-
 class FakeAiUnhandledRequestError(NotImplementedError):
     """A call the fake AI has no answer for: add it, rather than guessing."""
 
@@ -50,24 +47,21 @@ def decide(body: dict[str, Any]) -> list[dict[str, Any]]:
 
       1. A tool result is present -> answer, quoting the result so the answer is grounded in what
          the tool actually returned rather than in anything invented here.
-      2. Otherwise -> call the diary tool, for the date mentioned if there is one.
+      2. Otherwise -> list the practice's practitioners.
     """
-    rendered = json.dumps(body.get("input", ""))
     tools = {tool.get("name") for tool in body.get("tools") or []}
 
     outputs = _tool_outputs(body.get("input"))
+    if "prepare_script" in tools and not any("/tasks/prepare/" in output for output in outputs):
+        from tests.test_saved_scripts import DEFINITION, SOURCE, TESTS
+        return [_function_call("prepare_script", {"source": SOURCE, "language": "python",
+            "definition_json": DEFINITION.model_dump_json(), "tests": TESTS,
+            "previous_draft": ""})]
     if outputs:
         return [_message(f"{MARKER} {' '.join(outputs)}")]
 
-    if "practitioners" in rendered.lower() and "listPractitioners" in tools:
+    if "listPractitioners" in tools:
         return [_function_call("listPractitioners", {})]
-
-    if "diary_for_date" in tools:
-        found = DATE.search(rendered)
-        if found:
-            return [_function_call("diary_for_date", {"on_date": found.group(1)})]
-    if "diary_for_tomorrow" in tools:
-        return [_function_call("diary_for_tomorrow", {})]
     if tools:
         raise FakeAiUnhandledRequestError(
             f"the fake AI has no behaviour for tools {sorted(tools)}; teach it in"
@@ -89,7 +83,7 @@ def _tool_outputs(sent_input: Any) -> list[str]:
 
 def _message(text: str) -> dict[str, Any]:
     return {
-        "id": "msg_fake",
+        "id": "msg_" + uuid.uuid4().hex,
         "type": "message",
         "role": "assistant",
         "status": "completed",

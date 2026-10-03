@@ -141,15 +141,27 @@ def test_compatible_pages_have_no_interface_warning(pages: Pages) -> None:
     assert 'data-automation-id="principle-interface-warning"' not in pages.client.get("/").text
 
 
-def test_no_page_claims_a_next_run_time(pages: Pages) -> None:
-    """Windows owns the schedule.
-
-    A next-run time computed here would be a second schedule definition, and it would go on
-    displaying a time after someone changed or disabled the real task.
-    """
+def test_results_link_to_application_schedule_controls(pages: Pages) -> None:
+    """The application owns schedules and provides staff controls for them."""
     body = pages.client.get("/").text.lower()
-    assert "next run" not in body
-    assert "next scheduled" not in body
+    assert 'href="/tasks/manage"' in body
+
+
+def test_frequent_runs_do_not_hide_other_scripts(pages: Pages) -> None:
+    store = pages.store
+    weekly = [store.start_run(f"weekly_{n}", "fake-user", "fake") for n in range(6)]
+    frequent = [store.start_run("phone_standardiser", "fake-user", "fake") for _ in range(60)]
+    store.finish_run(frequent[-1], Outcome.FAILED, Coverage.PARTIAL, "Latest attempt failed")
+    draft = store.start_run("draft:private", "fake-user", "fake")
+    response = pages.client.get("/tasks/manage")
+    assert response.status_code == 200
+    for run_id in [*weekly, frequent[-1]]:
+        assert f'href="/runs/{run_id}"' in response.text
+    for run_id in [*frequent[:-1], draft]:
+        assert f'href="/runs/{run_id}"' not in response.text
+    assert "Latest attempt failed" in response.text
+    assert "Needs attention" in response.text
+    assert store.run(frequent[0]) is not None
 
 
 def test_a_partial_run_is_flagged_on_its_page(pages: Pages) -> None:

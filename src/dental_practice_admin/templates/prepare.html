@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Save to Reports & scripts{% endblock %}
+{% block body %}
+<p><a href="/chat">Back to chat</a></p>
+<h1 class="h3">Save to Reports & scripts</h1>
+<p>{{ candidate.definition.description }}</p>
+<label for="title" class="form-label">Name</label>
+<input id="title" class="form-control mb-3" value="{{ candidate.definition.title }}" required>
+<p>This script will be available to everyone at the practice. Scheduling requires review.</p>
+{% if tested %}<p class="alert alert-success">This exact script has run successfully. Saving will not run it again.</p>
+{% else %}<p class="alert alert-warning">A successful test run is needed before saving. Check what this script does and the options below before running it.</p>{% endif %}
+{% if latest %}<p>{{ latest.summary }} <a href="/runs/{{ latest.run_id }}">View test results & log</a></p>
+{% if not latest.is_trustworthy %}<p>Return to chat to correct the script before saving.</p>{% endif %}{% endif %}
+<div id="inputs"></div>
+<div class="d-flex gap-2 mt-3">
+<button id="test" class="btn btn-outline-primary" disabled>Test run</button>
+<button id="save" class="btn btn-primary" {{ 'disabled' if not tested }}>Save</button></div>
+<p id="status" role="status" class="mt-3"></p>
+<script src="/assets/forms.js" onerror="document.getElementById('status').textContent='The form could not load. Please refresh.'"></script>
+<script>
+const el = id => document.getElementById(id), schema = {{ candidate.definition.inputs|tojson }};
+const editor = new JSONEditor(el('inputs'), {schema, theme:'bootstrap5', disable_edit_json:true,
+  disable_properties:true, disable_collapse:true, show_errors:'interaction'});
+editor.on('ready', () => { el('test').disabled = false; });
+async function submit(action) {
+  el('status').textContent = action === 'test' ? 'Running the test… This may take a moment.' : 'Saving…';
+  el('test').disabled = el('save').disabled = true;
+  try {
+    const inputs = editor.getValue();
+    for(const key of Object.keys(inputs)) if(inputs[key] === '' && !(schema.required || []).includes(key)) delete inputs[key];
+    if(action === 'test' && editor.validate(inputs).length) throw new Error('Please check the options.');
+    const response = await fetch('/tasks/' + action, {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({draft_id:{{ identifier|tojson }}, title:el('title').value, inputs})});
+    if(!response.headers.get('content-type')?.includes('application/json')) throw new Error('The action could not be confirmed. Check Results & logs before running again.');
+    const result = await response.json();
+    if(!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'Please check the options.');
+    location.href = result.url;
+  } catch(error) {
+    el('status').textContent = error.message;
+    el('test').disabled = false; el('save').disabled = {{ (not tested)|tojson }};
+  }
+}
+el('test').onclick = () => submit('test');
+el('save').onclick = () => submit('save');
+</script>
+{% endblock %}

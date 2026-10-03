@@ -42,30 +42,35 @@ Check 'Service opens its database and reports production' {
     }
     'production readiness confirmed under the running service identity'
 }
-Check 'Daily diary is configured for unattended execution' {
-    $task = Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Daily diary'
+Check 'Application schedule launcher is configured for unattended execution' {
+    $task = Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner'
     if ($task.State -eq 'Disabled') { throw 'task is disabled' }
     if ($task.Principal.LogonType -ne 'Password') { throw 'task needs an unattended Password logon' }
-    if ($task.Actions.Count -ne 1) { throw 'expected one diary action' }
+    if ($task.Actions.Count -ne 1) { throw 'expected one launcher action' }
     $action = $task.Actions[0]
     $expected = Join-Path $InstallRoot '.venv\Scripts\python.exe'
     if ($action.Execute -ne $expected -or -not (Test-Path -LiteralPath $expected)) {
         throw 'task does not use the installed interpreter'
     }
     if ($action.WorkingDirectory -ne $InstallRoot -or
-        $action.Arguments -ne '-m dental_practice_admin.tasks diary --initiator scheduler') {
-        throw 'task does not invoke the installed diary operation'
+        $action.Arguments -ne '-m dental_practice_admin.schedules') {
+        throw 'task does not invoke the installed due-task runner'
+    }
+    $pollSeconds = & $expected -c 'from dental_practice_admin.schedules import POLL_SECONDS; print(POLL_SECONDS)'
+    if ($LASTEXITCODE -ne 0) { throw 'cannot read installed polling interval' }
+    if ($task.Triggers.Count -ne 1 -or [System.Xml.XmlConvert]::ToTimeSpan($task.Triggers[0].Repetition.Interval).TotalSeconds -ne [int]$pollSeconds) {
+        throw 'launcher repetition does not match the application polling interval'
     }
     $info = $task | Get-ScheduledTaskInfo
     if ($info.LastTaskResult -ne 0) { throw "last task result is $($info.LastTaskResult)" }
-    if ($info.LastRunTime -lt (Get-Date).AddHours(-26)) { throw 'scheduled task has not run within 26 hours' }
+    if ($info.LastRunTime -lt (Get-Date).AddSeconds(-2 * [int]$pollSeconds)) { throw 'launcher has missed two polling intervals' }
     'registered action and last scheduler outcome verified'
 }
-Check 'A recent complete production diary exists' {
+Check 'Application has checked its schedules recently' {
     $python = Join-Path $InstallRoot '.venv\Scripts\python.exe'
-    $database = Join-Path $DataRoot 'production\dental_practice_admin.db'
-    & $python "$PSScriptRoot\check_runs.py" $database
-    if ($LASTEXITCODE -ne 0) { throw 'no recent complete production diary' }
+    $audit = Join-Path $DataRoot 'production\audits\launcher.jsonl'
+    & $python "$PSScriptRoot\check_runner.py" $audit
+    if ($LASTEXITCODE -ne 0) { throw 'no recent successful scheduler check' }
 }
 if ($script:Failures.Count) { exit 1 }
 Write-Host 'Host checks passed. Reboot and restore evidence is recorded in deploy/ACCEPTANCE.md.'

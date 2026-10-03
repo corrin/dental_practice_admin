@@ -22,7 +22,6 @@ import httpx2 as httpx
 import pytest
 
 from tests.fake_ai import MARKER
-from tests.servers import DIARY_DATE, EXPECTED_BOOKED
 
 pytestmark = pytest.mark.e2e
 
@@ -54,7 +53,7 @@ def test_the_chatkit_endpoint_streams_with_buffering_disabled(spine: dict[str, s
         "type": "threads.create",
         "params": {
             "input": {
-                "content": [{"type": "input_text", "text": f"How many on {DIARY_DATE}?"}],
+                "content": [{"type": "input_text", "text": "List our practitioners"}],
                 "attachments": [],
                 "quoted_text": None,
                 "inference_options": {},
@@ -77,8 +76,8 @@ def test_the_chatkit_endpoint_streams_with_buffering_disabled(spine: dict[str, s
     assert body.startswith("data:"), f"not an SSE stream: {body[:200]}"
     assert '"type":"thread.created"' in body.replace(" ", "")
     assert MARKER in body, "the simulated assistant's reply never reached the client"
-    assert f"of {EXPECTED_BOOKED} booked" in body, (
-        "the reply is not grounded in the fake Principle's diary, so the tool did not run"
+    assert "Dr " in body, (
+        "the reply is not grounded in the fake Principle's practitioners, so the tool did not run"
     )
 
 

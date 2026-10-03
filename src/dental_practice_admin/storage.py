@@ -66,6 +66,7 @@ class Outcome(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     UNCERTAIN = "uncertain"
+    MISSED = "missed"
 
 
 class Coverage(StrEnum):
@@ -152,9 +153,10 @@ class Storage:
             raise
         self.db.execute("COMMIT")
 
-    def start_run(self, task: str, initiator: str, principle: str) -> str:
+    def start_run(self, task: str, initiator: str, principle: str,
+                  run_id: str | None = None) -> str:
         """Record that a run began, returning its identifier."""
-        run_id = uuid.uuid4().hex
+        run_id = run_id or uuid.uuid4().hex
         with self._write() as db:
             db.execute(
                 "INSERT INTO task_runs (run_id, task, initiator, principle, started_at,"
@@ -231,6 +233,15 @@ class Storage:
             "SELECT * FROM task_runs WHERE run_id = ?", (run_id,)
         ).fetchone()
         return _row_to_run(row) if row is not None else None
+
+    def latest_runs_by_task(self) -> list[TaskRun]:
+        """One latest attempt per task, regardless of how often it runs."""
+        return [_row_to_run(row) for row in self.db.execute(
+            "SELECT * FROM task_runs WHERE rowid IN ("
+            "SELECT rowid FROM (SELECT rowid, ROW_NUMBER() OVER ("
+            "PARTITION BY task ORDER BY started_at DESC, rowid DESC) AS position "
+            "FROM task_runs) WHERE position = 1) ORDER BY task"
+        )]
 
 
 def _row_to_run(row: sqlite3.Row) -> TaskRun:

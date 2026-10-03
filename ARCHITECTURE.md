@@ -61,7 +61,8 @@ The web application and chat server run locally; model inference uses the OpenAI
 | Browser automation | Microsoft Playwright MCP with headless Chromium | Script repeatable web-only operations |
 | Local persistence | SQLite with a small storage adapter | No database server to operate |
 | Web service lifecycle | Stable WinSW release | Windows service management through configuration |
-| Scheduling | Windows Task Scheduler | Scheduling and process launch supplied by Windows |
+| Scheduling | APScheduler triggers and SQLite job store | The app owns timing; Windows launches the due-task check every five minutes |
+| Task review | GitPython locally; PyGithub for clean PR exports | Development history and audits stay on the host |
 | Setup and upgrades | PowerShell and pinned Python dependencies | Repeatable Windows installation |
 
 Use a custom-server ChatKit integration, with FastAPI forwarding chat requests to the ChatKit server. Implement the required persistent ChatKit Store contract; check for a suitable maintained integration before writing an adapter. Do not assume the Agents SDK session store alone implements ChatKit's storage contract.
@@ -109,8 +110,9 @@ Chat tools validate their inputs and call these functions. Scheduled commands ca
 Chat can execute trusted Python and Playwright scripts under the automation account.
 Save immutable drafts with owner, conversation and explicit inputs. Supervised workers stop
 their descendants on cancellation. Draft source and results remain owner-scoped.
-Promote unchanged working source and an input schema through a reviewed PR with synthetic
-behaviour tests. Chat and scheduled commands use that released source; schedules remain in Windows.
+Promote working source and an input schema through a reviewed private-repository PR with synthetic
+behaviour tests. A clean export includes no development history or execution data. Install the
+merged revision locally. Chat and scheduled commands use those files without GitHub access.
 Prefer API, proven browser scripts, verified Firestore reads, then AI browsing as the last fallback.
 Scheduled tasks never use AI fallback. Direct Firestore writes require a verified complete operation;
 the current interface is read-only. See ADR 0005.
@@ -121,7 +123,12 @@ The staff interface contains:
 - A compact list of configured tasks and recent runs.
 - Results and actionable failure information.
 
-Windows Task Scheduler owns schedule editing initially. The web page displays task identity and run history; it must not claim to show a live next-run time unless it reads that information from Windows. Avoid maintaining a second schedule definition in the application.
+The task page manages application-owned schedules, saved inputs, pause/resume and explicit revision
+updates. APScheduler owns trigger calculation and persistence in the existing SQLite database.
+Windows owns only the five-minute launcher. Due occurrences are claimed before execution; old
+occurrences are marked missed, and interrupted runs are never automatically replayed.
+Execution source, inputs, calls and outcomes are recorded in local JSONL audit files without
+credentials. SQLite indexes results for staff pages. Audit failures stop execution.
 
 Record task name, run identifier, initiator, start/end time, outcome, and a useful result summary. Keep business data needed for reports separate from ordinary diagnostic logs.
 
@@ -165,7 +172,7 @@ dental_practice_admin/
     chat.py                # ChatKit server and agent tools
     principle.py           # Documented API access and configuration
     browser.py             # Task-specific Playwright routines
-    tasks.py               # Business operations and command-line entry point
+    schedules.py           # Application schedules and the due-task entry point
     storage.py             # Chat persistence and task-run records
     templates/             # Small staff pages
   tests/

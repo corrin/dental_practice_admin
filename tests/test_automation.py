@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 
@@ -13,7 +12,7 @@ from pydantic import SecretStr
 
 from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.firestore import Firestore
-from dental_practice_admin.scripts import Script, execute, load_draft, released, run, save_draft
+from dental_practice_admin.scripts import Script, execute, load_draft, run, save_draft
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 
 
@@ -196,38 +195,20 @@ def test_drafts_are_immutable_and_owner_scoped(tmp_path: Path) -> None:
 
 async def test_draft_and_promoted_source_produce_identical_results(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     configured = settings(tmp_path)
-    (tmp_path / "report.py").write_text(SOURCE, encoding="utf-8")
-    (tmp_path / "report.json").write_text(
-        json.dumps(
-            {
-                "language": "python",
-                "source": "report.py",
-                "inputs": {
-                    "type": "object",
-                    "required": ["numbers"],
-                    "properties": {"numbers": {"type": "array", "items": {"type": "number"}}},
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr("dental_practice_admin.scripts.WORKFLOWS", tmp_path)
-    promoted = released("report", draft().inputs, draft().owner)
+    from dental_practice_admin.task_files import load
+    from tests.test_task_lifecycle import REVISION, install_fake
+
+    install_fake(tmp_path)
+    promoted = load(configured, "fake_report", REVISION, draft().inputs, draft().owner)
     assert promoted.source == draft().source
     assert (await execute(configured, promoted)) == (await execute(configured, draft()))
-    from dental_practice_admin.tasks import main
-
-    inputs = tmp_path / "inputs.json"
-    inputs.write_text(json.dumps(draft().inputs), encoding="utf-8")
-    monkeypatch.setattr("dental_practice_admin.tasks.Settings", lambda: configured)
-    assert await asyncio.to_thread(main, ["run", "report", "--inputs", str(inputs)]) == 0
+    identifier = await run(configured, promoted, "fake_report")
     store = Storage(configured.database_path)
     try:
-        result = store.recent_runs()[0]
-        assert result.task == "report"
+        result = store.run(identifier)
+        assert result is not None and result.task == "fake_report"
         assert result.outcome is Outcome.SUCCEEDED
         assert result.coverage is Coverage.COMPLETE
         assert result.detail is not None and result.detail["total"] == 7

@@ -3,10 +3,9 @@
 import argparse
 import os
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
-from pydantic import SecretStr
 from scripts import run
 
 from dental_practice_admin.config import (
@@ -16,7 +15,6 @@ from dental_practice_admin.config import (
     Settings,
     SignIn,
 )
-from dental_practice_admin.storage import Coverage, Outcome, Storage
 from tests.fake.store import FAKE_API_KEY
 
 
@@ -110,22 +108,6 @@ def test_children_receive_the_resolved_configuration(credentials: None) -> None:
     assert env["ADMIN_SIGN_IN"] == "google"
     assert env["OPENAI_BASE_URL"] == "https://api.openai.com/v1"
     assert env["OPENAI_API_KEY"] == "fake-ai-key"
-
-
-def test_existing_fake_history_is_not_reseeded(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    settings = Settings(
-        environment=Environment.FAKE, data_root=tmp_path, openai_api_key=SecretStr("fake-key")
-    )
-    store = Storage(settings.database_path)
-    run_id = store.start_run("daily_diary", "fake-test", "fake")
-    store.finish_run(run_id, Outcome.SUCCEEDED, Coverage.COMPLETE, "fake-result")
-    store.close()
-    operation = AsyncMock()
-    monkeypatch.setattr(run, "run_daily_diary", operation)
-    run.seed_runs(settings)
-    operation.assert_not_called()
 
 
 @pytest.mark.parametrize("failure", ["startup", "running", "interrupt"])

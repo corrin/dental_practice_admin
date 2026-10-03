@@ -123,6 +123,8 @@ class Settings(BaseSettings):
     workspace: str = Field(default="", validation_alias="PRINCIPLE_WORKSPACE")
     workspace_slug: str = Field(default="", validation_alias="PRINCIPLE_WORKSPACE_SLUG")
     playwright_mcp_path: Path = Path("node_modules/@playwright/mcp/cli.js")
+    task_repository: str = ""
+    github_token: SecretStr = SecretStr("")
 
     # Staff sign-in. Google holds the credentials; this application holds only the list of
     # people allowed in, so there is no password store to leak or reset.

@@ -19,6 +19,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from openapi_core import OpenAPI
 from openapi_core.datatypes import RequestParameters
 
+from dental_practice_admin.audit import observed
 from dental_practice_admin.config import PRINCIPLE_WEB_URLS, Environment, Settings
 from dental_practice_admin.storage import Storage
 
@@ -162,6 +163,7 @@ class PrincipleClient:
             finally:
                 store.close()
 
+    @observed("principle")
     async def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute one operation; no model-controlled practice selection reaches the wire."""
         if name not in BY_NAME:

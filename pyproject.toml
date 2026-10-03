@@ -4,9 +4,11 @@ version = "0.1.0"
 description = "Administrative application for Principle Dental at one dental practice"
 requires-python = ">=3.14,<3.15"
 dependencies = [
+    "apscheduler>=3.11,<4",
     "authlib>=1.8.0",
     "fastapi>=0.142.2",
     "fastmcp>=4.0.10",
+    "gitpython>=3.1,<4",
     "httpx2>=2.0",
     "itsdangerous>=2.2.0",
     "jinja2>=3.1.6",
@@ -17,13 +19,15 @@ dependencies = [
     "portalocker>=4.4.0",
     "pydantic>=2.9,<3",
     "pydantic-settings>=2.6,<3",
+    "pygithub>=2,<3",
     "pywin32>=312 ; sys_platform == 'win32'",
+    "sqlalchemy>=2,<3",
     "tzdata>=2026.4",
     "uvicorn[standard]>=0.54.0",
 ]
 
 [project.scripts]
-dental-practice-admin = "dental_practice_admin.tasks:main"
+dental-practice-admin = "dental_practice_admin.schedules:main"
 
 [dependency-groups]
 dev = [
@@ -91,4 +95,8 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["jsonschema.*", "jsonref.*", "win32api", "win32job", "win32event"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["apscheduler.*"]
 ignore_missing_imports = true

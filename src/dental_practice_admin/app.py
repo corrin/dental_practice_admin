@@ -1,9 +1,5 @@
 """Staff pages: configured tasks, recent runs, and one run's result.
 
-Deliberately absent: a next-run time. Windows Task Scheduler owns the schedule, and a time
-computed here would be a second schedule definition that drifts from the real one. The pages
-show task identity and run history, which is what they can honestly read.
-
 A storage connection is opened per request. These endpoints are sync, so FastAPI serves each
 one on a threadpool thread, and a SQLite connection may only be used from the thread that
 created it -- a connection shared across requests raises as soon as two threads are involved.
@@ -12,7 +8,6 @@ Opening one per request costs nothing next to a page render.
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
@@ -20,7 +15,7 @@ from typing import Annotated, Any
 
 from chatkit.server import StreamingResult
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -29,21 +24,15 @@ from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import Environment, Settings, SignIn, current_settings
-from dental_practice_admin.scripts import WORKFLOWS, load_draft
+from dental_practice_admin.scripts import load_draft
 from dental_practice_admin.storage import Storage, TaskRun
+from dental_practice_admin.task_ui import router as task_router
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 # A signed-in session lasts a working day. Long enough that nobody signs in twice during a shift,
 # short enough that a laptop left at home is not signed in next week.
 SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
-
-# Released task definitions own their display metadata; Windows owns their schedules.
-CONFIGURED_TASKS = tuple(
-    {"name": path.stem, **json.loads(path.read_text(encoding="utf-8"))}
-    for path in sorted(WORKFLOWS.glob("*.json"))
-)
-
 
 settings = current_settings
 
@@ -94,7 +83,18 @@ def create_app(configured: Settings | None = None) -> FastAPI:
         )
     app.include_router(auth_router)
     app.include_router(router)
+    app.include_router(task_router)
     return app
+
+
+@router.get("/assets/{name}")
+def asset(name: str) -> FileResponse:
+    """Serve the pinned frontend libraries installed with npm."""
+    files = {"bootstrap.css": "bootstrap/dist/css/bootstrap.min.css",
+               "forms.js": "@json-editor/json-editor/dist/jsoneditor.js"}
+    if name not in files:
+        raise HTTPException(404)
+    return FileResponse(Path("node_modules") / files[name])
 
 
 @router.get("/health")
@@ -123,10 +123,10 @@ def index(
     configured: Annotated[Settings, Depends(settings)],
     store: Annotated[Storage, Depends(storage)],
 ) -> HTMLResponse:
-    """The configured tasks and the most recent runs."""
+    """The most recent runs visible to this staff member."""
     runs = [run for run in store.recent_runs()
             if not run.task.startswith("draft:") or run.initiator == staff.email]
-    return render(request, "runs.html", staff, configured, store, runs=runs, tasks=CONFIGURED_TASKS)
+    return render(request, "runs.html", staff, configured, store, runs=runs)
 
 
 @router.get("/chat", response_class=HTMLResponse)
@@ -204,7 +204,22 @@ def run_detail(
     run: TaskRun | None = store.run(run_id)
     if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
         raise HTTPException(status_code=404, detail=f"no run {run_id}")
-    return render(request, "run.html", staff, configured, store, run=run)
+    return render(request, "run.html", staff, configured, store, run=run,
+                  has_audit=(configured.data_dir / "audits" / f"{run_id}.jsonl").is_file())
+
+
+@router.get("/runs/{run_id}/audit")
+def run_audit(run_id: str, staff: CurrentStaff,
+              configured: Annotated[Settings, Depends(settings)],
+              store: Annotated[Storage, Depends(storage)]) -> FileResponse:
+    """Execution evidence has the same staff ownership boundary as its result."""
+    run = store.run(run_id)
+    path = configured.data_dir / "audits" / f"{run_id}.jsonl"
+    if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
+        raise HTTPException(404)
+    if not path.is_file():
+        raise HTTPException(404)
+    return FileResponse(path, media_type="application/x-ndjson", filename=f"{run_id}.jsonl")
 
 
 @router.get("/drafts/{identifier}")

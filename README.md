@@ -2,7 +2,7 @@
 
 Administrative tooling for one dental practice, over [Principle
 Dental](https://principle.dental), the patient management system. Staff get a small web page of task
-results and a chat interface; Windows Task Scheduler runs the tasks.
+results and a chat interface; the application owns schedules and Windows launches its runner.
 
 Published in case it is useful to someone, not offered as a product. It is specific to how this
 practice works and deeply tied to Principle; there is no abstraction over the patient management
@@ -15,9 +15,8 @@ and tooling are reported but not budgeted: none of them has ever caused a phone 
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and its constraints.
 
-> **Status: walking skeleton.** The daily diary report exists to prove the channels work —
-> scheduled task, CLI, web page, chat — not because anyone needs that particular report. Expect
-> to replace it with whatever your practice actually needs.
+> Practice reports and other tasks live in each practice's private repository. The application
+> supplies chat, execution, review, results and scheduling.
 
 ## Licence, and why AGPL
 
@@ -173,7 +172,7 @@ since the upstream version string does not reliably identify changes.
 
 Chat can use scoped API reads and writes, verified Firestore reads, deterministic
 Playwright scripts and an AI browser fallback. Search results and pages carry partial
-coverage unless completeness is established. The diary uses the same tested pagination.
+coverage unless completeness is established. Scripts share the tested API pagination.
 Read saved state after a write and before retrying an uncertain operation.
 
 `run_script` saves an immutable Python or Playwright draft, its explicit inputs and its
@@ -183,19 +182,52 @@ Both languages return `summary`, `detail` and `coverage` (`complete` or `partial
 Python defines `async run(services, inputs)`; Playwright defines `async (page, inputs)`.
 `services.api`, `services.firestore.read` and `services.browser` share the chat integrations.
 
-To promote a working draft, put its unchanged source in `src/dental_practice_admin/workflows/`,
-add a JSON definition with `language`, `source`, an `inputs` JSON Schema and the task page's
-`title`, `command` and `description`, and synthetic
-behaviour tests in a PR. The diary definition is the example. Do not commit patient inputs
-or credentials. After review and release, invoke the same source from chat's `run_task` or:
+Task development creates local Git history under the environment's data directory. Pass the
+returned `task_id` when refining the same task. Draft repositories have no remote. Direct chat
+calls also save source and an execution audit. Patient inputs and results stay on the host;
+credentials are excluded. The Results page links to each run's local JSONL audit.
 
-```powershell
-dental-practice-admin run daily_diary --inputs path/to/diary-inputs.json
-```
+Open **Reports & scripts** from Results to run installed reports, inspect recent results and
+logs, or set automatic runs. Input contracts appear as labelled fields. Running a report shows
+activity immediately and opens its result when execution finishes.
 
-The input file is `{"date":"2026-10-02"}` for this example. Windows Task Scheduler alone
-owns the schedule. Scheduled execution never invokes a model. A failed or interrupted
-script is recorded as uncertain; inspect saved state before repeating a change.
+In chat, **Save to Reports & scripts** prepares the selected answer as a deterministic script.
+The preparation action can create files and run synthetic tests, but cannot execute against the
+practice. The **Test run** button explicitly runs the candidate with the entered inputs; **Save**
+requires successful execution of that exact source and never repeats it. An identical previously
+executed draft can reuse its evidence. Saved scripts are available to all signed-in staff while
+the source conversation and draft executions remain private. Reports and scripts are one type.
+
+**Request review for scheduling** records a local request in the saved version's
+`review-request.json`. Maintainers inspect pending requests under the environment's
+`saved/*/*/` directory, including source, input contract and synthetic tests. After checking for
+patient data, `saved_scripts.publish_review(settings, name, revision, True)` exports that
+version through the existing review process. This action sends no notification. Install the
+merged version with `task_files.install_existing`; the matching saved entry then gives way to
+the reviewed version and scheduling becomes available. Existing schedules retain their pins.
+Shared packages survive private draft cleanup. Back them up with the runtime data directory.
+
+Maintainers publish reviewed source, its input contract and synthetic tests using
+`task_files.publish`, then install merged revisions with `task_files.install_existing`.
+Configure `ADMIN_TASK_REPOSITORY` as `owner/private-repository` and `ADMIN_GITHUB_TOKEN` with
+access to its contents and pull requests. The repository must already have a default branch.
+Only `task.json`, `source.txt` and `test_task.py` are exported; local history and audits stay
+on the host. Repository setup and review are outside the staff interface.
+
+The `dental-practice-admin` command (also `python -m dental_practice_admin.schedules`) checks
+which installed tasks are due and exits with failure if any execution is missed or untrustworthy.
+
+Practice tasks do not require an application release. Development branches expire after 90 days
+without edits or runs when
+the task page is opened or another draft is saved; open reviews are protected. Local audit files
+and immutable source snapshots survive cleanup. Back up the entire runtime data directory.
+
+The app owns schedules through APScheduler's SQLite job store in the existing database. Staff
+choose an installed revision, inputs, calendar time/days or an interval, and can edit, pause,
+resume or remove it. Installing another revision does not change existing schedules. Windows
+runs `dental-practice-admin run-due` every five minutes. Executions more than five minutes late
+are recorded as missed. Failed or interrupted executions are uncertain and are not retried.
+Inspect saved state before repeating a change. Installed execution needs neither Git nor GitHub.
 
 ### Automation installation and login
 
@@ -288,7 +320,7 @@ only refuse in words nobody invented. See [tests/recordings/README.md](tests/rec
 src/dental_practice_admin/     the application (budgeted with deploy/: 2,000 lines)
   config.py              which Principle, and where local data lives
   principle.py           the API client and the catalogue of calls it may make
-  tasks.py               business operations and the command Task Scheduler runs
+  schedules.py           application schedules and the command Task Scheduler runs
   storage.py             run history
   app.py, templates/     staff pages
 tests/
@@ -306,16 +338,22 @@ docs/principle/          what tasks have learned about Principle's website and F
 
 ## Deployment
 
-Windows, natively: one Uvicorn process under WinSW, tasks under Task Scheduler.
+Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher.
 The service invokes `dental_practice_admin.app:create_app --factory`; install the package with
 `uv sync --locked` in the release directory before starting it. Runtime configuration lives in
 the host's `.env` and the service environment, separately from the development checkout.
 
 [`scripts/verify.ps1`](scripts/verify.ps1) is the gate — service identity, data directory outside
 the release, health endpoint naming its configured Principle, scheduled task registered without
-interactive logon, and a complete production diary recorded within the daily schedule's 26-hour
-allowance. [`deploy/ACCEPTANCE.md`](deploy/ACCEPTANCE.md) holds what only a person can sign off:
+interactive logon, the launcher interval, and recent application schedule-check evidence.
+[`deploy/ACCEPTANCE.md`](deploy/ACCEPTANCE.md) holds what only a person can sign off:
 the reboot, the unattended run and the restore drill.
+
+Register `deploy/task-runner.xml` as `Massey Smiles Admin\Task runner` under the designated
+unattended account. Disable and remove the old `Massey Smiles Admin\Daily diary` Windows task
+before enabling application schedules; its diary command is not provided by this application.
+Approve and install each real practice task through its private PR, then create its schedule
+in the app. Reboot verification must include a due approved task, not just an empty poll.
 
 Caddy fronts the application; [`deploy/Caddyfile`](deploy/Caddyfile) is the configuration it runs.
 Access is open to the internet so staff can work from home, which makes the Google sign-in
