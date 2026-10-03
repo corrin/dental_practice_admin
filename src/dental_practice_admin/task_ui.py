@@ -66,6 +66,9 @@ async def act(action: str, payload: dict[str, Any], request: Request, staff: Cur
         if action == "review":
             return {"url": await asyncio.to_thread(task_files.publish, settings,
                      task_files.Review.model_validate(payload), staff.email)}
+        if action == "install-existing":
+            return {"revision": await asyncio.to_thread(task_files.install_existing, settings,
+                                                         payload["name"], int(payload["number"]))}
         if action == "install":
             return {"revision": await asyncio.to_thread(task_files.install, settings,
                                                          payload["task_id"], staff.email)}

@@ -299,3 +299,34 @@ async def test_long_missed_interval_is_reported_without_building_a_backlog(tmp_p
         assert [r.outcome for r in store.recent_runs()] == [Outcome.MISSED]
     finally:
         store.close()
+
+
+@pytest.mark.parametrize("problem", ["unmerged", "foreign", "invalid", "valid"])
+def test_install_existing_review_needs_no_local_draft(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, problem: str,
+) -> None:
+    configured = settings(tmp_path).model_copy(update={"task_repository": "fake/practice"})
+    definition = task_files.Definition(name="fake_report", title="Fake report",
+                                      description="Synthetic", inputs=CONTRACT)
+    files = {"task.json": definition.model_dump_json().encode(), "source.txt": SOURCE.encode(),
+             "test_task.py": b"def test_example(): assert True"}
+    if problem == "invalid":
+        files["task.json"] = b'{"name":"invalid"}'
+    repo = MagicMock()
+    repo.get_pull.return_value = SimpleNamespace(merged=problem != "unmerged",
+        base=SimpleNamespace(repo=SimpleNamespace(
+            full_name="elsewhere/repo" if problem == "foreign" else "fake/practice")),
+        merge_commit_sha=REVISION)
+    repo.get_contents.side_effect = lambda path, ref: SimpleNamespace(
+        decoded_content=files[path.rsplit("/", 1)[1]])
+    monkeypatch.setattr(task_files, "repository", lambda _: repo)
+    if problem != "valid":
+        with pytest.raises(ValueError):
+            task_files.install_existing(configured, "fake_report", 2)
+        assert not (configured.data_dir / "installed").exists()
+        return
+    assert task_files.install_existing(configured, "fake_report", 2) == REVISION
+    assert task_files.install_existing(configured, "fake_report", 2) == REVISION
+    loaded = task_files.load(configured, "fake_report", REVISION, {"numbers": []}, "staff")
+    assert loaded.source == SOURCE
+    assert not (configured.data_dir / "task-drafts").exists()

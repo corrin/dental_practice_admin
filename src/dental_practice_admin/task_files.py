@@ -168,16 +168,31 @@ def install(settings: Settings, task_id: str, owner: str) -> str:
     if metadata["owner"] != owner:
         raise FileNotFoundError("Draft unavailable")
     review = json.loads((folder / "review.json").read_text(encoding="utf-8"))
+    revision = install_existing(settings, review["name"], review["number"])
+    (folder / "installed").write_text(revision, encoding="utf-8")
+    with Repo(folder) as local:
+        local.head.reference = local.head.commit
+        if "draft" in local.heads:
+            local.delete_head("draft", force=True)
+    with suppress(UnknownObjectException):
+        repository(settings).get_git_ref("heads/review/" + task_id).delete()
+    return str(revision)
+
+
+def install_existing(settings: Settings, name: str, number: int) -> str:
+    """Install an existing merged review without requiring a local development draft."""
+    if not re.fullmatch(NAME, name) or number < 1:
+        raise ValueError("A valid task name and positive PR number are required")
     repo = repository(settings)
-    pr = repo.get_pull(review["number"])
+    pr = repo.get_pull(number)
     if not pr.merged or pr.base.repo.full_name != settings.task_repository:
         raise ValueError("Task PR has not been merged into the configured repository")
     revision = pr.merge_commit_sha
-    target = settings.data_dir / "installed" / review["name"] / revision
-    files = {name: repo.get_contents(f"tasks/{review['name']}/{name}", ref=revision).decoded_content
-             for name in ("task.json", "source.txt", "test_task.py")}
+    target = settings.data_dir / "installed" / name / revision
+    files = {filename: repo.get_contents(f"tasks/{name}/{filename}", ref=revision).decoded_content
+             for filename in ("task.json", "source.txt", "test_task.py")}
     definition = Definition.model_validate_json(files["task.json"])
-    if definition.name != review["name"]:
+    if definition.name != name:
         raise ValueError("Merged task name disagrees with its installation path")
     if not target.exists():
         staging = target.with_name("install-" + uuid.uuid4().hex)
@@ -185,11 +200,4 @@ def install(settings: Settings, task_id: str, owner: str) -> str:
         for name, content in files.items():
             (staging / name).write_bytes(content)
         staging.rename(target)
-    (folder / "installed").write_text(revision, encoding="utf-8")
-    with Repo(folder) as local:
-        local.head.reference = local.head.commit
-        if "draft" in local.heads:
-            local.delete_head("draft", force=True)
-    with suppress(UnknownObjectException):
-        repo.get_git_ref("heads/review/" + task_id).delete()
     return str(revision)

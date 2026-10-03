@@ -6,6 +6,12 @@
 <p class="banner">The launcher has not completed a recent check. Last check: {{ launcher_checked or 'none' }}. Check the host's Task runner.</p>
 {% endif %}
 <p id="status" role="status"></p>
+<h2>Install existing task</h2>
+<form id="install-form">
+  <label>Task name <input id="install-name" pattern="[a-z][a-z0-9_]{0,63}" required></label>
+  <label>Merged PR number <input id="install-number" type="number" min="1" step="1" required></label>
+  <button type="submit">Install task</button>
+</form>
 <h2>Approved tasks</h2>
 <form id="task-form">
   <label>Task and version <select id="task" required>
@@ -66,6 +72,10 @@ async function change(action, payload) {
     else location.reload();
   } catch(error) { el('status').textContent = error.message; }
 }
+el('install-form').onsubmit = event => {
+  event.preventDefault();
+  change('install-existing', {name:el('install-name').value, number:Number(el('install-number').value)});
+};
 function taskInputs() {
   const task = tasks[el('task').value];
   return {name:task.name, revision:task.revision, inputs:JSON.parse(el('inputs').value)};
