@@ -36,7 +36,8 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
         definition = task_files.Definition.model_validate_json(path.read_text(encoding="utf-8"))
         if any(task["reviewed"] and task["name"] == definition.name and
                (settings.data_dir / "installed" / task["name"] / task["revision"] / "source.txt"
-                ).read_bytes() == (path.parent / "source.txt").read_bytes()
+                ).read_text(encoding="utf-8") == (path.parent / "source.txt").read_text(
+                    encoding="utf-8")
                and task_files.Definition.model_validate(task) == definition for task in installed):
             continue
         installed.append({**definition.model_dump(), "revision": path.parent.name,

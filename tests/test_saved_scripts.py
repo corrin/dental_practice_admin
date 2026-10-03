@@ -114,6 +114,9 @@ def test_staff_flow_and_server_schedule_guard(tmp_path: Path) -> None:
             assert len(store.recent_runs()) == 1
         reviewed = "b" * 40
         shutil.copytree(path.parent, configured.data_dir / "installed" / DEFINITION.name / reviewed)
+        installed_source = (configured.data_dir / "installed" / DEFINITION.name
+                            / reviewed / "source.txt")
+        installed_source.write_text(SOURCE, encoding="utf-8", newline="\n")
         assert client.post("/tasks/schedule", json={**payload,
             "revision": reviewed}).status_code == 200
         assert path.parent.name not in client.get("/tasks/manage").text
