@@ -11,7 +11,10 @@ Chat develops local task files; reviewed private-repository exports become insta
   trusted code execution, not a sandbox. Authentication and conversation ownership still apply.
 - Draft source is saved before execution and committed on local branches. Development history,
   conversations, patient inputs and execution audits stay on the practice host.
-- Standalone reuse and scheduling require a merged PR in the practice's private repository.
+- Staff can save a tested immutable script for immediate manual execution by the practice.
+  Saving never repeats execution. Private chat history and runtime inputs stay outside the shared
+  package. Reports and action scripts use the same file format and runner.
+- Scheduling requires a merged PR in the practice's private repository.
   Export only source, its input contract and synthetic tests onto a clean review branch.
   Install the approved revision locally without releasing the public application.
 - All execution records source, inputs, calls and outcomes in local files without credentials.
