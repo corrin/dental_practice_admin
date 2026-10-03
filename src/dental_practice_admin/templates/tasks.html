@@ -57,7 +57,7 @@ Running… Your results will open here when ready.</div>
 <button class="btn btn-sm btn-outline-danger" onclick="change('remove', {id:'{{ job.id }}'})">Remove</button></td></tr>{% endfor %}
 </tbody></table></div>{% else %}<p class="text-secondary mb-0">Nothing runs automatically yet. You can run any report or script whenever you need it.</p>{% endif %}
 </div></section>
-<script src="/assets/forms.js"></script>
+<script src="/assets/forms.js" onerror="document.getElementById('status').textContent='The report form could not load. Refresh the page or ask your administrator for help.'"></script>
 <script>
 const tasks = {{ installed|tojson }}, jobs = {{ jobs|tojson }};
 const el = id => document.getElementById(id);
