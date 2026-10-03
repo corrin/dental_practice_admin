@@ -1,7 +1,6 @@
 """Staff controls for local drafts, approved tasks, reviews and schedules."""
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -14,47 +13,46 @@ from dental_practice_admin.audit import Audit
 from dental_practice_admin.auth import CurrentStaff
 
 router = APIRouter()
+DAYS = {"mon-fri": "Weekdays", "*": "Every day", "mon": "Monday", "tue": "Tuesday",
+        "wed": "Wednesday", "thu": "Thursday", "fri": "Friday", "sat": "Saturday", "sun": "Sunday"}
 
 
 @router.get("/tasks/manage")
 def manage(request: Request, staff: CurrentStaff) -> Any:
-    """Show only the caller's drafts and practice-wide installed tasks and schedules."""
+    """Show practice reports, scripts, recent results and automatic runs."""
     from dental_practice_admin.app import TEMPLATES
     settings = request.app.state.settings
     task_files.cleanup(settings)
     heartbeat = settings.data_dir / "audits" / "launcher.jsonl"
     checked = datetime.fromtimestamp(heartbeat.stat().st_mtime, UTC) if heartbeat.exists() else None
-    recent = checked and (datetime.now(UTC) - checked).total_seconds() <= 2 * schedules.POLL_SECONDS
-    drafts = {}
-    paths = (settings.data_dir / "drafts").glob("*.json")
-    for path in sorted(paths, key=lambda p: p.stat().st_mtime):
-        draft = scripts.Script.model_validate_json(path.read_text(encoding="utf-8"))
-        if not draft.task_id or draft.owner != staff.email:
-            continue
-        folder = task_files.folder_for(settings, draft.task_id)
-        if not (folder / "expired").exists() and not (folder / "installed").exists():
-            review = folder / "review.json"
-            drafts[draft.task_id] = {"id": path.stem, **draft.model_dump(),
-                "review": json.loads(review.read_text()) if review.exists() else None}
+    launcher_recent = checked and (
+        datetime.now(UTC) - checked).total_seconds() <= 2 * schedules.POLL_SECONDS
     installed = []
     for path in (settings.data_dir / "installed").glob("*/*/task.json"):
         definition, _ = task_files.installed(settings, path.parent.parent.name, path.parent.name)
         installed.append({**definition.model_dump(), "revision": path.parent.name})
+    titles = {task["name"]: task["title"] for task in installed}
     with schedules.open_schedules(settings) as scheduler:
         jobs = []
         for j in scheduler.get_jobs():
             interval = isinstance(j.trigger, IntervalTrigger)
             fields = {} if interval else {f.name: str(f) for f in j.trigger.fields}
-            jobs.append({"id": j.id, "name": j.name, "revision": j.args[1], "inputs": j.args[2],
-                "timing": str(j.trigger), "next": str(j.next_run_time or "Paused"),
+            jobs.append({"id": j.id, "name": j.name, "title": titles[j.name],
+                "revision": j.args[1], "inputs": j.args[2],
+                "next": j.next_run_time.strftime("%a %d %b, %I:%M %p")
+                    if j.next_run_time else "Paused",
                 "minutes": int(j.trigger.interval.total_seconds() / 60) if interval else 0,
                 "at": "16:00" if interval else
                     f"{int(fields['hour']):02}:{int(fields['minute']):02}",
                 "weekdays": "*" if interval else fields["day_of_week"]})
+    from dental_practice_admin.storage import Storage
+    store = Storage(settings.database_path)
+    recent = [run for run in store.recent_runs() if not run.task.startswith("draft:")][:5]
+    store.close()
     return TEMPLATES.TemplateResponse(request, "tasks.html", {
         "staff": staff, "is_fake": settings.environment.value == "fake",
-        "drafts": list(drafts.values()), "installed": installed, "jobs": jobs,
-        "launcher_recent": recent, "launcher_checked": checked})
+        "days": DAYS, "installed": installed, "jobs": jobs, "recent": recent, "titles": titles,
+        "launcher_recent": launcher_recent, "launcher_checked": checked})
 
 
 @router.post("/tasks/{action}")

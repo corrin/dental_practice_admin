@@ -87,6 +87,16 @@ def create_app(configured: Settings | None = None) -> FastAPI:
     return app
 
 
+@router.get("/assets/{name}")
+def asset(name: str) -> FileResponse:
+    """Serve the pinned frontend libraries installed with npm."""
+    files = {"bootstrap.css": "bootstrap/dist/css/bootstrap.min.css",
+               "forms.js": "@json-editor/json-editor/dist/jsoneditor.js"}
+    if name not in files:
+        raise HTTPException(404)
+    return FileResponse(Path("node_modules") / files[name])
+
+
 @router.get("/health")
 def health(
     request: Request, configured: Annotated[Settings, Depends(settings)]

@@ -187,16 +187,17 @@ returned `task_id` when refining the same task. Draft repositories have no remot
 calls also save source and an execution audit. Patient inputs and results stay on the host;
 credentials are excluded. The Results page links to each run's local JSONL audit.
 
-Open **Manage task files, reviews and schedules** from Results. To make a draft available for
-standalone reuse, supply its input contract and synthetic tests, inspect the source for patient
-values and credentials, and choose **Create review PR**. Configure `ADMIN_TASK_REPOSITORY` as
-`owner/private-repository` and `ADMIN_GITHUB_TOKEN` with access to its contents and pull requests.
-The repository must already exist and have a default branch. PyGithub exports only `task.json`,
-`source.txt` and `test_task.py` into a clean remote branch; no draft Git objects or audit files
-are uploaded. These GitHub settings are optional for local development and installed execution.
+Open **Reports & scripts** from Results to run installed reports, inspect recent results and
+logs, or set automatic runs. Input contracts appear as labelled fields. Running a report shows
+activity immediately and opens its result when execution finishes.
 
-After the private PR is merged, **Check review and install** retrieves that exact revision.
-Staff can run it from the page, chat's `run_task`, or an application schedule.
+Maintainers publish reviewed source, its input contract and synthetic tests using
+`task_files.publish`, then install merged revisions with `task_files.install_existing`.
+Configure `ADMIN_TASK_REPOSITORY` as `owner/private-repository` and `ADMIN_GITHUB_TOKEN` with
+access to its contents and pull requests. The repository must already have a default branch.
+Only `task.json`, `source.txt` and `test_task.py` are exported; local history and audits stay
+on the host. Repository setup and review are outside the staff interface.
+
 The `dental-practice-admin` command (also `python -m dental_practice_admin.schedules`) checks
 which installed tasks are due and exits with failure if any execution is missed or untrustworthy.
 

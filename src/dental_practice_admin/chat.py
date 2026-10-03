@@ -68,8 +68,8 @@ Return {"summary": str, "detail": object, "coverage": "complete" or "partial"} f
 Keep credentials out of scripts and inputs. Put patient-derived values in inputs, not reusable
 source or tests. Drafts are trusted code, not a sandbox. Pass the returned
 task_id to run_script when refining the same task. Draft branches and audits stay local.
-Standalone reuse requires a merged private-repository PR and installation through the Tasks page.
-Use that page for review, installed revisions and schedule edits.
+Standalone reuse requires an installed approved task.
+Staff use Reports & scripts for results and schedules; task publication is handled separately.
 run_task needs an installed revision.
 """.strip()
 

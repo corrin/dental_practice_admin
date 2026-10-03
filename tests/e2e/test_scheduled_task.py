@@ -66,8 +66,8 @@ def test_the_run_appears_on_the_page_with_its_generic_results(
 
 def test_results_link_to_application_schedules(page: Page, spine: dict[str, str]) -> None:
     page.goto(spine["APP_URL"])
-    page.get_by_role("link", name="Manage task files, reviews and schedules").click()
-    expect(page.get_by_role("columnheader", name="Next due")).to_be_visible()
+    page.get_by_role("link", name="Reports & scripts").click()
+    expect(page.get_by_role("heading", name="Automatic runs", exact=True)).to_be_visible()
 
 
 def test_an_unknown_run_is_not_rendered_as_an_empty_report(

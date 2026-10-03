@@ -1,128 +1,138 @@
 {% extends "base.html" %}
+{% block title %}Reports & scripts{% endblock %}
 {% block body %}
-<p><a href="/">Results</a> &middot; <a href="/chat">Chat</a></p>
-<h1>Tasks and schedules</h1>
-{% if not launcher_recent %}
-<p class="banner">The launcher has not completed a recent check. Last check: {{ launcher_checked or 'none' }}. Check the host's Task runner.</p>
+<nav class="mb-4"><a href="/">Results & logs</a> &middot; <a href="/chat">Ask in chat</a></nav>
+<h1 class="fs-2 mb-2">Reports & scripts</h1>
+<p class="text-secondary mb-4">Run a standard report or script, see its results, or check how the last run went.</p>
+{% if jobs and not launcher_recent %}
+<div class="alert alert-warning">Automatic runs aren't running. Ask your administrator to check. You can still run a report or script here.</div>
 {% endif %}
-<p id="status" role="status"></p>
-<h2>Install existing task</h2>
-<form id="install-form">
-  <label>Task name <input id="install-name" pattern="[a-z][a-z0-9_]{0,63}" required></label>
-  <label>Merged PR number <input id="install-number" type="number" min="1" step="1" required></label>
-  <button type="submit">Install task</button>
-</form>
-<h2>Approved tasks</h2>
+<div id="status" role="status" class="text-danger mb-3"></div>
+<div class="row g-4">
+<section class="col-lg-6"><div class="card shadow-sm border-0"><div class="card-body p-4">
+<h2 class="h5 mb-3">Run a report or script</h2>
+{% if installed %}
 <form id="task-form">
-  <label>Task and version <select id="task" required>
-  {% for task in installed %}<option value="{{ loop.index0 }}">{{ task.title }} &mdash; {{ task.revision[:8] }}</option>{% endfor %}
-  </select></label>
-  <p id="input-help"></p>
-  <label>Inputs (JSON) <textarea id="inputs" required>{}</textarea></label>
-  <button type="submit">Run now</button>
-  <fieldset><legend>Schedule &mdash; Auckland time</legend>
-    <input id="schedule-id" type="hidden">
-    <label>Time <input id="at" type="time" value="16:00" required></label>
-    <label>Days <select id="weekdays"><option value="mon-fri">Weekdays</option><option value="*">Every day</option><option value="mon">Monday</option><option value="tue">Tuesday</option><option value="wed">Wednesday</option><option value="thu">Thursday</option><option value="fri">Friday</option><option value="sat">Saturday</option><option value="sun">Sunday</option></select></label>
-    <label>Or repeat every <input id="minutes" type="number" min="0" step="5" value="0"> minutes (0 uses time and days)</label>
-    <button type="button" id="save-schedule">Save schedule</button>
-    <button type="button" onclick="el('schedule-id').value=''">New schedule</button>
-  </fieldset>
+<label for="task" class="form-label">Choose a report or script</label>
+<select id="task" class="form-select mb-3" required>
+{% for task in installed %}<option value="{{ loop.index0 }}">{{ task.title }}</option>{% endfor %}
+</select>
+<p id="description" class="text-secondary"></p>
+<div id="inputs"></div>
+<button id="run-button" type="submit" class="btn btn-primary mt-3" disabled>Run now</button>
+<div id="run-progress" role="status" class="mt-3" hidden>
+<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+Running… Your results will open here when ready.</div>
+<noscript><p>Enable JavaScript to run reports and scripts.</p></noscript>
 </form>
-<h2>Schedules</h2>
-<p>Runs more than five minutes late are marked missed. Missed and failed runs appear in Results.</p>
-<table><tr><th>Task / version</th><th>Timing</th><th>Next due</th><th>Actions</th></tr>
-{% for job in jobs %}<tr><td>{{ job.name }} / {{ job.revision[:8] }}</td><td>{{ job.timing }}</td><td>{{ job.next }}</td>
-<td><button onclick="editSchedule({{ loop.index0 }})">Edit</button>
-{% for action in ['pause','resume','remove'] %}<button onclick="change('{{ action }}', {id:'{{ job.id }}'})">{{ action|capitalize }}</button>{% endfor %}</td></tr>{% endfor %}</table>
-<h2>Your drafts</h2>
-<p>Drafts and run audits stay on this computer. Only reviewed source, its input contract and synthetic tests are submitted to the private repository.</p>
-{% for draft in drafts %}
-<details><summary>Draft {{ draft.task_id[:8] }} &mdash; {{ draft.revision[:8] }}</summary>
-<p><a href="/drafts/{{ draft.id }}">Download source</a></p><pre>{{ draft.source }}</pre>
-{% if draft.review %}
-<p><a href="{{ draft.review.url }}">Open review PR</a></p>
-<button onclick="change('install', {task_id:'{{ draft.task_id }}'})">Check review and install</button>
-{% elif draft.reusable %}
-<form class="review" data-draft="{{ draft.id }}" data-language="{{ draft.language }}">
-<label>Task name <input name="name" pattern="[a-z][a-z0-9_]{0,63}" required></label>
-<label>Title <input name="title" required></label><label>Description <input name="description" required></label>
-<label>Input contract (JSON Schema) <textarea name="schema" required>{"type":"object","properties":{},"additionalProperties":false}</textarea></label>
-<label>Synthetic acceptance tests <textarea name="tests" required></textarea></label>
-<label><input type="checkbox" name="checked" required>I checked the source, contract and tests for patient details and credentials.</label>
-<button type="submit">Create review PR</button>
-</form>{% else %}<p>Browser exploration needs a deterministic script before review.</p>{% endif %}
-</details>{% endfor %}
+<details class="border-top mt-4 pt-3" id="schedule-editor"><summary>Run automatically</summary>
+<form id="schedule-form" class="mt-3">
+<input id="schedule-id" type="hidden">
+<div class="row g-3"><div class="col-sm-6"><label for="weekdays" class="form-label">Days</label>
+<select id="weekdays" class="form-select">{% for value, label in days.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+<div class="col-sm-6"><label for="at" class="form-label">Time (Auckland)</label><input id="at" class="form-control" type="time" value="16:00" required></div></div>
+<label for="minutes" class="form-label mt-3">Frequency</label>
+<select id="minutes" class="form-select"><option value="0">Once on the selected days</option>
+{% for minutes in [5, 10, 15, 30, 60, 120] %}<option value="{{ minutes }}">Every {{ minutes }} minutes, every day</option>{% endfor %}</select>
+<div class="d-flex gap-2 mt-3"><button type="submit" class="btn btn-primary">Save schedule</button>
+<button type="button" class="btn btn-outline-secondary" onclick="el('schedule-id').value=''">New schedule</button></div>
+</form></details>
+{% else %}<p class="text-secondary">No reports or scripts have been added yet.</p>{% endif %}
+</div></div></section>
+<section class="col-lg-6"><div class="card shadow-sm border-0"><div class="card-body p-4">
+<h2 class="h5 mb-3">Recent results & logs</h2>
+{% for run in recent %}<div class="border-bottom py-3">
+<a class="fw-semibold" href="/runs/{{ run.run_id }}">{{ titles.get(run.task, run.task) }}</a>
+<span class="badge {{ 'text-bg-success' if run.is_trustworthy else 'text-bg-warning' }} float-end">{{ 'Ready' if run.is_trustworthy else ('Needs attention' if run.finished_at else 'Running') }}</span>
+<p class="mb-1 mt-2 small">{{ run.summary or 'Running…' }}</p>
+<a class="small" href="/runs/{{ run.run_id }}">View results & log</a></div>
+{% else %}<p class="text-secondary">No runs yet. Your results and logs will appear here.</p>{% endfor %}
+</div></div></section></div>
+<section class="card shadow-sm border-0 mt-4"><div class="card-body p-4">
+<h2 class="h5 mb-3">Automatic runs</h2>
+{% if jobs %}<div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Report or script</th><th>Schedule</th><th>Next run</th><th></th></tr></thead><tbody>
+{% for job in jobs %}<tr><td>{{ job.title }}</td><td>{% if job.minutes %}Every {{ job.minutes }} minutes{% else %}{{ days.get(job.weekdays, job.weekdays) }} at {{ job.at }}{% endif %}</td><td>{{ job.next }}</td>
+<td class="text-nowrap"><button class="btn btn-sm btn-outline-primary" onclick="editSchedule({{ loop.index0 }})">Edit</button>
+<button class="btn btn-sm btn-outline-secondary" onclick="change('{{ 'resume' if job.next == 'Paused' else 'pause' }}', {id:'{{ job.id }}'})">{{ 'Resume' if job.next == 'Paused' else 'Pause' }}</button>
+<button class="btn btn-sm btn-outline-danger" onclick="change('remove', {id:'{{ job.id }}'})">Remove</button></td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="text-secondary mb-0">Nothing runs automatically yet. You can run any report or script whenever you need it.</p>{% endif %}
+</div></section>
+<script src="/assets/forms.js"></script>
 <script>
 const tasks = {{ installed|tojson }}, jobs = {{ jobs|tojson }};
 const el = id => document.getElementById(id);
+let editor;
 async function change(action, payload) {
-  el('status').textContent = 'Working...';
+  el('status').textContent = '';
+  if(action === 'run') {
+    el('run-button').disabled = true;
+    el('run-progress').hidden = false;
+  }
   try {
     const response = await fetch('/tasks/' + action, {
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
     });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(typeof error.detail === 'string' ? error.detail :
-        'Action failed. Check inputs and inspect Results before retrying a run.');
-    }
+    if (!response.headers.get('content-type')?.includes('application/json'))
+      throw new Error('The run could not be confirmed. Check Results & logs before trying again.');
     const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'The action failed. Check the results and log before trying again.');
     if (result.url) location.href = result.url;
     else location.reload();
-  } catch(error) { el('status').textContent = error.message; }
-}
-el('install-form').onsubmit = event => {
-  event.preventDefault();
-  change('install-existing', {name:el('install-name').value, number:Number(el('install-number').value)});
-};
-function taskInputs() {
-  const task = tasks[el('task').value];
-  return {name:task.name, revision:task.revision, inputs:JSON.parse(el('inputs').value)};
-}
-function inputHelp() {
-  el('input-help').textContent = tasks.length
-    ? 'Input contract: ' + JSON.stringify(tasks[el('task').value].inputs)
-    : 'No approved tasks installed yet.';
-}
-el('task').onchange = inputHelp;
-inputHelp();
-el('task-form').onsubmit = event => {
-  event.preventDefault();
-  try { change('run', taskInputs()); }
-  catch(error) { el('status').textContent = error.message; }
-};
-el('save-schedule').onclick = () => {
-  try {
-    const data = {...taskInputs(), at:el('at').value,
-      weekdays:el('weekdays').value, minutes:Number(el('minutes').value)};
-    if(el('schedule-id').value) {
-      data.id = el('schedule-id').value;
-      data.paused = jobs.find(j => j.id === data.id).next === 'Paused';
+  } catch(error) {
+    el('status').textContent = error.message;
+    if(action === 'run') {
+      el('run-button').disabled = false;
+      el('run-progress').hidden = true;
     }
-    change('schedule', data);
-  } catch(error) { el('status').textContent = error.message; }
-};
-function editSchedule(index) {
-  const job = jobs[index];
-  el('schedule-id').value = job.id;
-  el('task').value = tasks.findIndex(t => t.name === job.name && t.revision === job.revision);
-  el('inputs').value = JSON.stringify(job.inputs);
-  el('at').value = job.at;
-  el('minutes').value = job.minutes;
-  el('weekdays').value = job.weekdays;
-  inputHelp();
-  el('task-form').scrollIntoView();
+  }
 }
-document.querySelectorAll('form.review').forEach(form => form.onsubmit = event => {
-  event.preventDefault();
-  try {
-    const data = new FormData(form);
-    change('review', {draft_id:form.dataset.draft, definition:{
-      name:data.get('name'), title:data.get('title'), description:data.get('description'),
-      language:form.dataset.language, inputs:JSON.parse(data.get('schema'))},
-      tests:data.get('tests'), checked_for_patient_data:data.get('checked') === 'on'});
-  } catch(error) { el('status').textContent = error.message; }
-});
+function showInputs(value={}) {
+  if(editor) editor.destroy();
+  const task = tasks[el('task').value];
+  el('description').textContent = task.description;
+  const properties = Object.fromEntries(Object.entries(task.inputs.properties || {}).map(([key, field]) =>
+    [key, {title:key.charAt(0).toUpperCase()+key.slice(1), ...field}]));
+  editor = new JSONEditor(el('inputs'), {theme:'bootstrap5', schema:{...task.inputs, title:'Options', properties},
+    disable_edit_json:true, disable_properties:true, disable_collapse:true,
+    show_errors:'interaction', no_additional_properties:true});
+  editor.on('ready', () => {
+    editor.setValue({...editor.getValue(), ...value});
+    el('run-button').disabled = false;
+  });
+}
+function taskInputs() {
+  const task = tasks[el('task').value], inputs = editor.getValue();
+  for(const key of Object.keys(inputs)) if(inputs[key] === '' && !(task.inputs.required || []).includes(key)) delete inputs[key];
+  if(editor.validate(inputs).length) throw new Error('Please check the options you entered.');
+  return {name:task.name, revision:task.revision, inputs};
+}
+if(tasks.length) {
+  el('task').onchange = () => { el('schedule-id').value=''; showInputs(); };
+  showInputs();
+  el('task-form').onsubmit = event => {
+    event.preventDefault();
+    try { change('run', taskInputs()); } catch(error) { el('status').textContent = error.message; }
+  };
+  el('schedule-form').onsubmit = event => {
+    event.preventDefault();
+    try {
+      const data = {...taskInputs(), at:el('at').value, weekdays:el('weekdays').value, minutes:Number(el('minutes').value)};
+      if(el('schedule-id').value) {
+        data.id=el('schedule-id').value;
+        data.paused=jobs.find(j => j.id === data.id).next === 'Paused';
+      }
+      change('schedule', data);
+    } catch(error) { el('status').textContent = error.message; }
+  };
+}
+function editSchedule(index) {
+  const job=jobs[index];
+  el('task').value=tasks.findIndex(t => t.name === job.name && t.revision === job.revision);
+  showInputs(job.inputs);
+  el('schedule-id').value=job.id;
+  el('at').value=job.at; el('minutes').value=job.minutes; el('weekdays').value=job.weekdays;
+  el('schedule-editor').open=true;
+  el('schedule-editor').scrollIntoView();
+}
 </script>
 {% endblock %}
