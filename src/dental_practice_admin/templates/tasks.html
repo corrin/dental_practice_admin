@@ -40,7 +40,7 @@ Running… Your results will open here when ready.</div>
 {% else %}<p class="text-secondary">No reports or scripts have been added yet.</p>{% endif %}
 </div></div></section>
 <section class="col-lg-6"><div class="card shadow-sm border-0"><div class="card-body p-4">
-<h2 class="h5 mb-3">Recent results & logs</h2>
+<h2 class="h5 mb-3">Latest result for each report or script</h2>
 {% for run in recent %}<div class="border-bottom py-3">
 <a class="fw-semibold" href="/runs/{{ run.run_id }}">{{ titles.get(run.task, run.task) }}</a>
 <span class="badge {{ 'text-bg-success' if run.is_trustworthy else 'text-bg-warning' }} float-end">{{ 'Ready' if run.is_trustworthy else ('Needs attention' if run.finished_at else 'Running') }}</span>

@@ -234,6 +234,15 @@ class Storage:
         ).fetchone()
         return _row_to_run(row) if row is not None else None
 
+    def latest_runs_by_task(self) -> list[TaskRun]:
+        """One latest attempt per task, regardless of how often it runs."""
+        return [_row_to_run(row) for row in self.db.execute(
+            "SELECT * FROM task_runs WHERE rowid IN ("
+            "SELECT rowid FROM (SELECT rowid, ROW_NUMBER() OVER ("
+            "PARTITION BY task ORDER BY started_at DESC, rowid DESC) AS position "
+            "FROM task_runs) WHERE position = 1) ORDER BY task"
+        )]
+
 
 def _row_to_run(row: sqlite3.Row) -> TaskRun:
     return TaskRun(**{**dict(row), "detail": json.loads(row["detail"]) if row["detail"] else None})

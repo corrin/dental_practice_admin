@@ -47,7 +47,7 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
                 "weekdays": "*" if interval else fields["day_of_week"]})
     from dental_practice_admin.storage import Storage
     store = Storage(settings.database_path)
-    recent = [run for run in store.recent_runs() if not run.task.startswith("draft:")][:5]
+    recent = [run for run in store.latest_runs_by_task() if not run.task.startswith("draft:")]
     store.close()
     return TEMPLATES.TemplateResponse(request, "tasks.html", {
         "staff": staff, "is_fake": settings.environment.value == "fake",

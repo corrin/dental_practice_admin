@@ -147,6 +147,23 @@ def test_results_link_to_application_schedule_controls(pages: Pages) -> None:
     assert 'href="/tasks/manage"' in body
 
 
+def test_frequent_runs_do_not_hide_other_scripts(pages: Pages) -> None:
+    store = pages.store
+    weekly = [store.start_run(f"weekly_{n}", "fake-user", "fake") for n in range(6)]
+    frequent = [store.start_run("phone_standardiser", "fake-user", "fake") for _ in range(60)]
+    store.finish_run(frequent[-1], Outcome.FAILED, Coverage.PARTIAL, "Latest attempt failed")
+    draft = store.start_run("draft:private", "fake-user", "fake")
+    response = pages.client.get("/tasks/manage")
+    assert response.status_code == 200
+    for run_id in [*weekly, frequent[-1]]:
+        assert f'href="/runs/{run_id}"' in response.text
+    for run_id in [*frequent[:-1], draft]:
+        assert f'href="/runs/{run_id}"' not in response.text
+    assert "Latest attempt failed" in response.text
+    assert "Needs attention" in response.text
+    assert store.run(frequent[0]) is not None
+
+
 def test_a_partial_run_is_flagged_on_its_page(pages: Pages) -> None:
     """The warning must be on the page, not only in the summary string.
 
