@@ -136,8 +136,7 @@ The file should be ready to send to Principle.
   - Today the application installs only a task's own three files
     (`task_files.install_existing`, `saved_scripts.load`), so it needs to install the practice
     repository's shared module alongside them.
-  - That is a small change in `dental_practice_admin`. It merges only once the application line
-    budget is back under 2,000, and `hermetic` passes again.
+  - That is a small change in `dental_practice_admin`.
 - **Synthetic tests:**
   - a daylight-saving day
   - an empty day
