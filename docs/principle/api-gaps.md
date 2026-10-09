@@ -36,5 +36,3 @@ Each is visible in Principle's timeline or appointment card. Requests to Princip
 5. **Appointment tags.** `GET /v1/tags/appointment` with the practice's `practiceId` returns
    403 "Practice not found", although the same key and ID work for every other call.
    `Appointment` has no `tags` field to read them from in any case.
-6. **Card colour.** On 2026-11-16 every card's colour was consistent with its treatment category, which the sheet
-   prints as text. This needs no new field.
