@@ -108,7 +108,7 @@ Undo is not offered in v1; a wrong match is corrected in Principle by hand (to b
 `updateTransaction` is verified to void cleanly). A recorded line has a **Wrong match** action
 that sets its status to `wrong` with a note, so its allocations stop feeding payer memory and
 the wrong patient is not suggested again. A `wrong` line stays at the top of the page under **Fix in
-Principle** until someone marks it fixed, which returns it to `open` for re-matching.
+Principle** until someone marks it fixed, which deletes its old allocations and returns it to `open` for re-matching.
 
 ## Phases
 
