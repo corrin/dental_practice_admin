@@ -126,7 +126,11 @@ individual. A rule-classified deposit is labelled **Rule**.
 
 ### Batch deposits: does it add up?
 Deterministic arithmetic, no LLM.
-- **Card settlement.** The takings date is in the line when present (`Shift4 5842 09/10`). When
+- **Card settlement.** A Smartpay deposit is one day's takings from the Smartpay terminal only:
+  no cash, and nothing taken on the Paymark terminal. So the sum is over payments recorded
+  against that terminal's method. Phase 0 checks that Principle can tell Smartpay payments apart
+  from Paymark ones; if it can't, card days can only be checked as the combined total of both
+  deposits. The takings date is in the line when present (`Shift4 5842 09/10`). When
   it isn't, the candidate days run back from the previous working day to the day after the last
   settlement, so a Monday deposit can cover the weekend. The page sums Principle's payments of
   that method entered on that day or days.
@@ -293,8 +297,7 @@ narrowing, using an offline script that is not committed.
 process, with no disagreements, before the manual process stops.
 
 ## Open questions
-- Does a Smartpay deposit always cover exactly one day's takings? Does Paymark settle the same
-  day?
+- Does Paymark settle one day's takings per deposit, like Smartpay?
 - Is "entered that day" the date the payment was entered in Principle, or the appointment date?
 - Sending patient names and balances to OpenAI for ranking: is this acceptable? It is the same
   kind of data chat already sends, but it is a new flow and needs an explicit yes.
