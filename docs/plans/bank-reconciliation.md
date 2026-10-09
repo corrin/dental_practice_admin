@@ -143,7 +143,9 @@ Smartpay deposit is that terminal's takings only: no cash and nothing from Payma
 checks that Principle can tell Smartpay and Paymark payments apart; if it can't, the two share
 one queue. Because a deposit claims items from the queue rather than a fixed day, a settlement
 that is days late still matches. The page header shows each queue's total and the date of its
-oldest item, the equivalent of an undeposited-funds balance.
+oldest item, the equivalent of an undeposited-funds balance. The oldest date is red when it is
+more than a week old, which means a settlement never arrived or a payment was recorded under the
+wrong method. The red threshold is ours; the products above show the balance only.
 
 **The deposit slip.** Opening a batch deposit shows that channel's queue as a list with
 tick boxes and a running total against the deposit, as on Open Dental's deposit slip.
@@ -159,7 +161,8 @@ tick boxes and a running total against the deposit, as on Open Dental's deposit 
 Match (**New Transaction**) and QuickBooks' **Resolve difference**, the missing item is added
 from inside the match screen:
 - **Add missing payment** opens Find & Match restricted to unpaid invoices, filtered by default
-  to patients seen on the takings day. Recording the payment there creates the card payment in
+  to patients seen on the takings day. Nothing in it is pre-selected; staff tick the invoice
+  themselves, as in any Find & Match. Recording the payment there creates the card payment in
   Principle through the same write path as individual deposits, and it joins the slip.
 - If Smartpay's transaction list is available (Phase 0), the slip shows terminal payments with
   no Principle payment of the same amount beside it, which names the missing payment directly.
@@ -280,7 +283,7 @@ staff member's email.
   aren't, ACC's ProviderHub remittance CSV lists each claim, and importing it becomes the ACC
   design; we come back to this before Phase 1.
 - Whether `createTransaction` can record a card payment (Smartpay method) against an invoice
-  for a past date, for **Record payment**.
+  for a past date, for **Add missing payment**.
 - How card, Southern Cross and ACC payments are stored: their method or provider values,
   whether `createdAt` is the entry date, and whether the insurer batch number is kept.
 - The cheapest way to list patients with an outstanding balance and their unpaid invoices.
@@ -323,6 +326,7 @@ narrowing, using an offline script that is not committed.
    - a card day that adds up, and one that is short;
    - a settlement days late still matches its day;
    - adding a missing payment from the slip brings the difference to $0.00;
+   - a queue item more than a week old is shown in red;
    - a remembered payer, which skips the LLM;
    - a split that must reach $0.00;
    - an uncertain write, which goes to `check` and is never retried;
