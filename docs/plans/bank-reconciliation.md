@@ -258,7 +258,7 @@ The steps are:
 **Remove & redo** reverses only payments with `created_here` set. It uses `updateTransaction`
 to void them; Phase 3 verifies that this is possible and what Principle shows afterwards. If
 Principle cannot void through the API, Remove & redo stops and we come back to this design
-before Phase 1. The deposit returns to `open`. If the match was labelled **Remembered**, the
+before building Phase 3. The deposit returns to `open`. If the match was labelled **Remembered**, the
 confirmation asks "Forget that this account pays for <patient>?" so a wrong link is dealt with
 at the moment it is found.
 
@@ -274,8 +274,10 @@ that depends on them. Nothing writes to Principle until Phase 3, and Phase 3 sta
 staging checks.
 
 ### Phase 1: a basic read-only page
-Staff see every deposit and can match it by hand. Matches are kept only in the page, and
-payments are still keyed into Principle as they are today.
+Staff see every deposit and can match it by hand. Matches are recorded in the page's own tables
+and Principle is not touched; payments are still keyed into Principle as they are today. These
+records stay as history when Phase 3 starts. Only matches confirmed from Phase 3 onwards create
+payments.
 
 First, about an hour of setup:
 - Create the Akahu personal app and connect the account.
@@ -291,7 +293,10 @@ Build:
 4. Find & Match, read-only: search a patient and see their unpaid invoices from Principle. Tick
    invoices, see the running total, and press OK to record the match locally.
 5. Exclude with a reason, and Unreconcile.
-6. Tests: re-fetching does not duplicate deposits; a split must reach $0.00; Exclude needs a
+6. The fake Principle: add read routes for invoices to `tests/fake/`, shaped from the real
+   responses, and update `tests/test_fake_covers_catalogue.py`, which currently expects
+   invoices to be unhandled.
+7. Tests: re-fetching does not duplicate deposits; a split must reach $0.00; Exclude needs a
    reason; e2e: match a deposit by hand.
 
 Reads from Principle use the existing API client. Unknowns, such as the cheapest way to list
@@ -303,6 +308,8 @@ they look for that the page doesn't show.
 
 ### Phase 2: batch deposits and suggestions
 Before building, from Phase 1's real data:
+- How card, Southern Cross and ACC payments are stored: their method or provider values, and
+  whether `createdAt` is the entry date. These give the exact method names for the batch rules.
 - Whether Smartpay and Paymark payments are recorded under different methods.
 - Which payment date a takings day is grouped by: the date the payment was entered, or the
   appointment date.
@@ -311,9 +318,11 @@ Before building, from Phase 1's real data:
   If they aren't, ACC's ProviderHub remittance CSV lists each claim, and importing it becomes the
   ACC design; we come back to this before building it.
 - Whether family or guarantor links can be read.
+- Smartpay: whether the merchant portal has an API or a downloadable transaction report (this
+  decides Phase 4), and whether the settlement is gross or net of fees.
 
 Build:
-1. The batch rules, the clearing queues and the deposit slip, including the stale-item warning.
+1. `Settings` for the batch rules and the matching model. The batch rules, the clearing queues and the deposit slip, including the stale-item warning.
 2. `payer_links` and the Remembered payers tab.
 3. Candidate narrowing and the LLM ranking, with method labels, reasons and the
    "Suggestions unavailable" fallback.
@@ -325,7 +334,9 @@ Build:
    - a failed model call shows the candidates unranked.
 
 **Milestone 2:** for a week, the suggestions and the card slips are compared with what reception
-did by hand. We count how often the top suggestion was right and how often card days added up.
+did by hand. We count how often the top suggestion was right, how often card days added up, and what
+caused each day that didn't (forgotten payment, wrong method, wrong day, duplicate, other). That
+decides whether Phase 3 needs searches for causes other than a forgotten payment.
 
 ### Phase 3: recording payments in Principle
 Before building, on Principle **staging** (following `skills/principle-staging-browser/SKILL.md`):
@@ -356,8 +367,9 @@ Build:
 against the manual process, before the manual process stops.
 
 ### Phase 4: Smartpay's transaction list
-Only if Smartpay offers an API or downloadable report. Its settlement amount is checked for fees
-in Phase 2: a fee taken from the deposit would make every day disagree by the fee. With the list,
+Only if Smartpay offers an API or downloadable report. Phase 2 checks whether it exists and whether the
+settlement is net of fees; a fee taken from the deposit would make every day disagree by the
+fee. With the list,
 the deposit slip names the missing payment directly.
 
 ## Usages left out
@@ -370,7 +382,7 @@ the deposit slip names the missing payment directly.
 
 ## Application size
 There is no line cap. Size is judged by Simplicity First, and `scripts/code_size.py` reports it
-in review and CI. This feature is an estimated 450–550 lines; Phase 1 should look for the
+in review and CI. This feature is an estimated 450–550 lines; each phase should look for the
 smallest version of each part.
 
 ## Risks
