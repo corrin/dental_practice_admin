@@ -173,7 +173,7 @@ OK is only enabled when the difference is $0.00 or accepted.
 
 ### Individual deposits: candidates and suggestions
 1. **Narrow the candidates in code.** The page loads patients with an outstanding balance and
-   their unpaid invoices (the cheapest way is verified in Phase 1). It keeps about 10 for each
+   their unpaid invoices (the calls are chosen and timed in Phase 0). It keeps about 10 for each
    deposit, using:
    - patients linked to the payer's account in `payer_links` (Odoo learns the payer's account
      number the same way);
@@ -242,7 +242,7 @@ Principle"** until someone ticks it done. This gap is also listed in
 ### Writing to Principle (ADR 0005 write rules)
 **Confirming an individual match.** For each ticked invoice the page calls
 `createTransaction` on `/v1/patients/{pid}/invoices/{iid}/transactions`. The call carries:
-- the "bank transfer" type and provider (the values are verified in Phase 3);
+- the "bank transfer" type and provider (the values are found in Phase 0);
 - the amount;
 - `createdAt` set to the bank date;
 - `reference` set to the Akahu id, so every payment can be traced back to its deposit.
@@ -256,9 +256,8 @@ The steps are:
    each invoice. It sets the deposit to `matched` or back to `open`.
 
 **Remove & redo** reverses only payments with `created_here` set. It uses `updateTransaction`
-to void them; Phase 3 verifies that this is possible and what Principle shows afterwards. If
-Principle cannot void through the API, Remove & redo stops and we come back to this design
-before building Phase 3. The deposit returns to `open`. If the match was labelled **Remembered**, the
+to void them; Phase 0 verifies that this is possible and what Principle shows afterwards. If
+it cannot, Phase 0's fallback applies. The deposit returns to `open`. If the match was labelled **Remembered**, the
 confirmation asks "Forget that this account pays for <patient>?" so a wrong link is dealt with
 at the moment it is found.
 
@@ -269,9 +268,30 @@ staff member's email.
 
 ## Phases
 
-Each phase ends with a page staff use on real deposits. Checks are done just before the phase
-that depends on them. Nothing writes to Principle until Phase 3, and Phase 3 starts with the
-staging checks.
+The order follows risk: whatever is most likely to fail, and would change the most if it did,
+is tested first.
+- **Phase 0** tests the technical unknowns that could break the design, with throwaway scripts
+  on staging and on real data.
+- **Phase 1** tests the next biggest risk, whether the page shows what reception needs to
+  decide, by putting a plain version in front of them.
+- **Phase 2** tests whether the suggestions and deposit slips are right often enough to save
+  time.
+- **Phase 3** turns on production writes, whose mechanics Phase 0 already proved on staging.
+- **Phase 4** is optional.
+
+### Phase 0: test the riskiest parts first
+About two days. Scripts are not committed; findings go in `docs/principle/`, and gaps in
+`api-gaps.md`. Ranked by how likely each is to fail and how much of the design it would change:
+
+| # | Risk | Why it may fail | How it is tested | If it fails |
+|---|---|---|---|---|
+| 1 | Recording and voiding a payment through Principle's API | Never used; the fake doesn't implement invoices; Principle's own handling is unknown | On **staging** (following `skills/principle-staging-browser/SKILL.md`): create a bank-transfer payment on an invoice, a part payment, and a card payment dated in the past; then void each. Record the valid `type`, `provider` and `status` values, whether invoice `status`/`paidAt` and the patient's `accountSummary` update, and what Principle's own screens show | No create: the page stays a matching aid and staff key payments. No void: Remove & redo becomes "fix in Principle", and the page tracks it until done |
+| 2 | Card days add up at all | Smartpay and Paymark may share one payment method in Principle; settlements may be net of fees; the takings day may follow entry date or appointment date | On a month of real deposits and Principle payments: sum each card method per day against each settlement, both ways of dating | Shared method: one combined card queue. Net of fees: the fee becomes an expected difference. Neither adds up: the slip is a checklist, not a sum |
+| 3 | Listing patients who owe money, with their unpaid invoices, fast enough for a page load | No outstanding-balance query is known; earlier work found unreliable totals on some endpoints | Time the candidate calls (`listInvoicesByDateRange`, per-patient `listInvoices`) against real data and compare a sample of balances with Principle's screens | Cache the unpaid-invoice list, refreshed on Fetch now |
+| 4 | Akahu gives the fields matching depends on | Particulars, code, reference and `other_account` vary by bank and payment type | Create the personal app, connect the account, dump a month | Memory keys on payer name instead of account number |
+| 5 | Insurer payments are entered per patient before the deposit | Assumed for Southern Cross and ACC | Check a month of each in Principle | Import ACC's ProviderHub remittance CSV instead |
+
+**Milestone 0:** each risk has a recorded answer, and the design is adjusted where one failed.
 
 ### Phase 1: a basic read-only page
 Staff see every deposit and can match it by hand. Matches are recorded in the page's own tables
@@ -279,11 +299,6 @@ and Principle is not touched; payments are still keyed into Principle as they ar
 deposit has been dealt with and which patient it was for. These records stay as history when
 Phase 3 starts. Only matches confirmed from Phase 3 onwards create
 payments.
-
-First, about an hour of setup:
-- Create the Akahu personal app and connect the account.
-- Dump a few weeks of transactions to see which fields arrive for this bank (particulars,
-  code, reference, `other_account`) and how Smartpay and Paymark lines look.
 
 Build:
 1. `Settings` for the Akahu credentials. A small Akahu client using httpx, with a fake
@@ -300,27 +315,17 @@ Build:
 7. Tests: re-fetching does not duplicate deposits; a split must reach $0.00; Exclude needs a
    reason; e2e: match a deposit by hand.
 
-Reads from Principle use the existing API client. Unknowns, such as the cheapest way to list
-unpaid invoices, are answered while building, against the real API, and recorded in
-`docs/principle/`.
+Reads from Principle use the existing API client, with the calls Phase 0 timed.
 
 **Milestone 1:** reception uses the page alongside the manual process for a week. We note what
 they look for that the page doesn't show.
 
 ### Phase 2: batch deposits and suggestions
-Before building, from Phase 1's real data:
-- How card, Southern Cross and ACC payments are stored: their method or provider values, and
-  whether `createdAt` is the entry date. These give the exact method names for the batch rules.
-- Whether Smartpay and Paymark payments are recorded under different methods.
-- Which payment date a takings day is grouped by: the date the payment was entered, or the
-  appointment date.
+Before building, from Phase 1's real data, using the method names Phase 0 found:
 - Whether the insurer batch number is kept on the payments.
-- That ACC payments, like Southern Cross, are entered per patient before the deposit arrives.
-  If they aren't, ACC's ProviderHub remittance CSV lists each claim, and importing it becomes the
-  ACC design; we come back to this before building it.
 - Whether family or guarantor links can be read.
 - Smartpay: whether the merchant portal has an API or a downloadable transaction report (this
-  decides Phase 4), and whether the settlement is gross or net of fees.
+  decides Phase 4).
 
 Build:
 1. `Settings` for the batch rules and the matching model. The batch rules, the clearing queues and the deposit slip, including the stale-item warning.
@@ -340,17 +345,9 @@ caused each day that didn't (forgotten payment, wrong method, wrong day, duplica
 decides whether Phase 3 needs searches for causes other than a forgotten payment.
 
 ### Phase 3: recording payments in Principle
-Before building, on Principle **staging** (following `skills/principle-staging-browser/SKILL.md`):
-- Create, then void, a bank-transfer payment. Record:
-  - the valid `type`, `provider` and `status` values;
-  - whether invoice `status` and `paidAt` and the patient's `accountSummary` update;
-  - part-payment behaviour;
-  - what Principle's own screens show.
-- Whether `createTransaction` can record a card payment against an invoice for a past date, for
-  **Add missing payment**.
-
-If voiding is not possible through the API, Remove & redo cannot work as designed, and we come
-back to the design before building. Findings go in `docs/principle/`, and gaps in `api-gaps.md`.
+The write mechanics were proven on staging in Phase 0, so this phase is wiring and safety. The
+first production writes are made on a handful of real deposits, with someone checking each one in
+Principle.
 
 Build:
 1. The write path with its states, and the audit log entries.
@@ -368,10 +365,8 @@ Build:
 against the manual process, before the manual process stops.
 
 ### Phase 4: Smartpay's transaction list
-Only if Smartpay offers an API or downloadable report. Phase 2 checks whether it exists and whether the
-settlement is net of fees; a fee taken from the deposit would make every day disagree by the
-fee. With the list,
-the deposit slip names the missing payment directly.
+Only if Smartpay offers an API or downloadable report, which Phase 2 checks. With the list, the
+deposit slip names the missing payment directly.
 
 ## Usages left out
 - Reconciling outgoing payments.
