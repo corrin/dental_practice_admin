@@ -196,8 +196,13 @@ def install_existing(settings: Settings, name: str, number: int) -> str:
         raise ValueError("Merged task name disagrees with its installation path")
     if not target.exists():
         staging = target.with_name("install-" + uuid.uuid4().hex)
-        staging.mkdir(parents=True)
+        (staging / "shared").mkdir(parents=True)
         for name, content in files.items():
             (staging / name).write_bytes(content)
+        # The practice repository's shared/ modules at the same revision, importable by every task.
+        with suppress(UnknownObjectException):
+            for item in repo.get_contents("shared", ref=revision):
+                if item.type == "file" and item.name.endswith(".py"):
+                    (staging / "shared" / item.name).write_bytes(item.decoded_content)
         staging.rename(target)
     return str(revision)

@@ -93,9 +93,14 @@ async def execute(settings: Settings, script: Script) -> Result:
     try:
         if script.language == "playwright":
             return Result.model_validate(await services.browser(script.source, script.inputs))
-        namespace: dict[str, Any] = {}
-        exec(compile(script.source, "<workflow>", "exec"), namespace)
-        return Result.model_validate(await namespace["run"](services, script.inputs))
+        shared = str(settings.data_dir / "installed" / script.task_id / script.revision / "shared")
+        sys.path.insert(0, shared)
+        try:
+            namespace: dict[str, Any] = {}
+            exec(compile(script.source, "<workflow>", "exec"), namespace)
+            return Result.model_validate(await namespace["run"](services, script.inputs))
+        finally:
+            sys.path.remove(shared)
     finally:
         await services.aclose()
 
