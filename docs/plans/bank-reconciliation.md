@@ -275,8 +275,9 @@ staging checks.
 
 ### Phase 1: a basic read-only page
 Staff see every deposit and can match it by hand. Matches are recorded in the page's own tables
-and Principle is not touched; payments are still keyed into Principle as they are today. These
-records stay as history when Phase 3 starts. Only matches confirmed from Phase 3 onwards create
+and Principle is not touched; payments are still keyed into Principle as they are today. Principle stays the record of payments; a Phase 1 match only notes that the
+deposit has been dealt with and which patient it was for. These records stay as history when
+Phase 3 starts. Only matches confirmed from Phase 3 onwards create
 payments.
 
 First, about an hour of setup:
