@@ -36,12 +36,12 @@ Decisions made:
   accepted. ADR 0005's rule against AI covers scheduled tasks; this is an interactive page and a
   person confirms every match.
 - Wrong matches are corrected on the page with **Remove & redo**.
-- Card days frequently won't add up, typically because reception forgot to record a payment.
-  The page's main job for batch deposits is explaining the difference, not just reporting it.
-- Smartpay's own transaction list (each card payment with its time and amount) is used if
-  Phase 0 finds a way to get it. With it, a mismatch becomes a direct comparison that names the
-  missing payment; without it, the page can only infer the missing payment from Principle
-  (below).
+- Card and insurer deposits frequently won't add up, typically because reception forgot to
+  record a payment. Settlements can arrive more than a day late.
+- **Every mechanism copies a named product.** Where the plan has no source for something, it says
+  so and why. Bank reconciliation is solved; the established designs already contain the
+  lessons those products learned the hard way.
+- Smartpay's own transaction list is used if Phase 0 finds a way to get it (below).
 
 ## The reference: Xero's reconcile screen
 
@@ -128,74 +128,63 @@ payment method it settles. Each rule is a payer name or particulars "starts with
 payments. The exact Principle method names are verified in Phase 0. Everything else is
 individual. A rule-classified deposit is labelled **Rule**.
 
-### Batch deposits: a clearing queue per channel
-This is the standard clearing-account pattern (Xero's "undeposited funds", and what Cliniko and
-Core Practice recommend for card channels). Every payment recorded in Principle under a batch
-method sits in that channel's queue until a deposit claims it. A deposit is matched against the
-queue, not against a fixed day, so a settlement that arrives two or three days late still
-matches. Deterministic arithmetic, no LLM.
+### Batch deposits: deposit slip against a clearing queue
+Copied from:
+- [Open Dental's deposit slip](https://www.opendental.com/manual/depositslip.html), the system
+  this practice used before Principle;
+- the clearing account per card channel that
+  [Cliniko](https://help.cliniko.com/en/articles/1023944-reconcile-in-xero-when-using-the-cliniko-integration)
+  and Core Practice recommend;
+- Xero's Find & Match for the difference.
 
-- **Channels.** Smartpay, Paymark, Southern Cross and ACC each have their own queue. A Smartpay
-  deposit is the Smartpay terminal's takings only: no cash and nothing from Paymark. Phase 0
-  checks that Principle can tell Smartpay and Paymark payments apart; if it can't, the two share
-  one card queue.
-- **Card deposits claim whole days.** A card deposit is matched to one or more whole takings
-  days still in the queue, from the last 10 days, that sum exactly to it. When the line carries
-  its takings date (`Shift4 5842 09/10`), that day is tried first.
-- **Insurer deposits claim payments.** The unmatched payments of that insurer, oldest first; a
-  run of them summing exactly to the deposit is the match. If Principle stores the insurer's
-  batch number on the payment (checked in Phase 0), the page matches on that instead.
-- **The queue is always visible.** The page header shows, per channel, how much recorded in
-  Principle is still waiting for a deposit and how old the oldest item is, for example
-  "Smartpay: $2,151.00 waiting, oldest 4 days". An item older than 5 days is shown in red. It
-  means a deposit hasn't arrived or a payment was recorded under the wrong method, and it is
-  noticed rather than sitting unseen.
-- **It adds up:** the row shows ✓ "14 payments, 8–9 Oct" (illustrative), labelled **Sum**. One OK
-  confirms it and writes the `bank_matches` rows. Nothing is written to Principle.
-- **It doesn't add up:** the row shows the difference, for example "$185.00 more in the bank than
-  in Principle", and an **Explain the difference** panel (below). It stays open until Principle
-  is corrected and the sum is recomputed, or until someone accepts the difference with a reason.
-- **Two different combinations both add up:** nothing is pre-selected and staff pick.
+**The queue.** Every payment recorded in Principle under a batch method waits in that channel's
+queue until a deposit claims it. The channels are Smartpay, Paymark, Southern Cross and ACC. A
+Smartpay deposit is that terminal's takings only: no cash and nothing from Paymark. Phase 0
+checks that Principle can tell Smartpay and Paymark payments apart; if it can't, the two share
+one queue. Because a deposit claims items from the queue rather than a fixed day, a settlement
+that is days late still matches. The page header shows each queue's total and the date of its
+oldest item, the equivalent of an undeposited-funds balance.
 
-### Explaining a difference
-The cause reported by the practice is a payment that reception forgot to record, so that is the
-one the page searches for. The panel shows:
-- **Likely missing payments.** With Smartpay's list: terminal payments with no Principle payment
-  of the same amount that day. Without it: patients seen that day whose invoice from that day is
-  still unpaid, with the invoice amount. An invoice whose amount equals the difference is listed
-  first.
-- **Side by side:** the day's Principle payments of this method, and that day's unpaid
-  invoices, so a person can spot anything else.
+**The deposit slip.** Opening a batch deposit shows that channel's queue as a list with
+tick boxes and a running total against the deposit, as on Open Dental's deposit slip.
+- Card deposits: the takings day named on the line (`Shift4 5842 09/10`) is pre-ticked; with
+  no date on the line, the oldest unclaimed day is pre-ticked. If the ticked total equals the
+  deposit, the row shows ✓ in the list and one OK confirms it, labelled **Sum**.
+- Insurer deposits: if Principle stores the insurer's batch number on the payments (Phase 0),
+  those payments are pre-ticked. Otherwise nothing is pre-ticked and staff tick.
+- Nothing is written to Principle when a batch deposit is confirmed; it only writes the
+  `bank_matches` rows.
 
-**Record payment** creates the card payment on one chosen invoice. It goes through the same
-write path and rules as individual deposits. It is offered on a single invoice, for a patient
-who had an appointment that day, and is never pre-selected or offered for a combination of
-invoices. A combination goes through Find & Match like any split.
+**A difference.** The slip shows "$185.00 more in the bank than ticked". As in Xero's Find &
+Match (**New Transaction**) and QuickBooks' **Resolve difference**, the missing item is added
+from inside the match screen:
+- **Add missing payment** opens Find & Match restricted to unpaid invoices, filtered by default
+  to patients seen on the takings day. Recording the payment there creates the card payment in
+  Principle through the same write path as individual deposits, and it joins the slip.
+- If Smartpay's transaction list is available (Phase 0), the slip shows terminal payments with
+  no Principle payment of the same amount beside it, which names the missing payment directly.
+- **Accept difference**, like Xero's Adjustments, needs a reason, and labels the match
+  **Accepted difference** in Reconciled so it stays visible.
 
-After any correction, the page re-reads Principle and recomputes the sum. A deposit is only
-marked matched when the sum agrees, or when someone uses **Accept difference**, which needs a
-reason and labels the match **Accepted difference** in Reconciled so it stays visible.
-
-Other causes (a payment recorded under the wrong method, on the wrong day, or twice) are not
-searched for in Phase 1. The Phase 0 replay records how often each happens; searches are added
-for the ones that do. Correcting an existing payment stays manual in Principle.
+OK is only enabled when the difference is $0.00 or accepted.
 
 ### Individual deposits: candidates and suggestions
 1. **Narrow the candidates in code.** The page loads patients with an outstanding balance and
    their unpaid invoices (the cheapest way is verified in Phase 0). It keeps about 10 for each
    deposit, using:
-   - patients linked to the payer's account in `payer_links`;
+   - patients linked to the payer's account in `payer_links` (Odoo learns the payer's account
+     number the same way);
    - an invoice number or patient name token in particulars, code or reference;
    - a surname matching the payer name;
    - an amount equal to an invoice or patient balance.
 2. **A remembered payer short-circuits the LLM.** If `payer_links` gives exactly one patient,
    that patient is the suggestion, labelled **Remembered**. This is how the weekly automatic
    payments become one click.
-3. **The LLM ranks the rest.** A fast model gets the deposit and the short list. It returns a
+3. **The LLM ranks the rest.** This is the equivalent of Xero's and QuickBooks' learned
+   suggestions; their ranking isn't published, so there is no ranking to copy. A fast model gets the deposit and the short list. It returns a
    ranked list, each item with a one-line reason and a tier (`likely`/`possible`). It never
    records anything. The model is a setting separate from `agent_model` and uses the same OpenAI
-   client. The model sees patient names and balances, data that already goes to OpenAI through
-   chat; Open questions asks for an explicit yes. A suggestion from the LLM is labelled
+   client. A suggestion from the LLM is labelled
    **Suggested**. If the model call fails, the deposit's candidates are listed unranked in
    Needs a person under "Suggestions unavailable: <error>", so the failure is visible.
 
@@ -287,7 +276,9 @@ staff member's email.
 - Whether Smartpay and Paymark card payments are recorded under different methods.
 - Which payment date a takings day is grouped by: the date the payment was entered, or the
   appointment date. Check it against a month of real deposits.
-- That ACC payments, like Southern Cross, are entered per patient before the deposit arrives.
+- That ACC payments, like Southern Cross, are entered per patient before the deposit arrives. If they
+  aren't, ACC's ProviderHub remittance CSV lists each claim, and importing it becomes the ACC
+  design; we come back to this before Phase 1.
 - Whether `createTransaction` can record a card payment (Smartpay method) against an invoice
   for a past date, for **Record payment**.
 - How card, Southern Cross and ACC payments are stored: their method or provider values,
@@ -330,9 +321,8 @@ narrowing, using an offline script that is not committed.
    `tests/test_fake_covers_catalogue.py`, which currently expects invoices to be unhandled.
 7. Tests (ADR 0004):
    - a card day that adds up, and one that is short;
-   - a settlement two days late, and one covering two days;
-   - a queue item older than 5 days shown in red;
-   - two equal combinations, where nothing is pre-selected;
+   - a settlement days late still matches its day;
+   - adding a missing payment from the slip brings the difference to $0.00;
    - a remembered payer, which skips the LLM;
    - a split that must reach $0.00;
    - an uncertain write, which goes to `check` and is never retried;
