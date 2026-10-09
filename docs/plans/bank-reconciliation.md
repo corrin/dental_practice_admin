@@ -42,7 +42,7 @@ id, so re-fetching is harmless.
 
 SQLite table in `storage.py` (`bank_lines`): `akahu_id` PK, `date`, `amount` (cents),
 `payer_name`, `payer_account`, `particulars`, `code`, `reference`, `status`
-(`open | recording | recorded | check | ignored`), `decided_by`, `decided_at`, `note`.
+(`open | recording | recorded | check | ignored | wrong`), `decided_by`, `decided_at`, `note`.
 Child table `bank_allocations`: `akahu_id`, `patient_id`, `invoice_id`, `amount`,
 `principle_transaction_id`. Only credits (amount > 0) are stored.
 
@@ -63,7 +63,9 @@ previously allocated), not a separate rules table — one source of truth.
 On page load, load outstanding invoices (verified in Phase 0 — likely
 `listInvoicesByDateRange` over the last ~18 months filtered to unpaid, then outstanding =
 `total` − paid allocations) and the patients they belong to. For each open line, score
-candidates and show the top three with **visible reasons**:
+candidates and show the top three with **visible reasons**. The window only limits
+suggestions: `Find…` lists a chosen patient's unpaid invoices with `listInvoices` regardless of
+age, so an old debt is still matchable by hand.
 
 | Signal | Example reason shown |
 |---|---|
@@ -85,7 +87,6 @@ scheduled/automatic paths don't use AI; this is deterministic and explainable).
   `PrincipleClient.rows`) showing that patient's (and family's, if available) outstanding
   invoices with amount boxes prefilled oldest-first; "remaining" must be $0.00 to enable OK.
 - `Ignore…` requires a reason (card settlement, not a patient payment, refund, other + note).
-- Bulk "Confirm all ready" for the exact tier, with a count and total shown first.
 
 ### Writing to Principle (high-consequence; ADR 0005 write rules)
 Per allocation, `createTransaction` on `/v1/patients/{pid}/invoices/{iid}/transactions` with
@@ -104,7 +105,9 @@ allow and the remainder is marked **"record credit manually in Principle"** — 
 `docs/principle/api-gaps.md`.
 
 Undo is not offered in v1; a wrong match is corrected in Principle by hand (to be revisited if
-`updateTransaction` is verified to void cleanly).
+`updateTransaction` is verified to void cleanly). A recorded line has a **Wrong match** action
+that sets its status to `wrong` with a note, so its allocations stop feeding payer memory and
+the wrong patient is not suggested again.
 
 ## Phases
 
@@ -146,8 +149,7 @@ fails today and this feature (~350–450 lines) cannot merge until that is resol
 raise the cap or trim elsewhere first is still to be decided; this plan assumes neither.
 
 ## Risks
-- **Wrong patient credited** — mitigated by visible reasons, explicit OK per line (bulk only for
-  exact tier), traceable `reference`, audit log.
+- **Wrong patient credited** — mitigated by visible reasons, explicit OK per line (no bulk confirm), traceable `reference`, audit log.
 - **Akahu bank connection expires** — mitigated by the "bank data as of" banner.
 - **Duplicate payment from a retried write** — no auto-retry; `check` state with lookup by
   reference.
