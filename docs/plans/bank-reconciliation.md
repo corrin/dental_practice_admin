@@ -150,22 +150,27 @@ Deterministic arithmetic, no LLM.
 - **Two different combinations both add up:** nothing is pre-selected and staff pick.
 
 ### Explaining a difference
-The common causes, and what the page looks for. Each finding is shown with the evidence, and
-staff choose:
+The cause reported by the practice is a payment that reception forgot to record, so that is the
+one the page searches for. The panel shows:
+- **Likely missing payments.** With Smartpay's list: terminal payments with no Principle payment
+  of the same amount that day. Without it: patients seen that day whose invoice from that day is
+  still unpaid, with the invoice amount. An invoice whose amount equals the difference is listed
+  first.
+- **Side by side:** the day's Principle payments of this method, and that day's unpaid
+  invoices, so a person can spot anything else.
 
-| Cause | What the page looks for | Action offered |
-|---|---|---|
-| Payment never recorded (bank is higher) | With Smartpay's list: terminal payments with no Principle payment of the same amount that day. Without it: invoices issued that day and still unpaid, alone or two or three together, that sum to the difference | **Record payment**: creates the card payment on that invoice (same write path and rules as individual deposits) |
-| Recorded under the wrong method (e.g. cash or Paymark instead of Smartpay) | A payment of another method that day equal to the difference | Points to the payment; staff correct the method in Principle |
-| Recorded on the wrong day | A payment of this method on the day before or after equal to the difference | Points to the payment; staff correct it in Principle |
-| Recorded twice, or a declined card recorded as paid (Principle is higher) | Two payments with the same patient and amount that day, or a payment equal to the difference | Points to the payment; staff correct it in Principle |
-| Nothing found | — | The day's payments and that day's unpaid invoices are listed side by side for a person; **Accept difference** needs a reason, and the match is labelled **Accepted difference** in Reconciled so it stays visible |
+**Record payment** creates the card payment on one chosen invoice. It goes through the same
+write path and rules as individual deposits. It is offered on a single invoice, for a patient
+who had an appointment that day, and is never pre-selected or offered for a combination of
+invoices. A combination goes through Find & Match like any split.
 
 After any correction, the page re-reads Principle and recomputes the sum. A deposit is only
-marked matched when the sum agrees, or when a difference is explicitly accepted.
+marked matched when the sum agrees, or when someone uses **Accept difference**, which needs a
+reason and labels the match **Accepted difference** in Reconciled so it stays visible.
 
-Only **Record payment** writes to Principle. Corrections to existing payments (method or date)
-stay manual until `updateTransaction` is verified to change them safely.
+Other causes (a payment recorded under the wrong method, on the wrong day, or twice) are not
+searched for in Phase 1. The Phase 0 replay records how often each happens; searches are added
+for the ones that do. Correcting an existing payment stays manual in Principle.
 
 ### Individual deposits: candidates and suggestions
 1. **Narrow the candidates in code.** The page loads patients with an outstanding balance and
@@ -292,7 +297,7 @@ report, and whether its settlement amount is gross or net of fees. A fee deducte
 deposit would make every day disagree by the fee.
 
 **Replay of differences:** for the last month, record how many card days didn't add up and
-which cause in the table above explained each one.
+what caused each one (forgotten payment, wrong method, wrong day, duplicate, other).
 
 **Replay:** run a month of real deposits through the batch arithmetic and the candidate
 narrowing, using an offline script that is not committed.
