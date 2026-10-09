@@ -346,10 +346,10 @@ process, with no disagreements, before the manual process stops.
 - Correcting a payment's method or date from the page.
 - Bulk confirm.
 
-## Code budget
-`tests/test_budget.py` caps application code at 2,000 lines. It is already at 2,761, so
-`hermetic` fails today. This feature (an estimated 450–550 lines) cannot merge until the cap is
-raised or other code is trimmed. That decision is open.
+## Application size
+There is no line cap. Size is judged by Simplicity First, and `scripts/code_size.py` reports it
+in review and CI. This feature is an estimated 450–550 lines; Phase 1 should look for the
+smallest version of each part.
 
 ## Risks
 - **Wrong patient credited.** Mitigations:
