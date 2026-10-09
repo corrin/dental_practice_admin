@@ -69,6 +69,92 @@ direct write can leave inconsistent.
 **Verified:** [the staging direct-write comparison](https://github.com/corrin/dental_practice_admin/blob/84daa1a/scripts/address_via_firestore.py).
 Staging, 2026-10-01, build `main.ecfbec0077a05029.js`.
 
+## Production
+
+**What:** production's Massey Smiles workspace uses the same organisation and brand IDs as
+staging, because staging is a copy of production. The root is `PRINCIPLE_FIRESTORE_ROOT_PROD`.
+**Verified:** document paths observed while the production timeline loaded, then a document
+read under the root. Production, 2026-10-10, build `main.8e7a8bfa2c5bf44c.js`.
+
+A staff token cannot list collection IDs (`:listCollectionIds` returns 403) or run collection
+group queries from the database root. Collection names come from the web app's own queries.
+
+## What the timeline reads
+
+**What:** for one day, the timeline subscribes to `practices/{practiceId}/scheduleSummaries`
+filtered by `day` and `staffer`, to each staff member's `staff/{staffId}/rosterSchedules`, and
+to `calendarEvents` filtered by practice, `event.from`, participants and `event.type`.
+**Used for:** reproducing the timeline's content, including the pinned notes on each card.
+**Verified:** the timeline's Firestore listen targets, captured in a headless production session
+and replayed as reads. Production, 2026-10-10, build `main.8e7a8bfa2c5bf44c.js`. Monday
+2026-11-16 matched the timeline: 19 appointments and the lunch blocks.
+
+### Schedule summaries
+
+One document per practitioner per day, at `practices/{practiceId}/scheduleSummaries/{id}`.
+Query by `day` (`YYYY-MM-DD` string). These are copies Principle maintains for the timeline.
+
+| Field | Meaning |
+| --- | --- |
+| `day`, `staffer`, `practice` | The local day and the practitioner it covers. |
+| `events[].event` | `from`, `to` (UTC), `type` (`appointment`), participants: the patient and the staffer. |
+| `events[].metadata.label` | The patient name the card shows. |
+| `events[].metadata.pinnedNotes[]` | The note lines the card shows: the patient's pinned notes, as plain strings. |
+| `events[].metadata.status` | Appointment status, as the API's `status`. |
+| `events[].metadata.tags[]` | Appointment tags, each with `name` and `ref`. |
+| `events[].metadata.categoryRef` | The treatment category that sets the card colour. |
+| `events[].metadata.treatmentPlanName`, `treatmentStepName` | The linked plan and step. |
+| `gaps[]` | Free `from`/`to` windows in the practitioner's day. |
+
+### Roster schedules
+
+Recurring blocks for one staff member, at `staff/{staffId}/rosterSchedules/{id}`.
+
+| Field | Meaning |
+| --- | --- |
+| `item.event.type` | `rosteredOn` (working hours), `break` (lunch, team meeting) or `preBlock` (time held for a kind of treatment, with `allowedTreatmentCategories`). |
+| `item.title[].text` | The label the timeline shows, such as "Lunch". |
+| `item.notes` | Rich-text notes. |
+| `item.isBlocking` | Whether appointments can be booked over it. |
+| `pattern` | Weekly repetition: `daysOfWeek`, `startDate`, `endingType`. |
+| `scheduleTime.from`, `.to` | Local clock times, `HH:MM`. |
+| `modifiers[]` | Per-date exceptions; `type: delete` removes the listed `dates`. |
+
+### Calendar events
+
+`calendarEvents` at the brand root holds non-roster events: `event.type` seen as
+`appointmentRequest` and `gapCandidate` (gap-fill offers). Appointments are not here.
+
+## Appointment documents
+
+**What:** each appointment is `patients/{patientId}/appointments/{appointmentId}`, under the
+same IDs the API uses.
+**Verified:** read for every appointment on 2026-11-16. Production, 2026-10-10,
+build `main.8e7a8bfa2c5bf44c.js`.
+
+| Field | Meaning |
+| --- | --- |
+| `event.from`, `event.to` | The booked window, UTC. |
+| `practitioner`, `practice` | Name and reference. |
+| `status`, `statusHistory` | Current status and its changes. |
+| `tags[]` | Appointment tags (`name`, `ref`). The API's `Appointment` omits them. |
+| `treatmentPlan` | Plan name and reference, with the step's `name`, `duration` and category. |
+| `eventHistory` | Earlier windows after a reschedule. |
+| `waitListItem` | Wait-list settings, with rich-text `notes`. |
+
+The appointment document holds no card notes; those are the patient's pinned notes, copied
+into the schedule summary.
+
+## Treatment steps: tooth and surface
+
+**What:** `patients/{patientId}/treatmentPlans/{planId}/treatmentSteps/{stepId}` holds each
+treatment's charting. `treatments[].chartedSurfaces[].chartedRef.tooth` has `quadrant` (1–4),
+`quadrantIndex` (1–8) and `surface` (`occlusal`, `mesial`, `distal`, `lingual`, `facial`), so
+quadrant 1, index 8, occlusal is the card's "18 o". `treatments[].config.name` is the treatment
+name, as the API's `description`. The API's `TreatmentInPlan` has no tooth or surface.
+**Verified:** read for every appointment's step on 2026-11-16. Production, 2026-10-10,
+build `main.8e7a8bfa2c5bf44c.js`.
+
 The shared read-only client passed a staging changed-since query and matching count aggregation
 on 2026-10-03, including token renewal. Authentication and rejected-refresh behaviour have
 synthetic coverage in [`test_automation.py`](../../tests/test_automation.py).

@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from git import Repo
+from github import UnknownObjectException
 from jsonschema import ValidationError as SchemaError
 from pydantic import SecretStr, ValidationError
 
@@ -215,8 +216,13 @@ def test_clean_review_contains_no_draft_history_inputs_or_audits_and_installs_on
     with pytest.raises(FileNotFoundError):
         task_files.install(configured, script.task_id, "other@fake.invalid")
     pr.merged = True
-    repo.get_contents.side_effect = lambda path, ref: SimpleNamespace(
-        decoded_content=exported[path].encode())
+
+    def contents(path: str, ref: str) -> SimpleNamespace:
+        if path not in exported:
+            raise UnknownObjectException(404)
+        return SimpleNamespace(decoded_content=exported[path].encode())
+
+    repo.get_contents.side_effect = contents
     assert task_files.install(configured, script.task_id, script.owner) == REVISION
     assert task_files.install(configured, script.task_id, script.owner) == REVISION
     loaded = task_files.load(configured, "fake_report", REVISION, {"numbers": [2, 5]}, script.owner)
@@ -317,8 +323,11 @@ def test_install_existing_review_needs_no_local_draft(
         base=SimpleNamespace(repo=SimpleNamespace(
             full_name="elsewhere/repo" if problem == "foreign" else "fake/practice")),
         merge_commit_sha=REVISION)
-    repo.get_contents.side_effect = lambda path, ref: SimpleNamespace(
-        decoded_content=files[path.rsplit("/", 1)[1]])
+    shared = [SimpleNamespace(type="file", name="practice_time.py",
+                              decoded_content=b"NOON = 12\n")]
+    repo.get_contents.side_effect = lambda path, ref: (
+        shared if path == "shared"
+        else SimpleNamespace(decoded_content=files[path.rsplit("/", 1)[1]]))
     monkeypatch.setattr(task_files, "repository", lambda _: repo)
     if problem != "valid":
         with pytest.raises(ValueError):
@@ -330,3 +339,21 @@ def test_install_existing_review_needs_no_local_draft(
     loaded = task_files.load(configured, "fake_report", REVISION, {"numbers": []}, "staff")
     assert loaded.source == SOURCE
     assert not (configured.data_dir / "task-drafts").exists()
+    installed = configured.data_dir / "installed" / "fake_report" / REVISION
+    assert (installed / "shared" / "practice_time.py").read_text() == "NOON = 12\n"
+
+
+async def test_installed_task_imports_the_practice_shared_modules(tmp_path: Path) -> None:
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    folder = configured.data_dir / "installed" / "fake_report" / REVISION
+    (folder / "shared").mkdir()
+    (folder / "shared" / "fake_practice_constants.py").write_text("SYNTHETIC_TOTAL = 7\n")
+    (folder / "source.txt").write_text(
+        "from fake_practice_constants import SYNTHETIC_TOTAL\n\n"
+        "async def run(services, inputs):\n"
+        "    return {'summary': 'Synthetic', 'detail': {'total': SYNTHETIC_TOTAL},\n"
+        "            'coverage': 'complete'}\n")
+    loaded = task_files.load(configured, "fake_report", REVISION, {"numbers": []}, "staff")
+    result = await scripts.execute(configured, loaded)
+    assert result.detail == {"total": 7}
