@@ -107,7 +107,8 @@ allow and the remainder is marked **"record credit manually in Principle"** — 
 Undo is not offered in v1; a wrong match is corrected in Principle by hand (to be revisited if
 `updateTransaction` is verified to void cleanly). A recorded line has a **Wrong match** action
 that sets its status to `wrong` with a note, so its allocations stop feeding payer memory and
-the wrong patient is not suggested again.
+the wrong patient is not suggested again. A `wrong` line stays at the top of the page under **Fix in
+Principle** until someone marks it fixed, which returns it to `open` for re-matching.
 
 ## Phases
 
