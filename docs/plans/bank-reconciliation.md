@@ -250,6 +250,7 @@ staff member's email.
   - whether invoice `status` and `paidAt` and the patient's `accountSummary` update;
   - part-payment behaviour;
   - what Principle's own screens show.
+- Whether Smartpay and Paymark card payments are recorded under different methods.
 - How card, Southern Cross and ACC payments are stored: their method or provider values,
   whether `createdAt` is the entry date, and whether the insurer batch number is kept.
 - The cheapest way to list patients with an outstanding balance and their unpaid invoices.
