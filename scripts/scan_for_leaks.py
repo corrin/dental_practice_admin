@@ -48,6 +48,9 @@ PUBLIC_SETTINGS = frozenset(
         "ADMIN_DATA_ROOT",
         "ADMIN_AGENT_MODEL",
         "ADMIN_STAFF_DOMAIN",
+        # The workspace's URL segment, also the practice's public hostname.
+        "PRINCIPLE_WORKSPACE_SLUG_STAGING",
+        "PRINCIPLE_WORKSPACE_SLUG_PROD",
         # Rendered into the chat page by design; public by construction.
         "ADMIN_CHATKIT_DOMAIN_KEY",
         "OPENAI_BASE_URL",

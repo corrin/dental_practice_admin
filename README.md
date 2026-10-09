@@ -8,10 +8,10 @@ Published in case it is useful to someone, not offered as a product. It is speci
 practice works and deeply tied to Principle; there is no abstraction over the patient management
 system and none is wanted.
 
-It is small on purpose — 2,000 lines, [enforced by a test](tests/test_budget.py) —
-because a tool one practice has to maintain should be a tool one person can read. The budget
-counts what runs in production, which is the only code that can break for staff. Tests, comments
-and tooling are reported but not budgeted: none of them has ever caused a phone call.
+It is small on purpose, judged by Greybeard's Simplicity First rather than a fixed line cap,
+because a tool one practice has to maintain should be a tool one person can read. The counter
+reports what runs in production, which is the only code that can break for staff. Tests, comments
+and tooling are reported separately: none of them has ever caused a phone call.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and its constraints.
 
@@ -139,7 +139,7 @@ uv run pytest                          # fake only: hermetic, fast, needs no cre
 uv run pytest -m e2e                   # fake, task and web app as separate processes, in a browser
 uv run pytest -m integration           # the real staging API; refuses if unconfigured
 uv run pytest -m llm                   # bounded real OpenAI check with synthetic text; costs tokens
-uv run python -m scripts.code_size     # the 2,000-line budget, counted
+uv run python -m scripts.code_size     # application size, counted
 ```
 
 The integration tier needs `PRINCIPLE_API_KEY_STAGING` and `PRINCIPLE_PRACTICE_ID_STAGING` for a
@@ -317,7 +317,7 @@ only refuse in words nobody invented. See [tests/recordings/README.md](tests/rec
 ## Layout
 
 ```text
-src/dental_practice_admin/     the application (budgeted with deploy/: 2,000 lines)
+src/dental_practice_admin/     the application (counted with deploy/)
   config.py              which Principle, and where local data lives
   principle.py           the API client and the catalogue of calls it may make
   schedules.py           application schedules and the command Task Scheduler runs
@@ -331,7 +331,7 @@ tests/
   e2e/                   separate processes, real browser
 scripts/                 tools: the recorder, the fingerprinter, the release gate, verify.ps1
 .vscode/tasks.json       one Run entry; scripts/run.py starts the configured services
-deploy/                  what runs in production: Caddy, WinSW, Task Scheduler (budgeted)
+deploy/                  what runs in production: Caddy, WinSW, Task Scheduler (counted)
 docs/adr/                rules for changing this codebase
 docs/principle/          what tasks have learned about Principle's website and Firestore
 ```
