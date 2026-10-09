@@ -1,14 +1,14 @@
-"""The 2,000-line budget, counted by category rather than by wc -l.
+"""Application size, counted by category rather than by wc -l.
 
-ARCHITECTURE.md fixes the scope constraint at 2,000 lines, and the number applies to **application
+The number that matters is **application
 code** only. The reason is not accounting tidiness: application code is the only code that can make
 a dentist ring up saying it is broken. It is what runs while staff are using the thing.
 
 A test harness has never caused a phone call. Nor has a comment, nor a page of documentation. They
-are reported so their size is visible, and budgeted against nothing, because shrinking them does not
+are reported so their size is visible, and judged against nothing, because shrinking them does not
 make the practice's day go better:
 
-    application    src/ and deploy/ -- everything that runs in production   <= 2,000
+    application    src/ and deploy/ -- everything that runs in production   reported
     comments       comments and docstrings, anywhere                       reported
     tooling        tests/ and scripts/                                     reported
     documentation  Markdown                                                reported
@@ -20,7 +20,8 @@ Application code also has its branches counted: every place execution can go two
 case someone must hold in their head and another way to fail for a week unnoticed. Branches are
 reported, not capped. The pre-commit review prints both numbers and what the commit does to them.
 
-Run `uv run python -m scripts.code_size` for the breakdown. tests/test_budget.py enforces it.
+The count informs a judgement (Greybeard's Simplicity First, AGENTS.md); it is not a gate.
+Run `uv run python -m scripts.code_size` for the breakdown.
 """
 
 from __future__ import annotations
@@ -31,8 +32,6 @@ import re
 import tokenize
 from dataclasses import dataclass, field
 from pathlib import Path
-
-BUDGET = 2000
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -267,10 +266,9 @@ def report() -> str:
     for label, roots in CATEGORIES.items():
         tally = count(roots)
         application = label == "application"
-        cap = f" / {BUDGET}" if application else ""
         tail = f"   branches {tally.branches:>4}" if application else ""
         lines.append(
-            f"{label:<14} code {tally.code:>5}{cap}   comments {tally.comments:>5}{tail}"
+            f"{label:<14} code {tally.code:>5}   comments {tally.comments:>5}{tail}"
         )
         for path, (code, comments, branched) in tally.per_file.items():
             tail = f" {branched:>5}" if application else ""
