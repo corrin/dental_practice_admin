@@ -228,8 +228,9 @@ The steps are:
 **Remove & redo** reverses only payments with `created_here` set. It uses `updateTransaction`
 to void them; Phase 0 verifies that this is possible and what Principle shows afterwards. If
 Principle cannot void through the API, Remove & redo stops and we come back to this design
-before Phase 1. The deposit returns to `open`. `payer_links` is not changed; if the link itself
-was wrong, staff delete it on Remembered payers.
+before Phase 1. The deposit returns to `open`. If the match was labelled **Remembered**, the
+confirmation asks "Forget that this account pays for <patient>?" so a wrong link is dealt with
+at the moment it is found.
 
 **Unreconcile** deletes only the page's own `bank_matches` rows, and never touches Principle.
 
