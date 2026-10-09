@@ -58,7 +58,7 @@ jobs:
           uv run playwright install --with-deps chromium
           uv run pytest -m e2e -q
 
-      - name: Code budget
+      - name: Code size
         run: uv run python -m scripts.code_size
 
 # The integration tier is deliberately absent: it needs staging credentials, and CI stays

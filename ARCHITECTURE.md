@@ -10,7 +10,7 @@ Interactive and scheduled work share ordinary Python operations. There is no gen
 
 Agreed constraints:
 
-- Keep the entire custom application under 2,000 lines of code. Prefer established libraries and operating-system facilities to custom infrastructure.
+- Keep the custom application small enough for one person to read. Prefer established libraries and operating-system facilities to custom infrastructure.
 - Run natively on Windows and remain maintainable by a small dental business.
 - Provide chat plus simple task/results pages, accessible through the configured HTTPS hostname with Google sign-in.
 - Support both reading and updating Principle records.
@@ -18,9 +18,9 @@ Agreed constraints:
 - Use the official Principle API, verified web backend calls, or browser automation according to the capability required.
 - Keep SMS_Bridge and the OpenDental migration investigation separate from this application.
 
-The code budget counts executable application and deployment code. Tests, tooling, comments, and documentation are reported separately. The counter is scripts/code_size.py; tests/test_budget.py enforces it.
+Size is judged, not capped. The test is Greybeard's Simplicity First, in AGENTS.md: would a senior engineer say this is overcomplicated? If 200 lines could be 50, rewrite it. scripts/code_size.py counts executable application and deployment code, with tests, tooling, comments, and documentation reported separately; the pre-commit review and CI print the count so growth stays visible.
 
-The line limit is a scope constraint. If a feature would exceed it, narrow the feature or choose a better-fitting library rather than compress readable code.
+Growth is a scope question. If a feature makes the application noticeably larger, first ask whether it can be narrowed or a better-fitting library can do it, rather than compress readable code.
 
 ## Overall design
 
@@ -193,7 +193,7 @@ Use tests that establish useful behaviour rather than mirror the implementation:
 - An API-backed scheduled task and, when implemented, a representative browser task run under the intended Windows account without an interactive login.
 - After reboot, staff can open the application and complete a chat tool call; a scheduled task executes and records its result.
 - A backup can be restored and the previous application release can be reinstated.
-- The maintained code count stays within the agreed budget, with generated code and tests reported transparently.
+- The maintained code count is reported, with generated code and tests shown separately.
 
 Run automated checks on Windows. Validate live behaviour against staging where available; avoid production-changing tests as routine verification.
 
@@ -207,7 +207,7 @@ Run automated checks on Windows. Validate live behaviour against staging where a
 6. Conversation/result retention, backups, and workflow-specific write permissions.
 7. Production reboot, unattended execution, and restore acceptance evidence.
 
-These decisions limit staff deployment readiness. New workflows must fit the maintenance budget rather than expand the application into a platform.
+These decisions limit staff deployment readiness. New workflows belong in the practice repository rather than expanding the application into a platform.
 
 ## References
 
