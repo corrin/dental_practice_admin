@@ -35,9 +35,12 @@ Decisions made:
   rule against AI applies to scheduled tasks; this is an interactive page and a person confirms
   every match.
 - Wrong matches are corrected on the page with **Remove & redo**.
-- Smartpay's own transaction list is not used in this PR. Summing Principle's payments is enough
-  to say whether a day adds up. Smartpay's list only helps find *which* payment is missing, and
-  is worth a second integration only once we know how often days don't add up.
+- Card days frequently won't add up, typically because reception forgot to record a payment.
+  The page's main job for batch deposits is explaining the difference, not just reporting it.
+- Smartpay's own transaction list (each card payment with its time and amount) is used if
+  Phase 0 finds a way to get it. With it, a mismatch becomes a direct comparison that names the
+  missing payment; without it, the page can only infer the missing payment from Principle
+  (below).
 
 ## The reference: Xero's reconcile screen
 
@@ -141,10 +144,28 @@ Deterministic arithmetic, no LLM.
   payment (checked in Phase 0), the page matches on that instead.
 - **It adds up:** the row shows ✓ "14 payments, 9 Oct" (illustrative), labelled **Sum**. One OK
   confirms it and writes the `bank_matches` rows. Nothing is written to Principle.
-- **It doesn't add up:** the row shows "$30.00 more in the bank than in Principle" with that
-  day's payments listed. It stays open until Principle is corrected and it adds up, or until it
-  is excluded with a note.
+- **It doesn't add up:** the row shows the difference, for example "$185.00 more in the bank than
+  in Principle", and an **Explain the difference** panel (below). It stays open until Principle
+  is corrected and the sum is recomputed, or until someone accepts the difference with a reason.
 - **Two different combinations both add up:** nothing is pre-selected and staff pick.
+
+### Explaining a difference
+The common causes, and what the page looks for. Each finding is shown with the evidence, and
+staff choose:
+
+| Cause | What the page looks for | Action offered |
+|---|---|---|
+| Payment never recorded (bank is higher) | With Smartpay's list: terminal payments with no Principle payment of the same amount that day. Without it: invoices issued that day and still unpaid, alone or two or three together, that sum to the difference | **Record payment**: creates the card payment on that invoice (same write path and rules as individual deposits) |
+| Recorded under the wrong method (e.g. cash or Paymark instead of Smartpay) | A payment of another method that day equal to the difference | Points to the payment; staff correct the method in Principle |
+| Recorded on the wrong day | A payment of this method on the day before or after equal to the difference | Points to the payment; staff correct it in Principle |
+| Recorded twice, or a declined card recorded as paid (Principle is higher) | Two payments with the same patient and amount that day, or a payment equal to the difference | Points to the payment; staff correct it in Principle |
+| Nothing found | — | The day's payments and that day's unpaid invoices are listed side by side for a person; **Accept difference** needs a reason, and the match is labelled **Accepted difference** in Reconciled so it stays visible |
+
+After any correction, the page re-reads Principle and recomputes the sum. A deposit is only
+marked matched when the sum agrees, or when a difference is explicitly accepted.
+
+Only **Record payment** writes to Principle. Corrections to existing payments (method or date)
+stay manual until `updateTransaction` is verified to change them safely.
 
 ### Individual deposits: candidates and suggestions
 1. **Narrow the candidates in code.** The page loads patients with an outstanding balance and
@@ -251,6 +272,8 @@ staff member's email.
   - part-payment behaviour;
   - what Principle's own screens show.
 - Whether Smartpay and Paymark card payments are recorded under different methods.
+- Whether `createTransaction` can record a card payment (Smartpay method) against an invoice
+  for a past date, for **Record payment**.
 - How card, Southern Cross and ACC payments are stored: their method or provider values,
   whether `createdAt` is the entry date, and whether the insurer batch number is kept.
 - The cheapest way to list patients with an outstanding balance and their unpaid invoices.
@@ -263,6 +286,13 @@ confirm, for this bank:
 - which fields arrive;
 - whether `other_account` is present on automatic payments;
 - how Smartpay and Paymark lines show their takings date.
+
+**Smartpay:** find out whether the merchant portal has an API or a downloadable transaction
+report, and whether its settlement amount is gross or net of fees. A fee deducted from the
+deposit would make every day disagree by the fee.
+
+**Replay of differences:** for the last month, record how many card days didn't add up and
+which cause in the table above explained each one.
 
 **Replay:** run a month of real deposits through the batch arithmetic and the candidate
 narrowing, using an offline script that is not committed.
@@ -310,7 +340,8 @@ process, with no disagreements, before the manual process stops.
 - Reconciling outgoing payments.
 - A way to edit the batch rules from the page. They live in `Settings` until they change often
   enough to need one.
-- The Smartpay transaction list. That is a later PR.
+- The Smartpay transaction list, if Phase 0 finds no API or report to read it from.
+- Correcting a payment's method or date from the page.
 - Bulk confirm.
 
 ## Code budget
