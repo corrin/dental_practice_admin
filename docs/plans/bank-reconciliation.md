@@ -31,9 +31,10 @@ Decisions made:
 - Bank data comes from **Akahu** (NZ open banking).
 - Confirmed individual matches are recorded in Principle through the REST API
   (`createTransaction`).
-- An LLM (a fast model) ranks and explains candidates for individual deposits. ADR 0005's
-  rule against AI applies to scheduled tasks; this is an interactive page and a person confirms
-  every match.
+- An LLM (a fast model) ranks and explains candidates for individual deposits. The practice's
+  OpenAI plan does not let the provider retain data, so sending patient names and balances is
+  accepted. ADR 0005's rule against AI covers scheduled tasks; this is an interactive page and a
+  person confirms every match.
 - Wrong matches are corrected on the page with **Remove & redo**.
 - Card days frequently won't add up, typically because reception forgot to record a payment.
   The page's main job for batch deposits is explaining the difference, not just reporting it.
@@ -127,22 +128,29 @@ payment method it settles. Each rule is a payer name or particulars "starts with
 payments. The exact Principle method names are verified in Phase 0. Everything else is
 individual. A rule-classified deposit is labelled **Rule**.
 
-### Batch deposits: does it add up?
-Deterministic arithmetic, no LLM.
-- **Card settlement.** A Smartpay deposit is one day's takings from the Smartpay terminal only:
-  no cash, and nothing taken on the Paymark terminal. So the sum is over payments recorded
-  against that terminal's method. Phase 0 checks that Principle can tell Smartpay payments apart
-  from Paymark ones; if it can't, card days can only be checked as the combined total of both
-  deposits. The takings date is in the line when present (`Shift4 5842 09/10`). When
-  it isn't, the candidate days run back from the previous working day to the day after the last
-  settlement, so a Monday deposit can cover the weekend. The page sums Principle's payments of
-  that method entered on that day or days.
-- **Insurer batch.** The page takes the unmatched payments of that method, oldest first, and
-  checks whether a run of them sums exactly to the deposit. If not, the deposit goes to Needs a
-  person with those payments listed for ticking. A smarter search waits until the Phase 0 replay
-  shows the simple one isn't enough. If Principle stores the insurer's batch number on the
-  payment (checked in Phase 0), the page matches on that instead.
-- **It adds up:** the row shows ✓ "14 payments, 9 Oct" (illustrative), labelled **Sum**. One OK
+### Batch deposits: a clearing queue per channel
+This is the standard clearing-account pattern (Xero's "undeposited funds", and what Cliniko and
+Core Practice recommend for card channels). Every payment recorded in Principle under a batch
+method sits in that channel's queue until a deposit claims it. A deposit is matched against the
+queue, not against a fixed day, so a settlement that arrives two or three days late still
+matches. Deterministic arithmetic, no LLM.
+
+- **Channels.** Smartpay, Paymark, Southern Cross and ACC each have their own queue. A Smartpay
+  deposit is the Smartpay terminal's takings only: no cash and nothing from Paymark. Phase 0
+  checks that Principle can tell Smartpay and Paymark payments apart; if it can't, the two share
+  one card queue.
+- **Card deposits claim whole days.** A card deposit is matched to one or more whole takings
+  days still in the queue, from the last 10 days, that sum exactly to it. When the line carries
+  its takings date (`Shift4 5842 09/10`), that day is tried first.
+- **Insurer deposits claim payments.** The unmatched payments of that insurer, oldest first; a
+  run of them summing exactly to the deposit is the match. If Principle stores the insurer's
+  batch number on the payment (checked in Phase 0), the page matches on that instead.
+- **The queue is always visible.** The page header shows, per channel, how much recorded in
+  Principle is still waiting for a deposit and how old the oldest item is, for example
+  "Smartpay: $2,151.00 waiting, oldest 4 days". An item older than 5 days is shown in red. It
+  means a deposit hasn't arrived or a payment was recorded under the wrong method, and it is
+  noticed rather than sitting unseen.
+- **It adds up:** the row shows ✓ "14 payments, 8–9 Oct" (illustrative), labelled **Sum**. One OK
   confirms it and writes the `bank_matches` rows. Nothing is written to Principle.
 - **It doesn't add up:** the row shows the difference, for example "$185.00 more in the bank than
   in Principle", and an **Explain the difference** panel (below). It stays open until Principle
@@ -277,6 +285,9 @@ staff member's email.
   - part-payment behaviour;
   - what Principle's own screens show.
 - Whether Smartpay and Paymark card payments are recorded under different methods.
+- Which payment date a takings day is grouped by: the date the payment was entered, or the
+  appointment date. Check it against a month of real deposits.
+- That ACC payments, like Southern Cross, are entered per patient before the deposit arrives.
 - Whether `createTransaction` can record a card payment (Smartpay method) against an invoice
   for a past date, for **Record payment**.
 - How card, Southern Cross and ACC payments are stored: their method or provider values,
@@ -319,7 +330,8 @@ narrowing, using an offline script that is not committed.
    `tests/test_fake_covers_catalogue.py`, which currently expects invoices to be unhandled.
 7. Tests (ADR 0004):
    - a card day that adds up, and one that is short;
-   - a weekend settlement;
+   - a settlement two days late, and one covering two days;
+   - a queue item older than 5 days shown in red;
    - two equal combinations, where nothing is pre-selected;
    - a remembered payer, which skips the LLM;
    - a split that must reach $0.00;
@@ -331,15 +343,6 @@ narrowing, using an offline script that is not committed.
 
 **Milestone 1:** a week of real deposits is reconciled on the page alongside the current manual
 process, with no disagreements, before the manual process stops.
-
-## Open questions
-- Does Paymark settle one day's takings per deposit, like Smartpay?
-- Is "entered that day" the date the payment was entered in Principle, or the appointment date?
-- Sending patient names and balances to OpenAI for ranking: is this acceptable? It is the same
-  kind of data chat already sends, but it is a new flow and needs an explicit yes.
-- Are ACC payments entered per patient in Principle before the deposit arrives, like Southern
-  Cross? If not, ACC's ProviderHub remittance CSV lists each claim and could be imported
-  instead.
 
 ## Usages left out
 - Reconciling outgoing payments.
