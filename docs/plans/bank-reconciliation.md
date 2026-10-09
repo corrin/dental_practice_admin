@@ -31,7 +31,9 @@ Decisions made:
 - Bank data comes from **Akahu** (NZ open banking).
 - Confirmed individual matches are recorded in Principle through the REST API
   (`createTransaction`).
-- An LLM (a fast model) ranks and explains candidates for individual deposits.
+- An LLM (a fast model) ranks and explains candidates for individual deposits. ADR 0005's
+  rule against AI applies to scheduled tasks; this is an interactive page and a person confirms
+  every match.
 - Wrong matches are corrected on the page with **Remove & redo**.
 - Smartpay's own transaction list is not used in this PR. Summing Principle's payments is enough
   to say whether a day adds up. Smartpay's list only helps find *which* payment is missing, and
@@ -128,10 +130,11 @@ Deterministic arithmetic, no LLM.
   it isn't, the candidate days run back from the previous working day to the day after the last
   settlement, so a Monday deposit can cover the weekend. The page sums Principle's payments of
   that method entered on that day or days.
-- **Insurer batch.** The page looks for a group of recent unmatched payments of that method that
-  sums exactly to the deposit. It tries the oldest-first contiguous run first, then the smallest
-  exact group, as Stripe does. The batch number in the line narrows the search if Principle
-  stores it on the payment (checked in Phase 0).
+- **Insurer batch.** The page takes the unmatched payments of that method, oldest first, and
+  checks whether a run of them sums exactly to the deposit. If not, the deposit goes to Needs a
+  person with those payments listed for ticking. A smarter search waits until the Phase 0 replay
+  shows the simple one isn't enough. If Principle stores the insurer's batch number on the
+  payment (checked in Phase 0), the page matches on that instead.
 - **It adds up:** the row shows ✓ "14 payments, 9 Oct" (illustrative), labelled **Sum**. One OK
   confirms it and writes the `bank_matches` rows. Nothing is written to Principle.
 - **It doesn't add up:** the row shows "$30.00 more in the bank than in Principle" with that
@@ -154,7 +157,9 @@ Deterministic arithmetic, no LLM.
    ranked list, each item with a one-line reason and a tier (`likely`/`possible`). It never
    records anything. The model is a setting separate from `agent_model` and uses the same OpenAI
    client. The model sees patient names and balances, data that already goes to OpenAI through
-   chat. A suggestion from the LLM is labelled **Suggested**.
+   chat; Open questions asks for an explicit yes. A suggestion from the LLM is labelled
+   **Suggested**. If the model call fails, the deposit's candidates are listed unranked in
+   Needs a person under "Suggestions unavailable: <error>", so the failure is visible.
 
 ### What staff see for an individual deposit
 Illustrative data only:
@@ -223,8 +228,8 @@ The steps are:
 **Remove & redo** reverses only payments with `created_here` set. It uses `updateTransaction`
 to void them; Phase 0 verifies that this is possible and what Principle shows afterwards. If
 Principle cannot void through the API, Remove & redo stops and we come back to this design
-before Phase 1. The deposit returns to `open`, and its `payer_links` row is removed if no other
-match supports it.
+before Phase 1. The deposit returns to `open`. `payer_links` is not changed; if the link itself
+was wrong, staff delete it on Remembered payers.
 
 **Unreconcile** deletes only the page's own `bank_matches` rows, and never touches Principle.
 
@@ -290,6 +295,8 @@ process, with no disagreements, before the manual process stops.
 - Does a Smartpay deposit always cover exactly one day's takings? Does Paymark settle the same
   day?
 - Is "entered that day" the date the payment was entered in Principle, or the appointment date?
+- Sending patient names and balances to OpenAI for ranking: is this acceptable? It is the same
+  kind of data chat already sends, but it is a new flow and needs an explicit yes.
 - Are ACC payments entered per patient in Principle before the deposit arrives, like Southern
   Cross? If not, ACC's ProviderHub remittance CSV lists each claim and could be imported
   instead.
