@@ -113,15 +113,27 @@ Taken by the owner on 2026-10-10, from a read of every production patient.
   rejected key or exhausted quota leaves addresses unchanged and makes the run partial, which
   the banner shows.
 
-**`admin_scripts`.**
-- The day sheet names the patient whose record could not be read.
-- A `clean_contact_details` task reads every patient from Firestore, applies the rules, and
-  either lists the changes (dry run) or writes each through `updatePatient` and reads it back.
-  A write replaces only the changed fields of the record as read, and only if they still hold
-  the values the change was computed from.
-  A read-back that doesn't match, or a write that fails, is listed and makes the run partial,
+**`admin_scripts`.** The `clean_contact_details` task (PR 7) reads every patient from
+Firestore and applies the rules. Its source states them in full; in outline:
+- Inputs: `apply` (default off, a dry run that changes nothing), `limit` (how many patients to
+  write in this run), and `addresses` (`all`, or by default only addresses created or changed in
+  the last seven days, which keeps daily runs to a few lookups).
+- A write goes through `updatePatient`, replaces only the changed fields of the record as read,
+  and only if they still hold the values the change was computed from; it is then read back. A
+  read-back that doesn't match, or a write that fails, is listed and makes the run partial,
   which the banner shows. It is not counted as done.
+- Numbers are written only when every number on the patient is valid, because the API takes
+  the whole list.
+- An address is rebuilt from Google's only, exact match for the same street number and street
+  name, in the suburb the address names; anything less is left as it is.
+- Reception's list (`for_staff`) holds active patients with an unclear number or email, and
+  those whose numbers break the specification but can't be saved through the API (no date of
+  birth or valid email). The owner's lists in the run's detail add every change that can't be
+  saved, and the addresses Google couldn't match.
 
-**Rollout.** Prove on staging that a write changes only its field and contacts nobody. Run a
-production dry run for the owner's approval. Apply to five patients and check nothing was
-sent, then to all. Schedule daily.
+Still to do: the day sheet naming the patient whose record could not be read.
+
+**Rollout.** Done: the staging proof that a write changes only its field and contacts nobody
+([patient-writes.md](../principle/patient-writes.md)), and a production dry run. Next: install
+on the production host ([deploy/RELEASE.md](../../deploy/RELEASE.md), step 10), apply to five
+patients and check nothing was sent, then the rest in batches, then schedule daily.
