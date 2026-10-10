@@ -112,7 +112,7 @@ def test_the_runs_page_loads_clean(
 ) -> None:
     """The page staff land on must render with nothing broken in the console."""
     page.goto(spine["APP_URL"], wait_until="load")
-    expect(page.get_by_test_id("task-list")).to_be_visible()
+    expect(page.get_by_test_id("run-list").or_(page.get_by_test_id("no-runs"))).to_be_visible()
     expect(page.get_by_test_id("fake-banner")).to_be_visible()
     expect(page.get_by_test_id("staff-identity")).to_be_visible()
     watched.assert_clean("the runs page")
@@ -169,9 +169,10 @@ def test_a_staff_member_can_ask_a_question_and_get_an_answer(
 
     answer = chat_ui(page).get_by_text(MARKER, exact=False).first
     expect(answer).to_be_visible(timeout=COMPONENT_TIMEOUT_MS)
-    assert "Dr " in answer.inner_text(), (
-        "the reply does not carry the fake Principle's numbers, so the tool did not run"
-    )
+    # The reply streams in, so it is waited for rather than read once: a read on first sight
+    # can see only its opening. Without the fake Principle's practitioners in it, the tool
+    # did not run.
+    expect(answer).to_contain_text("Dr ", timeout=COMPONENT_TIMEOUT_MS)
     watched.assert_clean("asking a question")
 
 
