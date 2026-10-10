@@ -56,3 +56,19 @@ Requests to Principle:
    equivalent of Open Dental's blue "Created from Web Sched" dot. Firestore has
    `appointmentRequestRef` on the appointment document. `Appointment` has no such field.
    *Request:* the booking source, or the appointment request ID, on `Appointment`.
+
+## Defects to report
+
+1. **`getPatient` returns data that breaks its own specification.** `Patient.contactNumbers[].number`
+   must match `^\+?\d{6,15}$`, but production returned a patient whose second contact number
+   does not. The client validates every response against the specification, so it rejects
+   the whole patient. That one record stopped the day sheet for every practitioner.
+   - Verified against production on 2026-10-10: 1 of the 15 patients booked on 2026-11-16.
+     No patient details are recorded here.
+   - The day sheet works around it by taking the patient's name from the timeline card, and
+     marks the sheet partial. Remove that fallback (`tasks/day_sheet/source.txt` in
+     admin_scripts) once Principle fixes this.
+   - The practice's own data is being cleaned: see
+     [the contact details plan](../plans/clean-contact-details.md).
+   - *Request:* reject contact numbers on entry that the specification doesn't allow, in
+     the website and the API, or correct the specification to describe what is stored.
