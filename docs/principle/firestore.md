@@ -159,6 +159,10 @@ build `main.8e7a8bfa2c5bf44c.js`.
 | `eventHistory` | Earlier windows after a reschedule. |
 | `waitListItem` | Wait-list settings, with rich-text `notes`. |
 
+`appointmentRequestRef` was on 7 of the 227 appointments from 2026-10-12 to 2026-11-01. On
+2026-10-12 its two appointments were exactly the timeline's two globes.
+**Verified:** production, 2026-10-10, build `main.8e7a8bfa2c5bf44c.js`.
+
 The appointment document holds no card notes; those are the patient's pinned notes, copied
 into the schedule summary.
 

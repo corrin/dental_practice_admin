@@ -56,8 +56,9 @@ Requests to Principle:
    equivalent of Open Dental's blue "Created from Web Sched" dot. Firestore has
    `appointmentRequestRef` on the appointment document. `Appointment` has no such field, so
    the day sheet reads each appointment's document: one Firestore read per appointment. On
-   2026-10-12 the two flagged appointments were the two with a globe. Open Dental's "Web
-   Sched" bookings were not migrated with it.
+   2026-10-12 the two flagged appointments were the two with a globe. The 2026-11-16
+   appointment Open Dental marks "Created from Web Sched" has no `appointmentRequestRef` in
+   Principle, so at least that migrated booking lost it.
    *Request:* the booking source, or the appointment request ID, on `Appointment`.
 
 # What bank reconciliation found in the payments API
