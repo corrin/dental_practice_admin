@@ -192,21 +192,47 @@ Met on 2026-10-10, with `day_sheet` merged in admin_scripts (PR #5).
   with a CSP that allows inline styles and no scripts.
 - Selecting a practitioner, or all, uses the existing run form in `/tasks/manage`.
 
-**Layout, in `tasks/day_sheet/`:** the task renders its own `detail` to HTML.
-- **Page.** Portrait A4, 10 mm margins, giving 190×277 mm usable.
-- **Header.** About 12 mm: practitioner, day and date, printed time, and a warning if coverage is
-  partial.
-- **Grid.** A proportional time grid like Open Dental's, using the full width. That's a 12 mm
-  time column and about 175 mm of blocks. Hours 8:00–17:30 over about 260 mm gives about
-  0.45 mm a minute, so a 15-minute appointment is about 6.8 mm.
-- **Text.** Pure black, 10 pt body, 8 pt minimum, 0.5 pt solid borders.
-  - Line 1: start–end, name (with NP), and confirmation as a word.
-  - Then procedures with tooth and surface, then note and reason.
-  - Type is printed as text, because colour is lost in black-and-white printing.
-  - Blocks are labelled and hatched.
-- **Overflow.** Shrink the text to 8 pt. If it still doesn't fit, the block takes free time
-  below it, or the sheet marks it. It never clips silently.
-- **Print all.** One practitioner per page, printed as one job.
+**Layout, in `tasks/day_sheet/`:** `printable(detail, printed)` renders the task's own
+`detail` to one self-contained HTML document, one A4 page per practitioner. It was designed
+against 22 production days, 15/09 to 16/11 (see "Design" below).
+
+### Design
+
+Each fact is encoded once: by position, text, icon or colour, never two of them. The
+starting point is what Open Dental printed.
+
+| Fact | Open Dental | Day sheet |
+|---|---|---|
+| Start, end, length | Position and height on the grid | Same. No time text on the card |
+| Category | Block colour | Principle's own category colour ([firestore.md](../principle/firestore.md)), lightened only enough to keep 7:1 contrast for black text. A legend lists the day's categories |
+| Patient | Name first | Name first, 12 pt bold |
+| New patient | "NP-" prefix | The New Patient Exam colour alone |
+| Procedures, teeth | Abbreviations: "PBWs, Hyg-Std, Ex", "#47-V-C1(P)" | Open Dental's abbreviations after the name, teeth after each: "Exo 28 18 46, C1 48o". A name with no abbreviation prints in full |
+| Step | Not shown | Only if someone typed it: not "Planned - …", "Step N", "New Step", or a procedure's name |
+| Notes, reason | Text after the procedures | Same, joined with " / " |
+| Confirmation | Coloured dot | A hollow circle on unconfirmed only, since Principle has two states |
+| Online booking | Blue dot | Globe, as Principle's timeline shows it |
+| Lunch, meetings | Pastel block, label | Grey hatch, label |
+| Free time | White | White |
+
+- **Page.** A4 portrait, 10 mm margins, a 16 mm header, and a 9 mm time column labelled
+  every 10 minutes. 08:00 to 17:00 fills the page height, 0.48 mm a minute; a day that runs
+  longer widens the range.
+- **Type.** Arial, black. The name is 12 pt bold and the rest 10 pt; Open Dental printed
+  about 10 pt.
+- **Width and whitespace.**
+  - Cards use the full width. Overlapping appointments sit side by side.
+  - Neighbours are separated by a 0.5 mm white gap rather than borders.
+  - A 20-minute card shows two lines: name and procedures, then a note.
+- **Overflow.** The text shrinks to 11/9 pt, then 10/9 pt. Then it spills into free time
+  below, inside a dashed outline. Then it is cut at a whole line ending in "…". Notes are
+  never dropped silently.
+- **Empty day.** One page saying nobody is booked.
+
+**Measured on production (2026-10-10 proofs):** every one of 22 days printed exactly one page
+per practitioner, and no card was clipped. About one card a week is cut with "…". These
+are 10–20-minute slots with long notes and no free time below. The check printed each day
+with headless Chromium and compared every card's laid-out height with its slot.
 
 **Phase 2 is done when:**
 - the 15/09 and 16/11 sheets print on the surgery printer,

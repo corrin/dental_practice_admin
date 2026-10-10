@@ -10,6 +10,8 @@ config.local.toml
 *.db-shm
 logs/
 run/
+# Production reads and proofs made from them: real patient records.
+prod_data/
 
 # Anything captured from staging before scrubbing. Recordings enter the repo only via
 # scripts/record_principle_wire.py, which scrubs at capture.

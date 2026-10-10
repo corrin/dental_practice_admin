@@ -60,6 +60,14 @@ Requests to Principle:
    appointment Open Dental marks "Created from Web Sched" has no `appointmentRequestRef` in
    Principle, so at least that migrated booking lost it.
    *Request:* the booking source, or the appointment request ID, on `Appointment`.
+6. **Category colour.** A timeline card is filled with its treatment category's colour.
+   `Appointment.treatmentCategory` is a `NamedReference` (ID and name) only, and no endpoint
+   lists categories. Firestore has `treatmentCategories/{id}.colour`. *Request:* `colour` on
+   the category reference, or a categories endpoint.
+7. **Short treatment names.** Open Dental printed abbreviations ("Hyg-Std", "PBWs"). Principle
+   has none: `treatmentConfigurations` carries `name` and search `keyword`s only. The day
+   sheet keeps its own table mapping each name to Open Dental's `AbbrDesc`. *Request:* a short
+   name on each treatment.
 
 # What bank reconciliation found in the payments API
 

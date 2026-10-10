@@ -166,6 +166,19 @@ build `main.8e7a8bfa2c5bf44c.js`.
 The appointment document holds no card notes; those are the patient's pinned notes, copied
 into the schedule summary.
 
+## Treatment categories: card colour
+
+**What:** `treatmentCategories/{id}`, at the brand root. The ID is the API's
+`treatmentCategory.id`. `colour.value` is the hex the timeline fills the card with, and
+`colour.name` is its Material palette name ("Pink a100"). Deleted categories stay, with
+`deleted: true`.
+**Used for:** the day sheet's card colours.
+**Verified:** the five categories on 2026-11-16 read by the API's IDs. Production,
+2026-10-10, build `main.8e7a8bfa2c5bf44c.js`.
+
+Two live categories share a colour: Recall and Consultation / Examination are both
+`#d7ccc8`. Review/Ros is `#eeeeee`, close to white.
+
 ## Treatment steps: tooth and surface
 
 **What:** `patients/{patientId}/treatmentPlans/{planId}/treatmentSteps/{stepId}` holds each
