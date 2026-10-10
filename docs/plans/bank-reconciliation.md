@@ -100,8 +100,8 @@ SQLite tables in `storage.py`:
 - Columns: `akahu_id`, `principle_transaction_id`, `patient_id`, `invoice_id`,
   `amount_cents`, `created_here`.
 - A batch deposit has one row for each existing payment it covers.
-- An individual deposit has one row for each payment the page created
-  (`created_here` = true).
+- An individual deposit has one row for the existing payment it matched, or one row for
+  each payment the page created (`created_here` = true).
 
 **`payer_links`**
 - Columns: `payer_name`, `patient_id`, `created_by`, `created_at`.
@@ -166,9 +166,9 @@ Match (**New Transaction**) and QuickBooks' **Resolve difference**, the missing 
 from inside the match screen:
 - **Add missing payment** opens Find & Match restricted to unpaid invoices, filtered by default
   to patients seen on the takings day. Nothing in it is pre-selected; staff tick the invoice
-  themselves, as in any Find & Match. Recording the payment there creates the card payment in
-  Principle through the same write path as individual deposits, and it joins the slip. The API
-  cannot give it a card method; what to do about that is an open question in Phase 0's findings.
+  themselves, as in any Find & Match. The API cannot record a card method (Phase 0), so risk 1's
+  fallback applies: staff key the payment in Principle as they do today, and the slip claims it
+  on the next Fetch now.
 - If Smartpay's transaction list is available (Phase 4), the slip shows terminal payments with
   no Principle payment of the same amount beside it, which names the missing payment directly.
 - **Accept difference**, like Xero's Adjustments, needs a reason, and labels the match
@@ -177,6 +177,16 @@ from inside the match screen:
 OK is only enabled when the difference is $0.00 or accepted.
 
 ### Individual deposits: candidates and suggestions
+Reception already records almost every transfer in Principle (Phase 0). As Xero suggests an
+existing transaction of the same amount before offering to create one
+([Find & Match](https://central.xero.com/s/article/Reconcile-a-bank-statement-line-using-Find-Match);
+its bulk-reconcile guidance warns against reconciling a line whose invoice is already paid), a
+transfer is first matched to an unclaimed Principle payment of the same amount within a week,
+under a method reception uses for transfers (Direct Deposit, WINZ). With one such payment it is
+the suggestion, labelled **Sum**, like a batch of one. With several, such as weekly plan
+payments of one amount, nothing is pre-selected (ERPNext's tie rule) and they are listed as
+other possible matches. The steps below apply only when there is no such payment.
+
 1. **Narrow the candidates in code.** The page loads patients with an outstanding balance and
    their unpaid invoices (the calls are chosen and timed in Phase 0). It keeps about 10 for each
    deposit, using:
@@ -222,8 +232,10 @@ For each candidate:
 
 The deposit is shown exactly as the bank sent it.
 
-**Find & Match** searches patients by name or invoice number. It lists a patient's unpaid
-invoices of any age, oldest first, with tick boxes and amounts pre-filled. Staff can add other
+**Find & Match** searches patients by name or invoice number. As Xero's lists transactions
+already entered as well as invoices, it lists the patient's unclaimed Principle payments first,
+then their unpaid invoices of any age, oldest first, with tick boxes and amounts pre-filled.
+Ticking a payment matches it; ticking an invoice creates a payment (Phase 3). Staff can add other
 patients, for example siblings. The last invoice can be **Split** to make a part payment, which
 is how a weekly $30 plan payment is applied. OK is enabled when the remaining amount is $0.00.
 
@@ -249,9 +261,9 @@ Principle"** until someone ticks it done. This gap is also listed in
 `createTransaction` on `/v1/patients/{pid}/invoices/{iid}/transactions`. The call carries:
 - `provider` `manual`, the only value the API accepts, so no payment method;
 - the amount;
-- the bank date: open, because Principle ignores `createdAt` and dates the payment when the
-  call is made (Phase 0 findings);
-- `reference` set to the Akahu id, so every payment can be traced back to its deposit.
+- `reference` set to the Akahu id, so every payment can be traced back to its deposit and its
+  bank date. Xero dates the payment by the statement line; Principle's API cannot, as it ignores
+  `createdAt` and dates the payment when the call is made (Phase 0).
 
 The steps are:
 1. Set the deposit to `recording` and write the `bank_matches` rows **before** calling the API.
@@ -314,16 +326,10 @@ Details are in [`api-gaps.md`](../principle/api-gaps.md). Deposits are 1 Septemb
 | 4 | **Failed: no payer account number.** No deposit has `meta.other_account`. `particulars` is on 65 of 72 transfers, `reference` 48, `code` 37. The fallback applies: memory keys on payer name and never short-circuits. 57 of 72 transfers come from 16 payers who paid more than once. The account's `refreshed` field exists, with separate balance, meta and transactions times. |
 | 5 | **Southern Cross yes; ACC after.** Southern Cross payments are per patient and recorded before the deposit: all 24 deposits equal the previous day's payments. ACC payments are often recorded after the deposit: 5 of 8 deposits are explained once later payments are counted, 3 are not. Neither carries a batch number. Principle's `acc` provider also has `pending` and `failed` rows; only `complete` ones join a queue. |
 
-Design questions raised, not yet decided:
-- **Reception already records almost every transfer.** Of 56 transfers old enough to judge, 53
-  have a Principle payment of the same amount within a week (46 Direct Deposit, 4 WINZ,
-  2 account credit, 1 EFTPOS); 3 have none. Most are recorded the same day, but 17 fall exactly a
-  week away, likely weekly plan payments of the same amount, so amount and date alone can pick
-  the wrong week. If this holds, individual deposits mostly match an existing payment, as a batch
-  of one, and creating payments is needed only for the few nobody keyed. That would shrink
-  Phase 3 and the LLM's role.
-- **Payments the page creates have no method or bank date.** Add missing payment cannot record a
-  card payment as EFTPOS or Credit Card through the API.
+Transfers: of 56 old enough to judge, 53 have a Principle payment of the same amount within a
+week (46 Direct Deposit, 4 WINZ, 2 account credit, 1 EFTPOS) and 3 have none. Most are recorded
+the same day; 17 fall exactly a week away, which is why ties suggest nothing. The design now
+matches existing payments first, as Xero does (see "Individual deposits").
 
 ### Phase 1: a basic read-only page
 Staff see every deposit and can match it by hand. Matches are recorded in the page's own tables
