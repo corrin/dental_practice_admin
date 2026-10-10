@@ -7,7 +7,8 @@ the data means, and nothing speculative.
 
 - [firestore.md](firestore.md): document paths, fields and what they mean, and how writes behave.
 - [website.md](website.md): navigating the web app, and what its forms do.
-- [api-gaps.md](api-gaps.md): what the day sheet needs that the REST API does not provide.
+- [api-gaps.md](api-gaps.md): what the day sheet and bank reconciliation need that the REST API
+  does not provide, and how payments are recorded.
 
 The REST API is covered elsewhere: `tests/spec/` and the pagination contract table in the
 top-level README.
