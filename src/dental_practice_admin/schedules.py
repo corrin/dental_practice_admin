@@ -65,7 +65,7 @@ def attention(settings: Settings, store: Storage) -> list[dict[str, str]]:
     notes = []
     with open_schedules(settings) as scheduler:
         for job in scheduler.get_jobs():
-            title = task_files.installed(settings, job.name, job.args[1])[0].title
+            title = job.name.replace("_", " ").capitalize()
             run = latest.get(job.name)
             if job.next_run_time and (now - job.next_run_time).total_seconds() > 2 * POLL_SECONDS:
                 notes.append({"text": f"{title}: automatic runs have stopped",

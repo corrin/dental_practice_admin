@@ -179,6 +179,8 @@ Read saved state after a write and before retrying an uncertain operation.
 owner, then runs it in a supervised process. This is trusted automation under the service
 account, not a sandbox. The owner can export source from the returned draft link.
 Both languages return `summary`, `detail` and `coverage` (`complete` or `partial`).
+`detail.for_staff`, if present, lists records a person must fix: objects with the same keys,
+plus an optional `href`. Staff pages announce it while it is a scheduled task's latest run.
 Python defines `async run(services, inputs)`; Playwright defines `async (page, inputs)`.
 `services.api`, `services.firestore.read` and `services.browser` share the chat integrations.
 
