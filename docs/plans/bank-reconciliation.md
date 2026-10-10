@@ -327,7 +327,7 @@ payments.
 Build:
 1. Fix the client refusals in `api-gaps.md` that block these reads: invoices with allocations,
    and patients with a spaced phone number. The third, split payments in transaction lists,
-   matters from Phase 2's queues. Cache the unpaid-invoice list, refreshed by
+   is fixed in Phase 2, whose queues read them. Cache the unpaid-invoice list, refreshed by
    `updatedFrom` on Fetch now.
 2. `Settings` for the Akahu credentials. A small Akahu client using httpx, with a fake
    transport for tests.
