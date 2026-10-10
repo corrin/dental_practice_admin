@@ -49,10 +49,6 @@ From outside the practice network,
   the OpenAI platform (ChatKit domains), GitHub (`massey-reception-coder/admin_scripts`), and
   Akahu (the bank feed).
 - **A quiet hour** for step 8, which moves both public names from reception to the server.
-- **Reserved addresses.** Check the router still reserves `192.168.192.125` for reception and
-  `192.168.192.30` for the server. The server's firewall admits reception's SMS check by
-  reception's address, and the router's forward, the bridge's listen address and reception's
-  SMS check all name the server's.
 
 ### 2. Prepare the release on the development machine
 
