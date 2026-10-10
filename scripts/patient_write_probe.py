@@ -55,18 +55,20 @@ async def probe(patient: str, changes: list[dict[str, Any]]) -> None:
                   if response.is_error else f"PATCH {sorted(change)}: changed {changed}")
             return not response.is_error
 
-        print("messages before (sms, email):", await messages())
-        original = await read()
-        touched = {key for change in changes for key in change}
         try:
-            for change in changes:
-                await patch(change)
+            print("messages before (sms, email):", await messages())
+            original = await read()
+            touched = {key for change in changes for key in change}
+            try:
+                for change in changes:
+                    await patch(change)
+            finally:
+                empty = {"contactNumbers": [], "address": ""}
+                if not await patch({key: original.get(key, empty.get(key)) for key in touched}):
+                    raise SystemExit("Restore failed: the patient still holds the probe's changes")
+            print("messages after (sms, email):", await messages())
         finally:
-            empty = {"contactNumbers": [], "address": ""}
-            if not await patch({key: original.get(key, empty.get(key)) for key in touched}):
-                raise SystemExit("Restore failed: the patient still holds the probe's changes")
-        print("messages after (sms, email):", await messages())
-    await firestore.aclose()
+            await firestore.aclose()
 
 
 def main() -> int:

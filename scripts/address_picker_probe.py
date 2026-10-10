@@ -2,10 +2,11 @@
 
     uv run python -m scripts.address_picker_probe PATIENT_ID "575 Don Buck Road, Massey"
 
-Types the address into a staging patient's edit dialog, picks the first suggestion, saves,
-and prints the address the API then holds, before restoring the original address through the
-API. Type a business address, not a person's. Use a dummy patient: the save is real and
-resubmits the whole profile. docs/principle/patient-writes.md records what it showed.
+Types the address into a staging patient's edit dialog, picks the first suggestion, saves, and
+prints the address the API then holds and the names of any other fields the save changed,
+before restoring the original address through the API. Type a business address, not a person's.
+Use a dummy patient: the save is real and resubmits the whole profile. docs/principle/patient-
+writes.md records what it showed.
 """
 from __future__ import annotations
 
@@ -54,7 +55,11 @@ def main() -> int:
                 page.wait_for_timeout(1500)
                 page.locator('button:has-text("Update Patient")').click()
                 dialog.wait_for(state="detached", timeout=30000)
-            print("saved:", repr(api.get(path).raise_for_status().json()["address"]))
+            saved = api.get(path).raise_for_status().json()
+            print("saved:", repr(saved["address"]))
+            print("other fields the save changed:", sorted(
+                k for k in original.keys() | saved.keys()
+                if k not in ("address", "updatedAt") and original.get(k) != saved.get(k)))
         finally:
             current = api.get(path).raise_for_status().json()
             body = {key: current[key] for key in REQUIRED if key in current}
