@@ -28,7 +28,7 @@ SMS_Bridge runs on reception, behind reception's own Caddy
 Secure it before Principle switches SMS on, and before step 8 moves `office` to the server.
 
 1. Deploy SMS_Bridge's API-key fix (corrin/SMS_Bridge#3) to reception. It requires the key on
-   every `/smsgateway` route except the webhooks, and listens on `127.0.0.1:5170` only.
+   every `/smsgateway` route except the webhooks, and listens on `localhost:5170` only (127.0.0.1 and ::1).
 2. In `C:\ProgramData\SMS_Bridge\install-settings.json`, which overrides the repository's
    defaults, set `SmsSettings.EnableDebugMode` to `false` and `BRIDGE_API_KEY` to a new random
    string, then restart the bridge. With debug mode on, every patient text goes to the test
@@ -212,7 +212,7 @@ retry.
 again through the server, both with valid certificates. From another LAN machine, port 5170 on
 reception times out. On reception, `sc.exe qc caddy` shows `DISABLED` and `sc.exe query caddy`
 shows `STOPPED`. **To undo:** point the router back at reception; on reception set
-`Hosting:ListenUrl` back to `http://127.0.0.1:5170` and restart the bridge, which reception's
+`Hosting:ListenUrl` back to `http://localhost:5170` and restart the bridge, which reception's
 Caddy reaches as `localhost:5170`; then set reception's Caddy service back to Automatic (a
 disabled service can't be started) and start it.
 
