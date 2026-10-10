@@ -125,7 +125,7 @@ class Settings(BaseSettings):
     playwright_mcp_path: Path = Path("node_modules/@playwright/mcp/cli.js")
     task_repository: str = ""
     github_token: SecretStr = SecretStr("")
-    # Looks up patient addresses with Google Places (New), which the key needs enabled, for the
+    # Looks up patient addresses with Google's Geocoding API, which the key needs enabled, for the
     # contact-details clean-up. Only the address string is sent; the owner approved sending it
     # to Google on 2026-10-10.
     google_maps_api_key: SecretStr = SecretStr("")
