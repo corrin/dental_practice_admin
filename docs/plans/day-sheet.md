@@ -240,6 +240,17 @@ every one of 22 days, 15/09 and 12/10 to 16/11, printed exactly one page per pra
 no card was clipped without its "…". The check printed each day with headless Chromium and
 compared every card's laid-out height with its slot.
 
+**Tested and tried:**
+- `tasks/day_sheet/test_task.py` holds the synthetic unit tests, layout included.
+- `tests/test_day_sheet_fake.py` in admin_scripts runs the task against this repository's
+  fake Principle, which is checked against recordings of the real one. It covers:
+  - a lunch moved for one day
+  - a pending request
+  - a category with no colour
+  - charted teeth
+- By hand, `uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet date=2026-09-28`
+  runs it on the fake and opens the PDF.
+
 **Phase 2 is done when:**
 - the 15/09 and 16/11 sheets print on the surgery printer,
 - they're checked side by side with `OD.png`,
