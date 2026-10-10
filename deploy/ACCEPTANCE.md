@@ -3,13 +3,17 @@
 Automated checks cover what a machine can check. These are the ones a person signs off,
 because they need a reboot, a second account, or a deliberate act of destruction.
 
-Run `scripts\verify.ps1` first; it must pass before any of this is worth doing.
+## Before switching releases
+
+- [ ] **Settings.** Before stopping the running service, run
+      `scripts\check_settings.ps1 -ReleaseRoot <new release>`. It must exit cleanly; otherwise
+      it names the setting the host lacks, and the old release keeps serving until it is added.
+
+## After switching
+
+Run `scripts\verify.ps1` first; it must pass before any of the rest is worth doing.
 
 ## Before staff use it
-
-- [ ] **Settings before the switch.** In the new release directory, before stopping the running
-      service, run `scripts\check_settings.ps1 -ReleaseRoot <new release>`. It must exit
-      cleanly; otherwise it names the setting the host lacks.
 
 - [ ] **Reboot.** Restart the host. Without logging in, confirm the service came back
       (`scripts\verify.ps1`) and that the staff page loads from another machine on the

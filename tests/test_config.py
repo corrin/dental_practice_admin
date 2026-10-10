@@ -20,10 +20,11 @@ from dental_practice_admin.config import (
     Settings,
     SignIn,
     environment_suffix,
+    setting_name,
 )
 from dental_practice_admin.principle import PrincipleClient
 from tests.fake import FakeStore
-from tests.settings import API_URLS, fake_settings, use_fake_environment
+from tests.settings import API_URLS, FAKE_SETTINGS, fake_settings, use_fake_environment
 from tests.test_auth_boundary import configured
 
 
@@ -56,8 +57,7 @@ def test_a_setting_without_a_value_is_refused(
     name: str, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Nothing falls back to a value in the code: `sign_in`, for one, is never assumed."""
-    alias = Settings.model_fields[name].validation_alias or f"ADMIN_{name.upper()}"
-    monkeypatch.delenv(str(alias))
+    monkeypatch.delenv(setting_name(name))
     complete = _settings().model_dump()
     complete.pop(name)
     with pytest.raises(ValidationError):
@@ -90,14 +90,19 @@ def test_a_data_folder_that_is_not_there_is_refused(tmp_path: Path) -> None:
     assert not (tmp_path / "mistyped").exists()
 
 
+@pytest.mark.parametrize("missing", ["ADMIN_TASK_REPOSITORY", "ADMIN_AGENT_MODEL"])
 def test_the_settings_check_refuses_an_incomplete_host_in_one_line(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, missing: str,
 ) -> None:
-    monkeypatch.delenv("ADMIN_TASK_REPOSITORY")
+    """One line naming the setting, and no setting's value in it."""
+    monkeypatch.setenv("ADMIN_PUBLIC_BASE_URL", "https://admin.fake.invalid")
+    monkeypatch.delenv(missing)
     checked = subprocess.run([sys.executable, "-m", "dental_practice_admin.config"],
                              capture_output=True, text=True, check=False)
     assert checked.returncode == 1
-    assert "Traceback" not in checked.stderr
+    assert len(checked.stderr.strip().splitlines()) == 1
+    assert missing in checked.stderr
+    assert FAKE_SETTINGS["openai_api_key"].get_secret_value() not in checked.stderr
 
 
 def test_the_settings_check_passes_a_complete_host(monkeypatch: pytest.MonkeyPatch) -> None:

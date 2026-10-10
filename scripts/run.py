@@ -17,11 +17,10 @@ import httpx2 as httpx
 from pydantic import SecretStr
 
 from dental_practice_admin.config import (
-    ENVIRONMENT_FIELDS,
     Environment,
     Settings,
     SignIn,
-    environment_suffix,
+    setting_name,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -62,14 +61,10 @@ def configuration(args: argparse.Namespace) -> Settings:
 def child_environment(settings: Settings) -> dict[str, str]:
     """Pass the resolved configuration to children without rereading or altering the parent."""
     env = dict(os.environ)
-    for name, field in Settings.model_fields.items():
-        key = field.validation_alias or f"ADMIN_{name.upper()}"
-        assert isinstance(key, str)
-        if name in ENVIRONMENT_FIELDS:
-            suffix = environment_suffix(settings.environment)
-            key = f"{key}_{suffix}"
+    for name in Settings.model_fields:
         value = getattr(settings, name)
-        env[key] = value.get_secret_value() if isinstance(value, SecretStr) else str(value)
+        env[setting_name(name, settings.environment)] = (
+            value.get_secret_value() if isinstance(value, SecretStr) else str(value))
     return env
 
 

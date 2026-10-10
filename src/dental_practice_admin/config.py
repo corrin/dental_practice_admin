@@ -116,6 +116,9 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        # A validation error otherwise quotes every setting it was given, keys and tokens
+        # included, into whatever log records it.
+        hide_input_in_errors=True,
     )
 
     environment: Environment = Field(validation_alias="PRINCIPLE_ENVIRONMENT")
@@ -388,8 +391,7 @@ class Settings(BaseSettings):
         """Validate automation settings once before accepting real work."""
         if self.environment is Environment.FAKE:
             return
-        suffix = environment_suffix(self.environment)
-        missing = [f"{Settings.model_fields[name].validation_alias}_{suffix}"
+        missing = [setting_name(name, self.environment)
                    for name in ENVIRONMENT_FIELDS[3:] if not getattr(self, name)]
         if missing:
             raise ConfigurationError(f"Automation needs {', '.join(missing)}")
@@ -410,6 +412,19 @@ class Settings(BaseSettings):
             raise ConfigurationError("Install Node.js before startup")
 
 
+def setting_name(field: str, environment: Environment | None = None) -> str:
+    """The name `.env` gives a Settings field, with its suffix when scoped to an environment.
+
+    A name that is not a field is returned as it is: pydantic reports an aliased field by alias.
+    """
+    if field not in Settings.model_fields:
+        return field
+    name = str(Settings.model_fields[field].validation_alias or f"ADMIN_{field.upper()}")
+    if field in ENVIRONMENT_FIELDS and environment is not None:
+        return f"{name}_{environment_suffix(environment)}"
+    return name
+
+
 def current_settings(request: Request) -> Settings:
     """The configuration captured when this application starts; restart to change it."""
     configured: Settings = request.app.state.settings
@@ -421,5 +436,9 @@ if __name__ == "__main__":
     # setting, if this host's .env lacks one the release needs.
     try:
         Settings().require_web_configured()
-    except (ConfigurationError, ValidationError) as error:
+    except ConfigurationError as error:
         raise SystemExit(f"Not ready: {error}") from None
+    except ValidationError as error:
+        problems = "; ".join(f"{setting_name(str(e['loc'][0]))} {e['msg'].lower()}"
+                             for e in error.errors())
+        raise SystemExit(f"Not ready: {problems}") from None
