@@ -14,10 +14,8 @@ async def test_real_model_accepts_the_configured_model_and_wire_format() -> None
     settings = Settings()
     key = settings.openai_api_key.get_secret_value()
     assert key and "fake" not in key.lower(), "Live verification needs a real OPENAI_API_KEY"
-    assert settings.openai_base_url.rstrip("/") in {
-        "",
-        "https://api.openai.com/v1",
-    }, "Live verification requires the real OpenAI endpoint"
+    assert settings.openai_base_url.rstrip("/") == "https://api.openai.com/v1", (
+        "Live verification requires the real OpenAI endpoint")
     generated = await api_tools(settings, None)
     selected = next(tool for tool in generated if not tool.params_json_schema["properties"])
     definitions = [

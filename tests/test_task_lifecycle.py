@@ -81,7 +81,7 @@ async def test_failure_to_save_audit_prevents_execution(tmp_path: Path) -> None:
     async def operation(run_id: str) -> scripts.Result:
         nonlocal executed
         executed = True
-        return scripts.Result(summary="fake", detail={}, coverage="complete")  # type: ignore[arg-type]
+        return scripts.Result(summary="fake", detail={}, coverage="complete")
 
     with pytest.raises(OSError):
         await scripts.recorded(configured, draft(), "fake", operation)
@@ -274,7 +274,7 @@ async def test_schedule_management_does_not_wait_for_a_running_task(
     async def work(*args: Any) -> scripts.Result:
         started.set()
         await release.wait()
-        return scripts.Result(summary="fake", detail={}, coverage="complete")  # type: ignore[arg-type]
+        return scripts.Result(summary="fake", detail={}, coverage="complete")
 
     def read_schedules() -> int:
         with schedules.open_schedules(configured) as scheduler:

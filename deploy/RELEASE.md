@@ -112,6 +112,9 @@ At the commit to release, run `scripts\release_gate.ps1`. It must end "Release c
    # Without these, both would run against staging, with a different database.
    PRINCIPLE_ENVIRONMENT=production
    ADMIN_DATA_ROOT=C:\ProgramData\DentalPracticeAdmin
+   PRINCIPLE_API_BASE_URL_PROD=https://api.principle.dental
+   ADMIN_PLAYWRIGHT_MCP_PATH=node_modules/@playwright/mcp/cli.js
+   ADMIN_PUBLIC_BASE_URL=            # empty: each request's own origin, which Caddy forwards
 
    ADMIN_SIGN_IN=google
    ADMIN_GOOGLE_CLIENT_ID=...
@@ -120,6 +123,8 @@ At the commit to release, run `scripts\release_gate.ps1`. It must end "Release c
    ADMIN_STAFF_EMAILS=...            # and/or ADMIN_STAFF_DOMAIN=massey-smiles.co.nz
    ADMIN_CHATKIT_DOMAIN_KEY=...      # registered for admin.massey-smiles.co.nz (step 6)
    OPENAI_API_KEY=...
+   OPENAI_BASE_URL=https://api.openai.com/v1
+   ADMIN_AGENT_MODEL=...             # a model /v1/models lists for that key
 
    PRINCIPLE_API_KEY_PROD=...
    PRINCIPLE_PRACTICE_ID_PROD=...
@@ -132,6 +137,7 @@ At the commit to release, run `scripts\release_gate.ps1`. It must end "Release c
    PRINCIPLE_WORKSPACE_SLUG_PROD=massey-smiles
 
    AKAHU_APP_TOKEN=...
+   AKAHU_BASE_URL=https://api.akahu.io/v1
    AKAHU_USER_TOKEN=...
    ADMIN_GOOGLE_MAPS_API_KEY=...     # Geocoding API enabled
    ADMIN_TASK_REPOSITORY=massey-reception-coder/admin_scripts
@@ -145,9 +151,11 @@ At the commit to release, run `scripts\release_gate.ps1`. It must end "Release c
    icacls 'C:\Program Files\DentalPracticeAdmin\.env' /inheritance:r /grant:r 'SYSTEM:F' 'Administrators:F' 'massey-admin:R'
    ```
 
-**Check:** in the release directory,
-`.venv\Scripts\python.exe -c "from dental_practice_admin.config import Settings; s = Settings(); s.require_web_configured(); print(s.environment, s.data_dir)"`
-prints `production C:\ProgramData\DentalPracticeAdmin\production`.
+**Check:** `scripts\check_settings.ps1 -ReleaseRoot 'C:\Program Files\DentalPracticeAdmin'`
+prints `Ready: production C:\ProgramData\DentalPracticeAdmin\production`; otherwise it names
+each setting `.env` lacks. Nothing has a value in the code, so
+every line of the template above is needed, except that staff sign-in needs only one of
+`ADMIN_STAFF_EMAILS` and `ADMIN_STAFF_DOMAIN`.
 
 ### 6. Google sign-in and ChatKit
 

@@ -11,6 +11,7 @@ from pydantic import SecretStr
 from dental_practice_admin.config import Environment, Settings
 from dental_practice_admin.principle import CallError, PrincipleClient, PrincipleError, api_tools
 from dental_practice_admin.storage import Storage
+from tests.settings import API_URLS, fake_settings
 
 
 def _context(name: str) -> ToolContext[None]:
@@ -100,12 +101,9 @@ async def test_invalid_tool_arguments_cannot_reach_principle(
 
 
 def _production(tmp_path: Path) -> Settings:
-    return Settings(
-        environment=Environment.PRODUCTION,
-        api_key=SecretStr("fake-key"),
-        practice_id="fake-practice",
-        data_root=tmp_path,
-    )
+    return fake_settings(tmp_path, environment=Environment.PRODUCTION,
+                         api_base_url=API_URLS[Environment.PRODUCTION],
+                         api_key=SecretStr("fake-key"), practice_id="fake-practice")
 
 
 @pytest.mark.parametrize(

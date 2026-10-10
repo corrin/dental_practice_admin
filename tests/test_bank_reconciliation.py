@@ -13,9 +13,9 @@ from pydantic import SecretStr
 
 from dental_practice_admin import akahu, reconcile
 from dental_practice_admin.app import create_app
-from dental_practice_admin.config import ConfigurationError, Environment, Settings, SignIn
+from dental_practice_admin.config import ConfigurationError, Settings
 from dental_practice_admin.storage import MatchRefusedError, MatchRow, Storage
-from tests.fake import FAKE_API_KEY, FAKE_PRACTICE_ID, FakeStore, seed
+from tests.fake import FakeStore, seed
 from tests.fake import transport as principle_transport
 from tests.fake.store import canonical
 from tests.fake_akahu import (
@@ -26,11 +26,12 @@ from tests.fake_akahu import (
     transport,
 )
 from tests.fake_akahu import transport as akahu_transport
+from tests.settings import fake_environment, fake_settings
 
 
 @pytest.fixture
-def bank_settings() -> Settings:
-    return Settings(environment=Environment.FAKE, **FAKE_AKAHU_SETTINGS)
+def bank_settings(tmp_path: Path) -> Settings:
+    return fake_settings(tmp_path)
 
 
 async def test_statement_has_every_deposit_and_no_payments_out(bank_settings: Settings) -> None:
@@ -66,17 +67,19 @@ async def test_refused_credentials_raise(bank_settings: Settings) -> None:
         await akahu.statement(wrong, date.today(), transport())
 
 
-def test_the_bank_settings_use_akahus_names(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name, value in FAKE_AKAHU_ENV.items():
+def test_the_bank_settings_use_akahus_names(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    for name, value in (fake_environment(tmp_path) | FAKE_AKAHU_ENV).items():
         monkeypatch.setenv(name, value)
     assert Settings().model_dump(include=set(FAKE_AKAHU_SETTINGS)) == FAKE_AKAHU_SETTINGS
 
 
 @pytest.mark.parametrize("missing", sorted(FAKE_AKAHU_SETTINGS))
-def test_the_application_refuses_to_start_without_the_bank(missing: str) -> None:
-    configured = Settings(environment=Environment.FAKE, sign_in=SignIn.DEVELOPER,
-                          openai_api_key=SecretStr("fake-ai-key"),
-                          **{k: v for k, v in FAKE_AKAHU_SETTINGS.items() if k != missing})
+def test_the_application_refuses_to_start_without_the_bank(
+    missing: str, tmp_path: Path,
+) -> None:
+    configured = fake_settings(tmp_path, **{missing: SecretStr("")})
     with pytest.raises(ConfigurationError):
         configured.require_web_configured()
 
@@ -158,10 +161,7 @@ def test_a_decided_deposit_keeps_the_amount_it_was_decided_on(store: Storage) ->
 
 @pytest.fixture
 def practice(tmp_path: Path) -> Settings:
-    return Settings(environment=Environment.FAKE, data_root=tmp_path,
-                    api_key=SecretStr(FAKE_API_KEY), practice_id=FAKE_PRACTICE_ID,
-                    sign_in=SignIn.DEVELOPER, openai_api_key=SecretStr("fake-ai-key"),
-                    **FAKE_AKAHU_SETTINGS)
+    return fake_settings(tmp_path)
 
 
 @pytest.fixture

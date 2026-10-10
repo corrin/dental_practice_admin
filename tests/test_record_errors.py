@@ -7,7 +7,7 @@ import httpx2 as httpx
 import pytest
 from pydantic import SecretStr
 
-from dental_practice_admin.config import Environment, Settings
+from dental_practice_admin.config import PRODUCTION_API_URL, Environment, Settings
 from dental_practice_admin.principle import (
     CallError,
     PrincipleClient,
@@ -15,6 +15,7 @@ from dental_practice_admin.principle import (
     RecordError,
 )
 from dental_practice_admin.storage import Storage
+from tests.settings import fake_settings
 
 GOOD = {"id": "fake-good", "name": "Fake Dummy", "email": "good@example.invalid",
         "gender": "notSpecified", "address": "Fake address", "dateOfBirth": "2000-01-01",
@@ -24,8 +25,9 @@ BAD = {**GOOD, "id": "fake-bad", "email": "bad@example.invalid",
 
 
 def _production(tmp_path: Path) -> Settings:
-    return Settings(environment=Environment.PRODUCTION, api_key=SecretStr("fake-key"),
-                    practice_id="fake-practice", data_root=tmp_path)
+    return fake_settings(tmp_path, environment=Environment.PRODUCTION,
+                         api_base_url=PRODUCTION_API_URL, api_key=SecretStr("fake-key"),
+                         practice_id="fake-practice")
 
 
 def _principle(patients: dict[str, dict[str, Any]], practice: list[str],

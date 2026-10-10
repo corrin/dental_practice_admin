@@ -10,13 +10,12 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import SecretStr, ValidationError
+from pydantic import ValidationError
 
 from dental_practice_admin import scripts
 from dental_practice_admin.app import create_app
-from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.storage import Coverage, Outcome, Storage
-from tests.fake_akahu import FAKE_AKAHU_SETTINGS
+from tests.settings import fake_settings
 
 
 @pytest.fixture
@@ -108,13 +107,7 @@ def pages(tmp_path: Path) -> Iterator[Pages]:
     connection per request, on the thread that serves it, which is what production does -- a
     shared connection handed in here would pass tests that production cannot run.
     """
-    configured = Settings(
-        environment=Environment.FAKE,
-        data_root=tmp_path,
-        sign_in=SignIn.DEVELOPER,
-        openai_api_key=SecretStr("fake-ai-key"),
-        **FAKE_AKAHU_SETTINGS,
-    )
+    configured = fake_settings(tmp_path)
     app = create_app(configured)
     seeding = Storage(configured.database_path)
     with TestClient(app) as client:

@@ -12,6 +12,7 @@ from pydantic import SecretStr
 
 from dental_practice_admin import browser
 from dental_practice_admin.config import PRINCIPLE_WEB_URLS, Environment, Settings
+from tests.settings import fake_settings
 
 pytestmark = pytest.mark.e2e
 
@@ -45,9 +46,8 @@ def browser_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Setting
     )
     monkeypatch.setattr(browser, "LOGIN", initializer)
     monkeypatch.setitem(PRINCIPLE_WEB_URLS, Environment.FAKE, "https://fake.invalid")
-    return Settings(
-        environment=Environment.FAKE,
-        data_root=tmp_path,
+    return fake_settings(
+        tmp_path,
         ui_email="fake@fake.invalid",
         ui_password=SecretStr("fake-password"),
         workspace="Fake workspace",

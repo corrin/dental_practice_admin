@@ -14,22 +14,14 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx2 as httpx
-from pydantic import SecretStr
 
 from dental_practice_admin.config import (
-    ENVIRONMENT_FIELDS,
-    FAKE_API_KEY,
-    FAKE_API_URL,
-    FAKE_PRACTICE_ID,
     Environment,
     Settings,
     SignIn,
-    environment_suffix,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-STAGING_ORIGIN = "https://massey-admin-dev.ngrok-free.app"
-FAKE_SERVER_URL = "http://127.0.0.1:8898"
 FAKE_BANK_URL = "http://127.0.0.1:8897/v1"
 
 
@@ -49,21 +41,12 @@ def configuration(args: argparse.Namespace) -> Settings:
     if args.sign_in is not None:
         overrides["sign_in"] = args.sign_in
     if args.preset is Environment.FAKE:
-        # Imported here so that a real run never loads test code.
+        # The preset is the fake bank, the fake AI and a local address, whatever .env names; the
+        # fake Principle is .env's _FAKE settings. Imported here so a real run never loads tests.
         from tests.fake_akahu import FAKE_AKAHU_SETTINGS
-        overrides |= {"akahu_base_url": FAKE_BANK_URL, **FAKE_AKAHU_SETTINGS}
+        overrides |= {"akahu_base_url": FAKE_BANK_URL, "public_base_url": "http://localhost:8080",
+                      **FAKE_AKAHU_SETTINGS}
     settings = Settings(**overrides)
-    if settings.environment is Environment.FAKE:
-        if settings.api_base_url == FAKE_API_URL:
-            settings.api_base_url = FAKE_SERVER_URL
-        if not settings.api_key.get_secret_value():
-            settings.api_key = SecretStr(FAKE_API_KEY)
-        if not settings.practice_id:
-            settings.practice_id = FAKE_PRACTICE_ID
-    if not settings.public_base_url:
-        settings.public_base_url = (
-            "http://localhost:8080" if args.preset is Environment.FAKE else STAGING_ORIGIN
-        )
     settings.require_web_configured()
     if (
         urlsplit(settings.public_base_url).hostname not in {"localhost", "127.0.0.1"}
@@ -75,16 +58,7 @@ def configuration(args: argparse.Namespace) -> Settings:
 
 def child_environment(settings: Settings) -> dict[str, str]:
     """Pass the resolved configuration to children without rereading or altering the parent."""
-    env = dict(os.environ)
-    for name, field in Settings.model_fields.items():
-        key = field.validation_alias or f"ADMIN_{name.upper()}"
-        assert isinstance(key, str)
-        if name in ENVIRONMENT_FIELDS:
-            suffix = environment_suffix(settings.environment)
-            key = f"{key}_{suffix}"
-        value = getattr(settings, name)
-        env[key] = value.get_secret_value() if isinstance(value, SecretStr) else str(value)
-    return env
+    return dict(os.environ) | settings.as_environment()
 
 
 def wait_for_server(url: str, child: subprocess.Popen[bytes], statuses: set[int]) -> None:
@@ -111,8 +85,13 @@ def run(settings: Settings) -> None:
     if tunnel and (origin.scheme != "https" or not shutil.which("ngrok")):
         raise ValueError("The public HTTPS address requires ngrok on PATH")
     services: list[tuple[str, int, str, set[int]]] = []
-    if settings.api_base_url == FAKE_SERVER_URL:
-        services.append(("tests.fake.server:app", 8898, "/v1/practices", {401, 403}))
+    if settings.environment is Environment.FAKE:
+        # The fake Principle is served where PRINCIPLE_API_BASE_URL_FAKE says it is.
+        address = urlsplit(settings.api_base_url)
+        port = address.port
+        if address.hostname not in {"127.0.0.1", "localhost"} or port is None:
+            raise ValueError("PRINCIPLE_API_BASE_URL_FAKE must be a port on this machine")
+        services.append(("tests.fake.server:app", port, "/v1/practices", {401, 403}))
     if settings.openai_base_url == "http://127.0.0.1:8899/v1":
         services.append(("tests.fake_ai.server:app", 8899, "/health", {200}))
     if settings.akahu_base_url == FAKE_BANK_URL:

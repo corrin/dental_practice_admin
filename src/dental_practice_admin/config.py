@@ -22,11 +22,12 @@ from shutil import which
 from typing import Any
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 from starlette.requests import Request
 
-PRODUCTION_API_HOSTS = frozenset({"api.principle.dental", "app.principle.dental"})
+PRODUCTION_API_URL = "https://api.principle.dental"
+PRODUCTION_API_HOSTS = frozenset({urlsplit(PRODUCTION_API_URL).hostname, "app.principle.dental"})
 
 STAGING_API_URL = "https://api.staging.principle.dental"
 
@@ -53,13 +54,6 @@ class Environment(StrEnum):
     FAKE = "fake"
     STAGING = "staging"
     PRODUCTION = "production"
-
-
-PRINCIPLE_URLS = {
-    Environment.FAKE: FAKE_API_URL,
-    Environment.STAGING: STAGING_API_URL,
-    Environment.PRODUCTION: "https://api.principle.dental",
-}
 
 
 # Principle's web origins; the fake uses an unroutable origin unless a test supplies one.
@@ -107,7 +101,12 @@ ENVIRONMENT_FIELDS = ("api_base_url", "api_key", "practice_id", "ui_email", "ui_
 
 
 class Settings(BaseSettings):
-    """Resolved runtime configuration for one process."""
+    """Resolved runtime configuration for one process.
+
+    No setting has a value written here: each comes from `.env`, the environment or the caller,
+    so a missing one is refused rather than replaced by a guess. A field that defaults to
+    empty is checked by the `require_*` method for the features that use it.
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="ADMIN_",
@@ -117,11 +116,12 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        # A validation error otherwise quotes every setting it was given, keys and tokens
+        # included, into whatever log records it.
+        hide_input_in_errors=True,
     )
 
-    environment: Environment = Field(
-        default=Environment.STAGING, validation_alias="PRINCIPLE_ENVIRONMENT"
-    )
+    environment: Environment = Field(validation_alias="PRINCIPLE_ENVIRONMENT")
     api_base_url: str = Field(default="", validation_alias="PRINCIPLE_API_BASE_URL")
     api_key: SecretStr = Field(default=SecretStr(""), validation_alias="PRINCIPLE_API_KEY")
     practice_id: str = Field(default="", validation_alias="PRINCIPLE_PRACTICE_ID")
@@ -132,7 +132,8 @@ class Settings(BaseSettings):
     firestore_root: str = Field(default="", validation_alias="PRINCIPLE_FIRESTORE_ROOT")
     workspace: str = Field(default="", validation_alias="PRINCIPLE_WORKSPACE")
     workspace_slug: str = Field(default="", validation_alias="PRINCIPLE_WORKSPACE_SLUG")
-    playwright_mcp_path: Path = Path("node_modules/@playwright/mcp/cli.js")
+    playwright_mcp_path: Path
+    # Where reviewed tasks are exported for review (README, task review).
     task_repository: str = ""
     github_token: SecretStr = SecretStr("")
     # Looks up patient addresses with Google's Geocoding API, which the key needs enabled, for the
@@ -143,7 +144,7 @@ class Settings(BaseSettings):
     # people allowed in, so there is no password store to leak or reset.
     #
     # Developer identity requires an explicit opt-out and is forbidden against production.
-    sign_in: SignIn = SignIn.GOOGLE
+    sign_in: SignIn
     session_secret: SecretStr = SecretStr("")
     google_client_id: str = ""
     google_client_secret: SecretStr = SecretStr("")
@@ -169,35 +170,33 @@ class Settings(BaseSettings):
         default=SecretStr(""),
         validation_alias="OPENAI_API_KEY",
     )
-    openai_base_url: str = Field(
-        default="",
-        validation_alias="OPENAI_BASE_URL",
-    )
-    # Confirmed present on /v1/models. A default that names a retired model is a chat box that
-    # breaks for staff on the day it is retired, so this is worth keeping current.
-    agent_model: str = "gpt-6.1-sol"
+    openai_base_url: str = Field(validation_alias="OPENAI_BASE_URL")
+    # Read off /v1/models with the configured key. A retired model is a chat box that breaks
+    # for staff on the day it is retired.
+    agent_model: str
 
     # The practice's bank account, through an Akahu personal app (my.akahu.nz/developers).
     # There is one bank whichever Principle this checkout talks to, so no environment suffix.
-    # The base URL moves only for the fake bank.
+    # The base URL is https://api.akahu.io/v1 except for the fake bank.
     akahu_app_token: SecretStr = Field(default=SecretStr(""), validation_alias="AKAHU_APP_TOKEN")
     akahu_user_token: SecretStr = Field(default=SecretStr(""),
                                         validation_alias="AKAHU_USER_TOKEN")
-    akahu_base_url: str = Field(default="https://api.akahu.io/v1",
-                                validation_alias="AKAHU_BASE_URL")
+    akahu_base_url: str = Field(validation_alias="AKAHU_BASE_URL")
 
     # Registered with OpenAI for the domain the chat page is served from, and required by the
     # ChatKit component alongside the endpoint URL. Not a secret: it is rendered into the page.
-    chatkit_domain_key: str = "domain_pk_localhost"
+    chatkit_domain_key: str
 
     # The origin staff reach, when it cannot be read from the request -- for example a scheduled
-    # task building a link. Behind a proxy the request carries it; set this only to override.
-    public_base_url: str = ""
+    # task building a link. Set it empty to take the origin from each request, which behind a
+    # proxy carries it. Write empty in .env or a child's environment block: setting a variable
+    # to empty from a Windows shell or os.environ deletes it instead.
+    public_base_url: str
 
     # Runtime data sits outside the source checkout on a real host (ARCHITECTURE.md,
     # Storage and configuration). Production and staging must not share a database or a
     # browser session file, so the environment name is part of the path.
-    data_root: Path = Field(default=Path.home() / "dental_practice_admin_data")
+    data_root: Path
 
     @classmethod
     def settings_customise_sources(
@@ -215,7 +214,10 @@ class Settings(BaseSettings):
             for source in sources:
                 values.update(source())
             values.update(initial)
-            environment = values.get("environment", values.get("PRINCIPLE_ENVIRONMENT", "staging"))
+            environment = values.get("environment", values.get("PRINCIPLE_ENVIRONMENT"))
+            if environment is None:
+                # Left unresolved, so validation names PRINCIPLE_ENVIRONMENT as missing.
+                return values
             suffix = environment_suffix(environment)
             for field in ENVIRONMENT_FIELDS:
                 alias = f"PRINCIPLE_{field.upper()}"
@@ -242,6 +244,11 @@ class Settings(BaseSettings):
     def data_dir(self) -> Path:
         """Per-environment directory for the database, logs and browser session state."""
         return self.data_root / self.environment.value
+
+    def require_data_root(self) -> None:
+        """Refuse a data folder that is not there: a mistyped one would start an empty database."""
+        if not self.data_root.is_dir():
+            raise ConfigurationError(f"ADMIN_DATA_ROOT {self.data_root} is not an existing folder")
 
     @property
     def database_path(self) -> Path:
@@ -324,10 +331,8 @@ class Settings(BaseSettings):
     def _environment_matches_host(self) -> Settings:
         """Refuse config whose declared environment disagrees with its host."""
         if not self.api_base_url:
-            self.api_base_url = PRINCIPLE_URLS[self.environment]
-        if self.environment is Environment.FAKE:
-            self.firebase_project = self.firebase_project or FAKE_FIREBASE_PROJECT
-            self.firestore_root = self.firestore_root or FAKE_FIRESTORE_ROOT
+            raise ConfigurationError(
+                f"PRINCIPLE_API_BASE_URL_{environment_suffix(self.environment)} is not set")
         host = api_host(self.api_base_url)
         production_host = is_production_host(self.api_base_url)
         if self.environment is Environment.PRODUCTION and not production_host:
@@ -365,23 +370,41 @@ class Settings(BaseSettings):
 
     def require_web_configured(self) -> None:
         """Validate the complete web configuration before accepting requests."""
+        self.require_data_root()
         self.require_sign_in_configured()
         self.require_credentials()
         self.require_automation_configured()
-        if not self.openai_api_key.get_secret_value():
-            raise ConfigurationError("Chat needs OPENAI_API_KEY")
+        self.require_chat_configured()
+        # Task review is part of the staff pages, so its settings are checked at startup with
+        # the rest (ADR 0002).
+        if not self.task_repository or not self.github_token.get_secret_value():
+            raise ConfigurationError("Task review needs ADMIN_TASK_REPOSITORY and"
+                                     " ADMIN_GITHUB_TOKEN")
         missing = [name for name, value in (
             ("AKAHU_APP_TOKEN", self.akahu_app_token.get_secret_value()),
             ("AKAHU_USER_TOKEN", self.akahu_user_token.get_secret_value())) if not value]
         if missing:
             raise ConfigurationError(f"Bank reconciliation needs {', '.join(missing)}")
 
+    def require_chat_configured(self) -> None:
+        """Refuse chat without the model's key and address."""
+        if not self.openai_api_key.get_secret_value() or not self.openai_base_url:
+            raise ConfigurationError("Chat needs OPENAI_API_KEY and OPENAI_BASE_URL")
+
+    def as_environment(self) -> dict[str, str]:
+        """These settings as the variables that would produce them, for a child process."""
+        return {setting_name(name, self.environment): (
+                    value.get_secret_value() if isinstance(value, SecretStr) else str(value))
+                for name, value in ((name, getattr(self, name)) for name in Settings.model_fields)}
+
     def require_automation_configured(self) -> None:
         """Validate automation settings once before accepting real work."""
         if self.environment is Environment.FAKE:
             return
-        if any(not getattr(self, name) for name in ENVIRONMENT_FIELDS[3:]):
-            raise ConfigurationError("Automation needs scoped credentials and workspace settings")
+        missing = [setting_name(name, self.environment)
+                   for name in ENVIRONMENT_FIELDS[3:] if not getattr(self, name)]
+        if missing:
+            raise ConfigurationError(f"Automation needs {', '.join(missing)}")
         if not self.google_maps_api_key.get_secret_value():
             raise ConfigurationError("Automation needs ADMIN_GOOGLE_MAPS_API_KEY")
         staging = self.environment is Environment.STAGING
@@ -399,7 +422,36 @@ class Settings(BaseSettings):
             raise ConfigurationError("Install Node.js before startup")
 
 
+def setting_name(field: str, environment: Environment | None = None) -> str:
+    """The name `.env` gives a Settings field, with its suffix when scoped to an environment.
+
+    A name that is not a field is returned as it is: pydantic reports an aliased field by alias.
+    """
+    if field not in Settings.model_fields:
+        return field
+    name = str(Settings.model_fields[field].validation_alias or f"ADMIN_{field.upper()}")
+    if field in ENVIRONMENT_FIELDS and environment is not None:
+        return f"{name}_{environment_suffix(environment)}"
+    return name
+
+
 def current_settings(request: Request) -> Settings:
     """The configuration captured when this application starts; restart to change it."""
     configured: Settings = request.app.state.settings
     return configured
+
+
+if __name__ == "__main__":
+    # python -m dental_practice_admin.config, from a release directory: refuse, naming the
+    # setting, if this host's .env lacks one the release needs; otherwise say which Principle
+    # and which data folder it will use, so a wrong but complete .env is seen too.
+    try:
+        checked = Settings()
+        checked.require_web_configured()
+        print(f"Ready: {checked.environment.value} {checked.data_dir}")
+    except ConfigurationError as error:
+        raise SystemExit(f"Not ready: {error}") from None
+    except ValidationError as error:
+        problems = "; ".join(f"{setting_name(str(e['loc'][0]))} {e['msg'].lower()}"
+                             for e in error.errors())
+        raise SystemExit(f"Not ready: {problems}") from None
