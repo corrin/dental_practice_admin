@@ -78,3 +78,40 @@ Open Dental. The owner will say where it is. Its rules are a starting point.
 - The `getPatient / response_schema` interface warning that this record raised is cleared.
 - `docs/principle/` records what was learned, with no patient data.
 - Merged to `main`, following `AGENTS.md`.
+
+## Decisions
+
+Taken by the owner on 2026-10-10, from a read of every production patient.
+
+- **Phones** are stored as `+64` and the number without its leading 0. Seven digits with no
+  area code are Auckland (`+649…`), as the Open Dental cleaner did. Placeholders such as
+  `N/A` and `-` are removed. A note or extension typed after a number moves into the label.
+  Labels are lower case; a blank label is inferred from the number.
+- **Addresses** use the layout Principle's verified-address picker saves, which is NZ Post
+  order (town or city, then postcode). They may be matched with Google geocoding, restricted
+  to New Zealand. Overseas addresses are left alone.
+- **Staff** hear through this application's pages, and only about active patients whose
+  details can't be fixed from evidence. Reception's list stays as short as possible.
+- **The daily check** applies the approved rules without waiting. The first clean-up waits for
+  the owner's approval of its before-and-after list.
+
+## Implementation
+
+**This repository.**
+- A response that breaks the specification only inside named patient records raises an error
+  naming them, instead of rejecting the whole response. The scope check and the pre-read
+  before a write both tolerate it, so the cleaner can fix exactly the records that break.
+  The break is still recorded as an interface warning.
+- A task result can carry a list for staff. The run page shows it as a table, and every page
+  shows a banner while the latest run of a scheduled task has such a list, failed, or is
+  overdue.
+- A required Google Maps key setting.
+
+**`admin_scripts`.**
+- The day sheet names the patient whose record could not be read.
+- A `clean_contact_details` task reads every patient from Firestore, applies the rules, and
+  either lists the changes (dry run) or writes each through `updatePatient` and reads it back.
+
+**Rollout.** Prove on staging that a write changes only its field and contacts nobody. Run a
+production dry run for the owner's approval. Apply to five patients and check nothing was
+sent, then to all. Schedule daily.
