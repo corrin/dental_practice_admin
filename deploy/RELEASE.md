@@ -6,6 +6,11 @@ check it worked; don't move on from a step whose check fails. Then sign off
 
 This is the one file of production install steps for every workstream; see AGENTS.md.
 
+Record every change these steps make to a practice computer (software installed, accounts,
+services, scheduled tasks, firewall rules, settings) in the practice's computer setup guide, in
+Google Docs, as you make it. The guide is the record of what each machine has. Its link stays out
+of this public repository.
+
 The server runs two Windows services and one scheduled task:
 
 | What | Where | Runs as |
@@ -21,31 +26,20 @@ permissions, which let every local user read them.
 
 The commands below use `massey-admin` for the service account; substitute your choice.
 
-## SMS go-live, before the first release
-
-SMS_Bridge runs on reception, behind reception's own Caddy
-(`C:\Program Files\Caddy\Caddyfile`: `office.massey-smiles.co.nz { reverse_proxy localhost:5170 }`).
-Secure it before Principle switches SMS on, and before step 8 moves `office` to the server.
-
-1. Deploy SMS_Bridge's API-key fix (corrin/SMS_Bridge#3) to reception. It requires the key on
-   every `/smsgateway` route except the webhooks, and listens on `localhost:5170` only (127.0.0.1 and ::1).
-2. In `C:\ProgramData\SMS_Bridge\install-settings.json`, which overrides the repository's
-   defaults, set `SmsSettings.EnableDebugMode` to `false` and `BRIDGE_API_KEY` to a new random
-   string, then restart the bridge. With debug mode on, every patient text goes to the test
-   phone and `/smsgateway/test/test-patient-lookup` returns patient identifiers. Principle's
-   webhook signs with `WEBHOOK_SECRET`, so the new key changes nothing for Principle.
-3. Point Principle's webhook at `https://office.massey-smiles.co.nz/smsgateway/webhooks/principle`.
-4. Register the SMS check on reception, as [SMS_Bridge's PRODUCTION.md](https://github.com/corrin/SMS_Bridge/blob/master/PRODUCTION.md)
-   "SMS warning on reception" describes, with `-Url http://localhost:5170/smsgateway/phone-status`
-   while the bridge runs on reception. It warns reception within 5 minutes of texts stopping.
-
-**Check, without sending an SMS:** from outside the practice network,
-`https://office.massey-smiles.co.nz/smsgateway/debug-status` answers 401 without the key, and 200
-with `isDebugMode` false given `X-API-Key: <the new key>`. A 502 means Caddy can't reach the
-bridge: read the log of whichever Caddy fronts `office`. Never probe `/smsgateway/test/check-send-sms`; it sends a real
-SMS. A real test message is the owner's call.
-
 ## First release
+
+### Now: stop reception's bridge
+
+Reception's Caddy sends the public `office` name to `localhost:5170`, where reception's old
+bridge can listen. That build has no API key and may have debug mode on, which makes
+`/smsgateway/test/test-patient-lookup` return patient identifiers to anyone. It carries no
+traffic, so stop it and disable its startup task now, on reception: find the task with
+`Get-ScheduledTask | Where-Object { $_.Actions.Execute -match 'SMS_Bridge' }`, then
+`Stop-ScheduledTask` and `Disable-ScheduledTask` it, and end any `SMS_Bridge.exe` still running.
+
+**Check:** on reception, `Get-NetTCPConnection -LocalPort 5170 -State Listen` finds nothing.
+From outside the practice network,
+`https://office.massey-smiles.co.nz/smsgateway/debug-status` answers 502.
 
 ### 1. Decide and gather
 
@@ -55,13 +49,6 @@ SMS. A real test message is the owner's call.
   the OpenAI platform (ChatKit domains), GitHub (`massey-reception-coder/admin_scripts`), and
   Akahu (the bank feed).
 - **A quiet hour** for step 8, which moves both public names from reception to the server.
-- **SMS go-live done**, above. Step 8 carries live SMS traffic.
-- **Reception's LAN address.** Give reception a DHCP reservation for `192.168.192.125`. The
-  server's firewall admits reception's SMS check by that address, and a renumbered reception
-  would see a false SMS warning every hour.
-- **The server's LAN address.** Give the server a DHCP reservation for
-  `192.168.192.30`. The router's forward for ports 80 and 443, the bridge's listen address and
-  reception's SMS check all name it.
 
 ### 2. Prepare the release on the development machine
 
@@ -194,9 +181,9 @@ is needed. No value may still read `...`.
 
 ### 8. Caddy, DNS and the router
 
-This moves both public names from reception's own Caddy to the server's, and moves SMS
-(SMS_Bridge, Call Centre and the paired phone) from reception to the server. Do it in the quiet
-hour, after SMS go-live.
+This moves both public names from reception's own Caddy to the server's, and puts SMS
+(SMS_Bridge, Call Centre and the paired phone) on the server. Reception's bridge is installed but
+carries no traffic, so nothing moves from it; it is retired in step 12. Do it in the quiet hour.
 Caddy can obtain certificates only once the router sends ports 80 and 443 to it, so it starts
 after the switch, not before: a failed attempt backs off, and inbound SMS would wait on its
 retry.
@@ -213,32 +200,65 @@ retry.
    icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'NT SERVICE\caddy:(OI)(CI)M'
    ```
 3. Server firewall: allow inbound TCP 80 and 443, and inbound TCP 5170 from reception
-   (`192.168.192.125`) only, for reception's SMS check. Disable any program-level allow rule for
-   the bridge, which would otherwise open 5170 to the whole LAN.
-   Install SMS on the server as [SMS_Bridge's PRODUCTION.md](https://github.com/corrin/SMS_Bridge/blob/master/PRODUCTION.md)
-   describes: Call Centre under an account that signs in automatically, the bridge with a copy of
-   reception's `install-settings.json` (key, `WEBHOOK_SECRET`, debug mode off) and listening on
-   `localhost:5170` and the server's LAN address. Don't start it yet.
-4. DNS: an A record `admin.massey-smiles.co.nz` for the practice's public address, the same
-   address `office.massey-smiles.co.nz` already uses.
-5. Together, with nothing in between: stop and disable Caddy on reception
-   (`sc.exe stop caddy`, then `sc.exe config caddy start= disabled`; in PowerShell `sc` means
-   `Set-Content`); stop the bridge on reception and disable its startup task; pair the phone
-   with the server's Call Centre and start the server's bridge; switch the router's forward for
-   TCP 80 and 443 to the server; and start the server's `caddy` service. Then re-register
-   reception's SMS check with `-Url http://192.168.192.30:5170/smsgateway/phone-status`. Watch `C:\ProgramData\Caddy\logs` until it has obtained both
-   certificates. Leave reception's Caddyfile and certificates in place for the undo.
+   (`192.168.192.125`) only, for reception's SMS check. The server sometimes comes up on the
+   Public network profile after a restart, so the rules apply to every profile; a Private-only
+   rule would then shut out both public names and reception's check without any error.
 
-**Check:** from outside the practice network (a phone off Wi-Fi),
-`https://admin.massey-smiles.co.nz` shows the Google sign-in, and the SMS go-live check passes
-again through the server, both with valid certificates. From a LAN machine other than reception,
-port 5170 on the server times out. Reception's SMS check passes that PRODUCTION.md's acceptance
-check for it. On reception, `sc.exe qc caddy` shows `DISABLED` and `sc.exe query caddy` shows
-`STOPPED`, and `Get-NetTCPConnection -LocalPort 5170 -State Listen` finds nothing, so the old
-bridge is not running. **To undo:** point the router back at reception; stop the server's bridge, pair the
-phone with reception's Call Centre again, and re-enable and start reception's bridge; then set
-reception's Caddy service back to Automatic (a disabled service can't be started) and start it.
-Re-register reception's SMS check with `-Url http://localhost:5170/smsgateway/phone-status`.
+   ```powershell
+   New-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -Direction Inbound -Protocol TCP -LocalPort 80,443 -Action Allow -Profile Any
+   New-NetFirewallRule -DisplayName 'SMS bridge from reception' -Direction Inbound -Protocol TCP -LocalPort 5170 -RemoteAddress 192.168.192.125 -Action Allow -Profile Any
+   ```
+
+   Disable any program-level allow rule for the bridge, which would otherwise open 5170 to the
+   whole LAN.
+4. SMS on the server, as [SMS_Bridge's PRODUCTION.md](https://github.com/corrin/SMS_Bridge/blob/master/PRODUCTION.md)
+   describes. Nothing is built at the practice:
+   1. On the development machine, which has the Open Dental and JustPhone SDK libraries the build
+      needs, publish SMS_Bridge's `master` self-contained, with PRODUCTION.md's
+      `dotnet publish` command. Copy the whole output to the server's
+      `C:\Program Files\SMS_Bridge`.
+   2. Write the server's `C:\ProgramData\SMS_Bridge\install-settings.json` new, from
+      PRODUCTION.md's example: a new random `BRIDGE_API_KEY`, `SmsSettings.EnableDebugMode`
+      `false`, Principle's production practice ID, API key and `WEBHOOK_SECRET`, and
+      `Hosting.ListenUrl` `http://localhost:5170;http://192.168.192.30:5170`. With debug mode
+      on, every patient text goes to the test phone and `/smsgateway/test/test-patient-lookup`
+      returns patient identifiers.
+   3. Set up Call Centre under an account that signs in automatically, pair the phone with it,
+      and start the bridge at that account's logon, as PRODUCTION.md's "Automatic startup"
+      describes.
+
+   **Check:** on the server,
+   `curl.exe -H "X-API-Key: <the new key>" http://localhost:5170/smsgateway/debug-status`
+   reports `isDebugMode` false, and `http://localhost:5170/smsgateway/phone-status` reports
+   `"up": true`.
+5. DNS: an A record `admin.massey-smiles.co.nz` for the practice's public address, the same
+   address `office.massey-smiles.co.nz` already uses.
+6. Together, with nothing in between: stop and disable Caddy on reception
+   (`sc.exe stop caddy`, then `sc.exe config caddy start= disabled`; in PowerShell `sc` means
+   `Set-Content`); stop the bridge on reception and disable its startup task; switch the
+   router's forward for TCP 80 and 443 to the server; and start the server's `caddy` service.
+   Watch `C:\ProgramData\Caddy\logs` until it has obtained both certificates.
+7. Point Principle's webhook at `https://office.massey-smiles.co.nz/smsgateway/webhooks/principle`.
+8. Register the SMS check on reception, as PRODUCTION.md's "SMS warning on reception"
+   describes, with `-Url http://192.168.192.30:5170/smsgateway/phone-status`. It warns
+   reception within 5 minutes of texts stopping.
+
+**Check, without sending an SMS:** from outside the practice network (a phone off Wi-Fi),
+`https://admin.massey-smiles.co.nz` shows the Google sign-in, and
+`https://office.massey-smiles.co.nz/smsgateway/debug-status` answers 401 without the key and 200
+with `isDebugMode` false given `X-API-Key: <the new key>`, both with valid certificates. A 502
+means Caddy can't reach the bridge: read the server's Caddy log. Never probe
+`/smsgateway/test/check-send-sms`; it sends a real SMS, and a real test message is the owner's
+call. From a LAN machine other than reception, port 5170 on the server times out. Reception's SMS
+check passes PRODUCTION.md's acceptance check for it. On reception, `sc.exe qc caddy` shows
+`DISABLED`, `sc.exe query caddy` shows `STOPPED`, and
+`Get-NetTCPConnection -LocalPort 5170 -State Listen` finds nothing.
+
+**To undo:** point the router back at reception, then set reception's Caddy service back to
+Automatic (a disabled service can't be started) and start it. SMS is then off until step 8 is
+done again: turn Principle's webhook off, and on reception run
+`Unregister-ScheduledTask -TaskName 'SMS warning'`. That check would otherwise stay green against
+the server's bridge while no texts go out.
 
 ### 9. The launcher
 
@@ -269,26 +289,20 @@ from outside, and the restore drill. Record the release in its table.
 
 ### 12. Retire SMS on reception
 
-Once the release is signed off and the undo in step 8 is no longer wanted, remove what step 8
-left on reception. It holds the bridge's API key, Principle's webhook secret, past messages and
-the TLS keys for both public names, none of which reception needs any more. After this, step 8
-can't be undone.
+Once the release is signed off and the undo in step 8 is no longer wanted, remove the bridge and
+Caddy from reception. They hold the TLS keys for `office`, and reception's
+`install-settings.json` may hold Principle credentials, none of which reception needs. After this,
+step 8 can't be undone.
 
-1. Find the old bridge's startup task with
-   `Get-ScheduledTask | Where-Object { $_.Actions.Execute -match 'SMS_Bridge' }`, delete it with
-   `Unregister-ScheduledTask`, then delete the installation directory its action names.
+1. Delete the old bridge's startup task, disabled at the start, with `Unregister-ScheduledTask`
+   (`Get-ScheduledTask | Where-Object { $_.Actions.Execute -match 'SMS_Bridge' }` finds it),
+   then delete the installation directory its action names.
 2. Stop Call Centre starting at logon, in Settings > Apps > Startup or as a logon task in Task
    Scheduler, unless reception uses it for calls.
 3. `sc.exe delete caddy`, then delete `C:\Program Files\Caddy` and Caddy's data directory, which
    holds the certificates.
-4. Keep the message history from before the move. On reception, signed in with an account that
-   is an administrator on the server as well:
-   `robocopy C:\ProgramData\SMS_Bridge \\192.168.192.30\C$\ProgramData\SMS_Bridge\reception /E`.
-   Without `/COPY:S` the copies take the server folder's restricted permissions. Robocopy exit
-   codes of 8 and above mean files were not copied; don't delete anything until it reports 0
-   to 7 and the server's `reception` folder holds as many files as reception's. Then delete
-   everything in reception's `C:\ProgramData\SMS_Bridge` except `check-sms.ps1`, which
-   reception's SMS check runs.
+4. Delete everything in `C:\ProgramData\SMS_Bridge` except `check-sms.ps1`, which reception's
+   SMS check runs.
 5. Remove any firewall rule on reception that admits port 5170, 80 or 443.
 
 **Check:** on reception, `sc.exe query caddy` reports that the service does not exist,
