@@ -253,8 +253,9 @@ check passes PRODUCTION.md's acceptance check for it. On reception, `sc.exe qc c
 
 **To undo:** point the router back at reception, then set reception's Caddy service back to
 Automatic (a disabled service can't be started) and start it. SMS is then off until step 8 is
-done again: turn Principle's webhook off, and unregister reception's SMS check, which would
-otherwise stay green against the server's bridge while no texts go out.
+done again: turn Principle's webhook off, and on reception run
+`Unregister-ScheduledTask -TaskName 'SMS warning'`. That check would otherwise stay green against
+the server's bridge while no texts go out.
 
 ### 9. The launcher
 
