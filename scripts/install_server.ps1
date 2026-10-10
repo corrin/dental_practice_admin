@@ -1,7 +1,5 @@
-# Sets up the server to run the admin app. Elevated PowerShell, in the checkout:
-#   git pull; powershell -ExecutionPolicy Bypass -File scripts\install_server.ps1
-# Safe to re-run, including after a failure. Stops at the first error.
-# After the first run, restart the server once so services see the new PATH.
+# Sets up the server to run the admin app, first install and every upgrade; deploy\RELEASE.md
+# says when and how to run it. Safe to re-run, including after a failure. Stops at the first error.
 $ErrorActionPreference = 'Stop'
 function Run { & $args[0] @($args | Select-Object -Skip 1); if ($LASTEXITCODE) { throw "failed (exit $LASTEXITCODE): $args" } }
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -41,9 +39,15 @@ Run icacls .env /inheritance:r /grant:r 'SYSTEM:F' 'Administrators:F' "$($accoun
 # Stopping ends any run mid-write: pause the launcher, and refuse while a run is in progress.
 $launcher = Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner' -ErrorAction SilentlyContinue
 if ($launcher) { $launcher | Disable-ScheduledTask | Out-Null; while ((Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner').State -eq 'Running') { Start-Sleep 5 } }
-if (Get-Service dental-practice-admin -ErrorAction SilentlyContinue) {
-    $running = Run .venv\Scripts\python.exe -c "from dental_practice_admin.config import Settings; from dental_practice_admin.storage import Storage; print(Storage(Settings().database_path).db.execute('SELECT count(*) FROM task_runs WHERE outcome = ?', ('running',)).fetchone()[0])"
-    if ([int]$running) { if ($launcher) { $launcher | Enable-ScheduledTask | Out-Null }; throw "$running run(s) in progress (Results page); nothing changed; run this again when they finish" }
+try {
+    $running = 0
+    if (Get-Service dental-practice-admin -ErrorAction SilentlyContinue) {
+        $running = Run .venv\Scripts\python.exe -c "from dental_practice_admin.config import Settings; from dental_practice_admin.storage import Storage; print(Storage(Settings().database_path).db.execute('SELECT count(*) FROM task_runs WHERE outcome = ?', ('running',)).fetchone()[0])"
+    }
+    if ([int]$running) { throw "$running run(s) in progress (Results page); nothing changed; run this again when they finish" }
+} catch {
+    if ($launcher) { $launcher | Enable-ScheduledTask | Out-Null }
+    throw
 }
 # A failure from here leaves the launcher paused, so no task starts against a half-installed release.
 try {
@@ -63,7 +67,8 @@ try {
     while (-not $health -and (Get-Date) -lt $deadline) { Start-Sleep 5; try { $health = Invoke-RestMethod http://127.0.0.1:8080/health } catch { } }
     if (-not $health -or $health.status -ne 'ok' -or $health.principle -ne 'production') { throw "unhealthy: $($health | ConvertTo-Json -Compress); see C:\ProgramData\DentalPracticeAdmin\logs" }
 } catch {
-    throw "$_`nThe scheduled launcher stays paused until this script succeeds."
+    Write-Host 'The scheduled launcher stays paused until this script succeeds.' -ForegroundColor Red
+    throw
 }
 
 # Caddy (installed here, first started at the switch), firewall, launcher
