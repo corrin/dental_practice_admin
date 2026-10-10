@@ -39,7 +39,10 @@ patient. Saving with "Update Patient" resubmits every field in it, not only the 
 
 **Address entry:**
 - The address field verifies what is typed. Free text shows "Address not verified" until a
-  suggestion is picked or "Manually Enter Address" is used.
+  suggestion is picked or "Manually Enter Address" is used. Suggestions are Google Places
+  Autocomplete items (`.pac-item`), outside the dialog and without ARIA roles; the field's
+  placeholder is "Enter address". What a picked suggestion saves is in
+  [patient-writes.md](patient-writes.md).
 - Manual entry has street, unit, city, region, postcode and country fields. They open blank,
   because Principle stores only the joined string (see [firestore.md](firestore.md)).
   Saving replaces the whole address.

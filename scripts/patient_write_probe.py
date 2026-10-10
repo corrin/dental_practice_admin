@@ -2,9 +2,10 @@
 
     uv run python -m scripts.patient_write_probe PATIENT_ID '[{"address": "1 Example St"}]'
 
-Applies each change in turn to one staging patient, prints every API field that changed, then
-restores every field it changed. Use a dummy patient: the PATCH is
-real. docs/principle/patient-writes.md records what it showed.
+Applies each change in turn to one staging patient, prints the name of every field of its
+Firestore document that changed (a superset of what the API returns; values are never
+printed, since staging holds real patients), then restores every field it changed. Use a
+dummy patient: the PATCH is real. docs/principle/patient-writes.md records what it showed.
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ from typing import Any
 import httpx2 as httpx
 
 from dental_practice_admin.config import Environment, Settings
+from dental_practice_admin.firestore import Firestore
 
 REQUIRED = ("name", "dateOfBirth", "gender", "email")
 
@@ -24,11 +26,16 @@ async def probe(patient: str, changes: list[dict[str, Any]]) -> None:
     """Apply each change, print what changed, then restore every field it touched."""
     settings = Settings(environment=Environment.STAGING)
     path = f"/v1/patients/{patient}"
+    firestore = Firestore(settings)
     async with httpx.AsyncClient(base_url=settings.api_base_url, timeout=60, headers={
             "X-API-Key": settings.api_key.get_secret_value()}) as api:
 
         async def read() -> dict[str, Any]:
             return dict((await api.get(path)).raise_for_status().json())
+
+        async def document() -> dict[str, str]:
+            fields = (await firestore.read("patients/" + patient))["fields"]
+            return {k: json.dumps(v, sort_keys=True) for k, v in fields.items()}
 
         async def messages() -> tuple[int, int]:
             sms = (await api.get(path + "/sms-messages")).raise_for_status().json()
@@ -36,11 +43,12 @@ async def probe(patient: str, changes: list[dict[str, Any]]) -> None:
             return len(sms["data"]), len(mail["data"])
 
         async def patch(change: dict[str, Any]) -> bool:
-            before = await read()
-            body = {key: before[key] for key in REQUIRED if key in before}
+            current = await read()
+            body = {key: current[key] for key in REQUIRED if key in current}
             body.update(practiceId=settings.practice_id, **change)
+            before = await document()
             response = await api.patch(path, json=body)
-            after = await read()
+            after = await document()
             changed = sorted(k for k in before.keys() | after.keys()
                              if before.get(k) != after.get(k))
             print(f"PATCH {sorted(change)}: {response.status_code} {response.text[:200]}"
@@ -58,6 +66,7 @@ async def probe(patient: str, changes: list[dict[str, Any]]) -> None:
             if not await patch({key: original.get(key, empty.get(key)) for key in touched}):
                 raise SystemExit("Restore failed: the patient still holds the probe's changes")
         print("messages after (sms, email):", await messages())
+    await firestore.aclose()
 
 
 def main() -> int:
