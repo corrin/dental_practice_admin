@@ -35,8 +35,14 @@ Secure it before Principle switches SMS on, and before step 8 moves `office` to 
    phone and `/smsgateway/test/test-patient-lookup` returns patient identifiers. Principle's
    webhook signs with `WEBHOOK_SECRET`, so the new key changes nothing for Principle.
 3. Point Principle's webhook at `https://office.massey-smiles.co.nz/smsgateway/webhooks/principle`.
-4. Arrange an alarm for the bridge's phone status. Nothing provides one yet, and texts that stop
-   going out fail silently: until one exists, someone checks Call Centre's connection daily.
+4. Install the SMS warning on reception: SMS_Bridge's `Scripts\check-sms.ps1`
+   (corrin/SMS_Bridge#4), registered as SMS_Bridge's PRODUCTION.md "SMS warning on reception"
+   describes. Every 5 minutes it asks the bridge whether texts can go out, and anything but yes,
+   including no answer, puts a box on reception's screen, repeated at most hourly after it is
+   dismissed. Keep the phone number quoted in the task's argument: unquoted, a number with
+   spaces breaks the task without a word. Then work through that PRODUCTION.md's acceptance
+   check 5 (all well and no box; bridge stopped and a box within 5 minutes; dismissed and none
+   for an hour; phone Wi-Fi off and a box within 5 minutes).
 
 **Check, without sending an SMS:** from outside the practice network,
 `https://office.massey-smiles.co.nz/smsgateway/debug-status` answers 401 without the key, and 200
