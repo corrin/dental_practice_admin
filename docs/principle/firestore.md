@@ -139,7 +139,17 @@ date. Production, 2026-10-10, build `main.8e7a8bfa2c5bf44c.js`.
 ### Calendar events
 
 `calendarEvents` at the brand root holds non-roster events: `event.type` seen as
-`appointmentRequest` and `gapCandidate` (gap-fill offers). Appointments are not here.
+`appointmentRequest`, `gapCandidate` (gap-fill offers) and `break`. Appointments are not here.
+
+**A roster block edited for one day lives here.** Editing one occurrence adds that day to the
+roster item's `delete` modifier and creates a `calendarEvents` document with the roster's
+`event.type` (`break`), its `title`, the edited `event.from`/`to`, the staff member in
+`event.participantRefs`, and `scheduleRef` pointing back to the roster item.
+**Verified:** Andrea's 2026-10-12 lunch, edited on 2026-09-28. Production, 2026-10-10, build
+`main.8e7a8bfa2c5bf44c.js`.
+
+An `appointmentRequest` (an online booking not yet accepted) has `isBlocking: true` and the
+practitioner in `practitioner`.
 
 ## Appointment documents
 

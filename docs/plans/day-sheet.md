@@ -227,9 +227,9 @@ categories, and with them the new-patient flag, would not show.
   - Cards use the full width. Overlapping appointments sit side by side.
   - Neighbours are separated by a 0.5 mm white gap rather than borders.
   - A 20-minute card shows two lines: name and procedures, then a note.
-- **Overflow.** The text shrinks to 11/9 pt, then 10/9 pt. Then it spills into free time
-  below, inside a dashed outline. Then it is cut at a whole line ending in "…". Notes are
-  never dropped silently.
+- **Overflow.** The text shrinks to 11/9 pt, then 10/9 pt, then is cut at a whole line ending
+  in "…". Notes are never dropped silently. A card never grows past its end time: a proof
+  that let text spill into free time below made a 14:20–15:00 appointment read as 15:10.
 - **Empty day.** One page saying nobody is booked.
 - **Partial coverage.** A red INCOMPLETE line under the header names each gap.
 
