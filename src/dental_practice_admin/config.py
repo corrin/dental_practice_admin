@@ -35,6 +35,16 @@ STAGING_API_URL = "https://api.staging.principle.dental"
 FAKE_API_URL = "https://fake.principle.invalid"
 FAKE_API_KEY = "00000000-0000-4000-8000-000000000001"
 FAKE_PRACTICE_ID = "fake-practice-0001"
+# The fake's Firestore database, under the same organisation/brand layout as Principle's.
+FAKE_FIREBASE_PROJECT = "fake-principle"
+FAKE_FIRESTORE_ROOT = "organisations/fake-organisation/brands/fake-brand"
+
+# Firebase's hosts. The fake serves these paths itself, at the API's base URL.
+FIREBASE_HOSTS = {
+    "firestore": "https://firestore.googleapis.com",
+    "securetoken": "https://securetoken.googleapis.com",
+    "identitytoolkit": "https://identitytoolkit.googleapis.com",
+}
 
 
 class Environment(StrEnum):
@@ -164,6 +174,15 @@ class Settings(BaseSettings):
     # breaks for staff on the day it is retired, so this is worth keeping current.
     agent_model: str = "gpt-6.1-sol"
 
+    # The practice's bank account, through an Akahu personal app (my.akahu.nz/developers).
+    # There is one bank whichever Principle this checkout talks to, so no environment suffix.
+    # The base URL moves only for the fake bank.
+    akahu_app_token: SecretStr = Field(default=SecretStr(""), validation_alias="AKAHU_APP_TOKEN")
+    akahu_user_token: SecretStr = Field(default=SecretStr(""),
+                                        validation_alias="AKAHU_USER_TOKEN")
+    akahu_base_url: str = Field(default="https://api.akahu.io/v1",
+                                validation_alias="AKAHU_BASE_URL")
+
     # Registered with OpenAI for the domain the chat page is served from, and required by the
     # ChatKit component alongside the endpoint URL. Not a secret: it is rendered into the page.
     chatkit_domain_key: str = "domain_pk_localhost"
@@ -209,6 +228,12 @@ class Settings(BaseSettings):
             return values
 
         return (resolved,)
+
+    def firebase_url(self, service: str) -> str:
+        """Where one Firebase service is reached: Google's host, or the fake's."""
+        if self.environment is Environment.FAKE:
+            return self.api_base_url.rstrip("/")
+        return FIREBASE_HOSTS[service]
 
     @property
     def data_dir(self) -> Path:
@@ -297,6 +322,9 @@ class Settings(BaseSettings):
         """Refuse config whose declared environment disagrees with its host."""
         if not self.api_base_url:
             self.api_base_url = PRINCIPLE_URLS[self.environment]
+        if self.environment is Environment.FAKE:
+            self.firebase_project = self.firebase_project or FAKE_FIREBASE_PROJECT
+            self.firestore_root = self.firestore_root or FAKE_FIRESTORE_ROOT
         host = api_host(self.api_base_url)
         production_host = is_production_host(self.api_base_url)
         if self.environment is Environment.PRODUCTION and not production_host:
@@ -339,6 +367,11 @@ class Settings(BaseSettings):
         self.require_automation_configured()
         if not self.openai_api_key.get_secret_value():
             raise ConfigurationError("Chat needs OPENAI_API_KEY")
+        missing = [name for name, value in (
+            ("AKAHU_APP_TOKEN", self.akahu_app_token.get_secret_value()),
+            ("AKAHU_USER_TOKEN", self.akahu_user_token.get_secret_value())) if not value]
+        if missing:
+            raise ConfigurationError(f"Bank reconciliation needs {', '.join(missing)}")
 
     def require_automation_configured(self) -> None:
         """Validate automation settings once before accepting real work."""

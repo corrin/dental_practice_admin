@@ -22,6 +22,7 @@ import pytest
 
 from tests.fake.store import FAKE_API_KEY, FAKE_PRACTICE_ID
 from tests.fake_ai import FAKE_AI_KEY
+from tests.fake_akahu import FAKE_AKAHU_ENV
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -40,7 +41,12 @@ def _free_port() -> int:
         return int(probe.getsockname()[1])
 
 
-def _serve(target: str, port: int, env: dict[str, str]) -> subprocess.Popen[bytes]:
+def _serve(target: str, port: int, env: dict[str, str], log: Path) -> subprocess.Popen[bytes]:
+    """Start one server, writing its output to `log`.
+
+    A file, not a pipe: nothing reads a pipe while the tests run, so a server that logs more
+    than the pipe holds blocks on its next write and every later request times out.
+    """
     return subprocess.Popen(
         [
             sys.executable,
@@ -60,18 +66,19 @@ def _serve(target: str, port: int, env: dict[str, str]) -> subprocess.Popen[byte
         ],
         cwd=REPO,
         env=env,
-        stdout=subprocess.PIPE,
+        stdout=log.open("wb"),
         stderr=subprocess.STDOUT,
     )
 
 
-def _await_http(url: str, process: subprocess.Popen[bytes], expect_status: set[int]) -> None:
+def _await_http(url: str, process: subprocess.Popen[bytes], expect_status: set[int],
+                log: Path) -> None:
     """Wait for a server to answer, failing with its own output rather than a bare timeout."""
     deadline = time.monotonic() + STARTUP_TIMEOUT
     last = "no response yet"
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            output = process.stdout.read().decode(errors="replace") if process.stdout else ""
+            output = log.read_text(errors="replace")
             pytest.fail(f"{url} server exited with {process.returncode}:\n{output}")
         try:
             response = httpx.get(url, timeout=3)
@@ -91,6 +98,7 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
     data_root = tmp_path_factory.mktemp("e2e-data")
     fake_port = _free_port()
     fake_ai_port = _free_port()
+    fake_bank_port = _free_port()
     app_port = _free_port()
 
     env = dict(os.environ)
@@ -109,20 +117,27 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
             # model is simulated. No production code branches on being under test.
             "OPENAI_BASE_URL": f"http://127.0.0.1:{fake_ai_port}/v1",
             "OPENAI_API_KEY": FAKE_AI_KEY,
+            "AKAHU_BASE_URL": f"http://127.0.0.1:{fake_bank_port}/v1",
+            **FAKE_AKAHU_ENV,
         }
     )
 
-    fake = _serve("tests.fake.server:app", fake_port, env)
-    fake_ai = _serve("tests.fake_ai.server:app", fake_ai_port, env)
-    application = _serve("dental_practice_admin.app:create_app", app_port, env)
+    logs = {name: data_root / f"{name}.log" for name in ("fake", "fake_ai", "fake_bank", "app")}
+    fake = _serve("tests.fake.server:app", fake_port, env, logs["fake"])
+    fake_ai = _serve("tests.fake_ai.server:app", fake_ai_port, env, logs["fake_ai"])
+    fake_bank = _serve("tests.fake_akahu.server:app", fake_bank_port, env, logs["fake_bank"])
+    application = _serve("dental_practice_admin.app:create_app", app_port, env, logs["app"])
     try:
         # Principle's authentication refusal proves its request handler is ready.
-        _await_http(f"http://127.0.0.1:{fake_port}/v1/practices", fake, {401, 403, 500})
-        _await_http(f"http://127.0.0.1:{fake_ai_port}/health", fake_ai, {200})
-        _await_http(f"http://127.0.0.1:{app_port}/health", application, {200})
+        _await_http(f"http://127.0.0.1:{fake_port}/v1/practices", fake, {401, 403, 500},
+                    logs["fake"])
+        _await_http(f"http://127.0.0.1:{fake_ai_port}/health", fake_ai, {200}, logs["fake_ai"])
+        _await_http(f"http://127.0.0.1:{fake_bank_port}/v1/me", fake_bank, {401},
+                    logs["fake_bank"])
+        _await_http(f"http://127.0.0.1:{app_port}/health", application, {200}, logs["app"])
         yield {**env, "APP_URL": f"http://127.0.0.1:{app_port}"}
     finally:
-        for process in (application, fake_ai, fake):
+        for process in (application, fake_bank, fake_ai, fake):
             process.terminate()
             try:
                 process.wait(timeout=10)

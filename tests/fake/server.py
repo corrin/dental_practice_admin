@@ -22,13 +22,22 @@ import json
 import re
 from collections.abc import Awaitable, Callable, Mapping, MutableMapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
 
 import httpx2 as httpx
 
-from tests.fake.store import FAKE_API_KEY, SERVER_DEFAULT_LIMIT, FakeStore, Page, seed
+from tests.fake import firestore
+from tests.fake.store import (
+    FAKE_API_KEY,
+    FAKE_PRACTICE_ID,
+    SERVER_DEFAULT_LIMIT,
+    FakeStore,
+    Page,
+    seed,
+)
 
 REFUSALS_DIR = Path(__file__).resolve().parent.parent / "recordings" / "refusals"
 
@@ -69,6 +78,10 @@ class Request:
     path: str
     query: dict[str, str]
     headers: Mapping[str, str]
+    body: bytes = b""
+
+    def json(self) -> Any:
+        return json.loads(self.body or b"null")
 
     def api_key(self) -> str | None:
         for name, value in self.headers.items():
@@ -88,17 +101,21 @@ class Response:
 Handler = Callable[[FakeStore, Request, "re.Match[str]"], Response]
 
 
-def _refusal(name: str) -> Response:
+def _refusal(name: str, **slots: str) -> Response:
     """An error, in the words and with the status the real API was recorded producing.
 
     The recording carries the status, so the fake cannot disagree with Principle about
-    which code an error is either. Written by scripts/record_principle_wire.py.
+    which code an error is either. Written by scripts/record_principle_wire.py, which leaves
+    a `{slot}` where the real body named something of the caller's, such as a document path.
     """
     recorded = REFUSALS_DIR / f"{name}.json"
     if not recorded.exists():
         raise FakeRefusalNotRecordedError(name)
     document = json.loads(recorded.read_text(encoding="utf-8"))
-    return Response(int(document["status"]), document["body"])
+    text = json.dumps(document["body"])
+    for slot, value in slots.items():
+        text = text.replace("{" + slot + "}", value)
+    return Response(int(document["status"]), json.loads(text))
 
 
 def _paging(request: Request) -> tuple[int, str | None]:
@@ -161,6 +178,53 @@ def list_appointments(store: FakeStore, request: Request, _match: re.Match[str])
     return Response(200, _envelope(page, limit))
 
 
+def get_patient(store: FakeStore, request: Request, match: re.Match[str]) -> Response:
+    _only(request, frozenset())
+    patient = store.patient(match.group("patient_id"))
+    if patient is None:
+        return _refusal("patient_not_found")
+    return Response(200, patient)
+
+
+def firestore_now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def create_patient(store: FakeStore, request: Request, _match: re.Match[str]) -> Response:
+    """A new patient, readable at once through the API and Firestore alike."""
+    _only(request, frozenset())
+    body = request.json()
+    if not isinstance(body, dict) or body.get("practiceId") != FAKE_PRACTICE_ID:
+        raise FakeRefusalNotRecordedError("create_patient_invalid")
+    return Response(201, store.create_patient(body, firestore_now()))
+
+
+def search_patients(store: FakeStore, request: Request, _match: re.Match[str]) -> Response:
+    """Every match at once, with no `meta`: the endpoint is not paginated."""
+    _only(request, frozenset({"practiceId", "name"}))
+    return Response(200, {"data": store.search_patients(request.query["practiceId"],
+                                                        request.query["name"])})
+
+
+DATE_RANGE = frozenset({"practiceId", "createdFrom", "createdTo", "updatedFrom", "updatedTo",
+                        "limit", "offsetId"})
+
+
+def list_invoices(store: FakeStore, request: Request, _match: re.Match[str]) -> Response:
+    _only(request, DATE_RANGE)
+    limit, offset = _paging(request)
+    page = store.changed("invoices", request.query["practiceId"], request.query, limit, offset)
+    return Response(200, _envelope(page, limit))
+
+
+def list_transactions(store: FakeStore, request: Request, _match: re.Match[str]) -> Response:
+    _only(request, DATE_RANGE)
+    limit, offset = _paging(request)
+    page = store.changed("transactions", request.query["practiceId"], request.query, limit,
+                         offset)
+    return Response(200, _envelope(page, limit))
+
+
 def _route(method: str, pattern: str, handler: Handler) -> tuple[str, re.Pattern[str], Handler]:
     return method, re.compile(f"^{pattern}$"), handler
 
@@ -173,6 +237,11 @@ ROUTES: tuple[tuple[str, re.Pattern[str], Handler], ...] = (
         list_practitioners,
     ),
     _route("GET", r"/v1/appointments", list_appointments),
+    _route("GET", r"/v1/patients", search_patients),
+    _route("POST", r"/v1/patients", create_patient),
+    _route("GET", r"/v1/patients/(?P<patient_id>[^/]+)", get_patient),
+    _route("GET", r"/v1/invoices", list_invoices),
+    _route("GET", r"/v1/transactions", list_transactions),
 )
 
 
@@ -181,8 +250,46 @@ def routes_served() -> frozenset[tuple[str, str]]:
     return frozenset((method, pattern.pattern) for method, pattern, _ in ROUTES)
 
 
+FIRESTORE_PATH = re.compile(
+    "^/v1/" + re.escape(firestore.ROOT) + r"(?:/(?P<path>[^:]+?))?(?P<query>:runQuery)?$")
+
+
+def firebase(store: FakeStore, request: Request) -> Response | None:
+    """Firebase sign-in, token refresh and Firestore reads, or None for an API path."""
+    if request.method == "POST" and request.path == "/v1/accounts:signInWithPassword":
+        return Response(200, {"idToken": firestore.ID_TOKEN,
+                              "refreshToken": firestore.REFRESH_TOKEN, "expiresIn": "3600"})
+    if request.method == "POST" and request.path == "/v1/token":
+        if f"refresh_token={firestore.REFRESH_TOKEN}" not in request.body.decode():
+            raise FakeRefusalNotRecordedError("firebase_refresh_rejected")
+        return Response(200, {"id_token": firestore.ID_TOKEN,
+                              "refresh_token": firestore.REFRESH_TOKEN, "expires_in": "3600"})
+    if not request.path.startswith(f"/v1/{firestore.DOCUMENTS}"):
+        return None
+    if request.headers.get("authorization") != f"Bearer {firestore.ID_TOKEN}":
+        return _refusal("firestore_unauthenticated")
+    match = FIRESTORE_PATH.match(request.path)
+    if match is None:
+        raise FakeUnhandledRouteError(
+            f"the fake Firestore serves only {firestore.ROOT}, not {request.path}")
+    path = match.group("path") or ""
+    if match.group("query"):
+        if request.method != "POST":
+            raise FakeUnhandledRouteError(f"{request.method} {request.path}")
+        return Response(200, firestore.run_query(store, path, request.json()))
+    if request.method != "GET" or "/" not in path:
+        raise FakeUnhandledRouteError(f"{request.method} {request.path}")
+    document = firestore.get_document(store, path)
+    if document is None:
+        return _refusal("firestore_not_found", document=f"{firestore.ROOT}/{path}")
+    return Response(200, document)
+
+
 def dispatch(store: FakeStore, request: Request) -> Response:
     """Answer from the first matching route, or refuse."""
+    answered = firebase(store, request)
+    if answered is not None:
+        return answered
     if request.api_key() != FAKE_API_KEY:
         return _refusal("unauthorised")
     for method, pattern, handler in ROUTES:
@@ -210,8 +317,10 @@ class FakePrinciple:
     ) -> None:
         if scope["type"] != "http":
             raise FakeUnhandledRouteError(f"the fake Principle serves http, not {scope['type']!r}")
+        body = b""
         while True:
             message = await receive()
+            body += message.get("body", b"")
             if not message.get("more_body"):
                 break
         request = Request(
@@ -224,6 +333,7 @@ class FakePrinciple:
             headers={
                 name.decode().lower(): value.decode() for name, value in scope.get("headers", [])
             },
+            body=body,
         )
         response = dispatch(self.store, request)
         body = json.dumps(response.body).encode()

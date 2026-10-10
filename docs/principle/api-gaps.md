@@ -98,26 +98,32 @@ history under `scripts/spikes/`.
 ## Client refusals
 
 `PrincipleClient` validates every response against the published specification, which is
-stricter than the data in two places. Each refusal blocks an otherwise good read:
+stricter than the data in two places, and pages in a way it did not expect in one. Each would
+block an otherwise good read; the client works around the first and third:
 
 1. **Every invoice with allocations.** `AllocationTarget` puts a `discriminator` on inline
    `oneOf` branches with no mapping, so openapi-core looks for component schemas named
-   `practitioner` and `unallocated`. The `oneOf` alone accepts the data.
-2. **Patients with a spaced phone number.** `ContactNumber.number` must match
-   `^\+?\d{6,15}$`; numbers like `021 123 4567` fail. The client reads `getPatient` before every
-   patient-scoped call, so none of that patient's invoices can be read. 1 in 15 production
-   patients who owe money, 5 in 60 staging patients.
+   `practitioner` and `unallocated`. The `oneOf` alone accepts the data, so the client
+   validates without the discriminator (`principle._validator`).
+2. **Patients whose record breaks the specification.** `ContactNumber.number` must match
+   `^\+?\d{6,15}$`, so numbers like `021 123 4567` fail, and `email` must be a valid address.
+   The client reads `getPatient` before every patient-scoped call, so none of that patient's
+   invoices can be read. On 2026-10-10, 19 of the 287 production patients with an unpaid
+   invoice or a recent payment failed: 18 on a phone number, 1 on an email address. On staging,
+   5 in 60. The reconcile page shows such a patient as unreadable and carries on.
    - It also stopped the day sheet for every practitioner: 1 of the 15 patients booked on
      2026-11-16. The day sheet takes that patient's name from the timeline card instead and
      marks the sheet partial. Remove that fallback, the `getPatient` handler in admin_scripts'
      `tasks/day_sheet/source.txt`, once Principle fixes this.
    - The practice's own data is being cleaned: see
      [the contact details plan](../plans/clean-contact-details.md).
-   - *Request to Principle:* reject contact numbers on entry that the specification doesn't
-     allow, in the website and the API, or correct the specification to match what is stored.
+   - *Request to Principle:* reject contact numbers and email addresses on entry that the
+     specification doesn't allow, in the website and the API, or correct the specification to
+     match what is stored.
 3. **`listTransactionsByDateRange` over a split payment.** `PrincipleClient.rows` treats the
    repeated `id` as a restarted walk. Seen on staging's migrated payments (115 of 1,899 rows);
-   none in 890 production rows from 2026-09-01 to 2026-10-09.
+   none in 890 production rows from 2026-09-01 to 2026-10-09. The client keys these rows by
+   (`id`, `invoiceId`) (`principle.ROW_KEYS`).
 
 ## Missing for recording payments
 

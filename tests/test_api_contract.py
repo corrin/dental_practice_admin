@@ -206,3 +206,52 @@ def test_warning_only_resolves_after_a_different_released_interface(tmp_path: Pa
     finally:
         store.close()
 
+
+
+INVOICE = {
+    "id": "fake-invoice", "reference": "INV-1", "status": "issued", "patientId": "fake-patient",
+    "practice": {"id": "fake-practice", "name": "Fake"}, "items": [],
+    "subtotal": 100, "tax": 0, "total": 100,
+    "allocations": [{"allocatedAmount": 100, "target": {
+        "type": "practitioner", "practitioner": {"id": "fake-dr", "name": "Dr Fake"}}}],
+    "transactionAllocations": [],
+    "createdAt": "2026-09-01T00:00:00+00:00", "updatedAt": "2026-09-01T00:00:00+00:00",
+}
+
+
+async def test_invoices_with_practitioner_allocations_are_read(fake_settings: Settings) -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"data": [INVOICE], "meta": {"limit": 100, "total": 1}})
+
+    async with PrincipleClient(fake_settings, transport=httpx.MockTransport(respond)) as client:
+        rows = [row async for row in client.rows("listInvoicesByDateRange")]
+    assert [row["id"] for row in rows] == ["fake-invoice"]
+
+
+def _transaction(invoice_id: str) -> dict[str, object]:
+    return {"id": "fake-payment", "invoiceId": invoice_id, "patientId": "fake-patient",
+            "practiceId": "fake-practice", "provider": "manual", "reference": "1",
+            "type": "payment", "status": "complete", "amount": 50,
+            "createdAt": "2026-09-01T00:00:00+00:00", "updatedAt": "2026-09-01T00:00:00+00:00"}
+
+
+@pytest.mark.parametrize(("second_page", "accepted"), [("invoice-b", True), ("invoice-a", False)])
+async def test_a_split_payment_is_one_row_per_invoice(
+    fake_settings: Settings, second_page: str, accepted: bool,
+) -> None:
+    pages = [
+        {"data": [_transaction("invoice-a")],
+         "meta": {"limit": 1, "total": 1, "nextOffsetId": "2026-09-01T00:00:00+00:00"}},
+        {"data": [_transaction(second_page)], "meta": {"limit": 1, "total": 1}},
+    ]
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=pages["offsetId" in request.url.params])
+
+    async with PrincipleClient(fake_settings, transport=httpx.MockTransport(respond)) as client:
+        walk = client.rows("listTransactionsByDateRange", page_size=1)
+        if accepted:
+            assert len([row async for row in walk]) == 2
+        else:
+            with pytest.raises(PrincipleError):
+                _ = [row async for row in walk]

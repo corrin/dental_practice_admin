@@ -14,6 +14,7 @@ from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.scripts import Script, execute, load_draft, run, save_draft
 from dental_practice_admin.storage import Coverage, Outcome, Storage
+from tests.fake_akahu import FAKE_AKAHU_SETTINGS
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows process ownership")
@@ -62,6 +63,7 @@ def test_draft_source_and_results_are_private_on_staff_pages(tmp_path: Path) -> 
     configured = settings(tmp_path).model_copy(update={
         "sign_in": SignIn.DEVELOPER,
         "openai_api_key": SecretStr("fake-ai"),
+        **FAKE_AKAHU_SETTINGS,
     })
     own = save_draft(configured, draft().model_copy(update={"owner": FAKE_STAFF}))
     foreign = save_draft(configured, draft())
@@ -92,12 +94,12 @@ async def test_expired_firestore_token_is_renewed_without_a_browser(tmp_path: Pa
     tokens: list[str] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
-        if request.url.host == "identitytoolkit.googleapis.com":
+        if request.url.path == "/v1/accounts:signInWithPassword":
             return httpx.Response(
                 200,
                 json={"idToken": "fake-first", "refreshToken": "fake-refresh", "expiresIn": "3600"},
             )
-        if request.url.host == "securetoken.googleapis.com":
+        if request.url.path == "/v1/token":
             return httpx.Response(
                 200,
                 json={
@@ -126,7 +128,7 @@ async def test_rejected_refresh_gets_one_signin_and_invalid_credentials_fail(
     calls: list[str] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
-        calls.append(request.url.host)
+        calls.append(request.url.path)
         return httpx.Response(400, json={"error": {"message": "INVALID_LOGIN_CREDENTIALS"}})
 
     client = Firestore(settings(tmp_path), httpx.MockTransport(respond))
@@ -136,7 +138,7 @@ async def test_rejected_refresh_gets_one_signin_and_invalid_credentials_fail(
             await client.read("patients/fake")
     finally:
         await client.aclose()
-    assert calls == ["securetoken.googleapis.com", "identitytoolkit.googleapis.com"]
+    assert calls == ["/v1/token", "/v1/accounts:signInWithPassword"]
 
 
 @pytest.mark.parametrize(

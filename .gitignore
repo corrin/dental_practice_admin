@@ -12,6 +12,8 @@ logs/
 run/
 # Production reads and proofs made from them: real patient records.
 prod_data/
+# Chromium's crash reporter writes this into the working directory under Playwright.
+debug.log
 
 # Anything captured from staging before scrubbing. Recordings enter the repo only via
 # scripts/record_principle_wire.py, which scrubs at capture.
@@ -35,6 +37,7 @@ __pycache__/
 # Refusal recordings ARE committed: an error body is the API's own wording and carries no
 # patient data, and tests/fake/server.py needs them to refuse in words nobody invented.
 tests/recordings/*.json
+tests/recordings/firestore/
 !tests/recordings/refusals/
 
 # Principle's published specification is fetched, never committed: it carries no licence, no
