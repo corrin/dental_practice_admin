@@ -105,10 +105,12 @@ office.massey-smiles.co.nz {
 		-Server
 	}
 
-	# RECEPTION_HOST is the reception machine's LAN address. Give it a DHCP reservation or a
-	# static lease: a webhook that stops arriving because a machine renumbered is a silent
-	# failure, and Principle will not tell anyone.
-	reverse_proxy RECEPTION_HOST:5170 {
+	# 192.168.192.125 is reception. The bridge is dormant until Principle's API gains the features
+	# it waits for, so this answers 502 until then. Before reactivating it, work through "Before
+	# reactivating SMS" in ACCEPTANCE.md: reception needs a DHCP reservation, because a webhook
+	# that stops arriving when a machine renumbers is a silent failure Principle reports to nobody.
+	# A bridge moved onto this server is 127.0.0.1:5170 instead.
+	reverse_proxy 192.168.192.125:5170 {
 		header_up X-Real-IP {remote_host}
 	}
 }
