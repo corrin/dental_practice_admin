@@ -346,7 +346,7 @@ docs/principle/          what tasks have learned about Principle's website and F
 Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher.
 The service invokes `dental_practice_admin.app:create_app --factory`; install the package with
 `uv sync --locked` in the release directory before starting it. Runtime configuration lives in
-the host's `.env` and the service environment, separately from the development checkout. Before
+the host's `.env`, separately from the development checkout; the service definition sets none. Before
 stopping the running service, run `.venv\Scripts\python.exe -m dental_practice_admin.config` in
 the new release directory: it names any setting the release needs that the host lacks, so the
 old release keeps serving until the host is ready.

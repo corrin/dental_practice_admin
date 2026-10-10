@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import SecretStr
 from scripts import run
 
 from dental_practice_admin.config import (
@@ -17,8 +18,8 @@ from dental_practice_admin.config import (
     SignIn,
 )
 from tests.fake.store import FAKE_API_KEY
-from tests.fake_akahu import FAKE_AKAHU_ENV
-from tests.settings import API_URLS, fake_settings
+from tests.fake_ai import FAKE_AI_KEY
+from tests.settings import API_URLS, fake_settings, use_fake_environment
 
 PUBLIC_ORIGIN = "https://admin.fake.invalid"
 
@@ -26,47 +27,35 @@ PUBLIC_ORIGIN = "https://admin.fake.invalid"
 @pytest.fixture
 def credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """A complete .env, as a developer's holds one, through the environment."""
-    (tmp_path / "data").mkdir()
-    for suffix, project in (("STAGING", "principle-staging"), ("PROD", "principle")):
-        for name, value in {
-            "UI_EMAIL": "fake@fake.invalid",
-            "UI_PASSWORD": "fake-password",
-            "FIREBASE_KEY": "fake-key",
-            "FIREBASE_PROJECT": project,
-            "FIRESTORE_ROOT": "organisations/fake/brands/fake",
-            "WORKSPACE": "Synthetic workspace",
-            "WORKSPACE_SLUG": "fake",
-        }.items():
-            monkeypatch.setenv(f"PRINCIPLE_{name}_{suffix}", value)
-    for key, value in {
-        "PRINCIPLE_API_KEY_STAGING": "synthetic-staging-key",
-        "PRINCIPLE_API_KEY_PROD": "synthetic-production-key",
-        "PRINCIPLE_PRACTICE_ID_STAGING": "synthetic-staging-practice",
-        "PRINCIPLE_PRACTICE_ID_PROD": "synthetic-production-practice",
-        "OPENAI_API_KEY": "fake-ai-key",
-        "ADMIN_SESSION_SECRET": "fake-session",
-        "ADMIN_GOOGLE_CLIENT_ID": "fake-google-client",
-        "ADMIN_GOOGLE_CLIENT_SECRET": "fake-google-secret",
-        "ADMIN_STAFF_EMAILS": "staff@fake.invalid",
-        "ADMIN_CHATKIT_DOMAIN_KEY": "fake-registered-domain",
-        "PRINCIPLE_ENVIRONMENT": "staging",
-        "PRINCIPLE_API_BASE_URL_FAKE": "http://127.0.0.1:8898",
-        "PRINCIPLE_API_BASE_URL_STAGING": STAGING_API_URL,
+    use_fake_environment(
+        monkeypatch, tmp_path / "data",
+        environment=Environment.STAGING, api_base_url=STAGING_API_URL, sign_in=SignIn.GOOGLE,
+        openai_base_url="https://api.openai.com/v1", public_base_url=PUBLIC_ORIGIN,
+        chatkit_domain_key="fake-registered-domain",
+        session_secret=SecretStr("fake-session"), google_client_id="fake-google-client",
+        google_client_secret=SecretStr("fake-google-secret"), staff_emails="staff@fake.invalid",
+        api_key=SecretStr("synthetic-staging-key"), practice_id="synthetic-staging-practice",
+        ui_email="fake@fake.invalid", ui_password=SecretStr("fake-password"),
+        firebase_key="fake-key", firebase_project="principle-staging",
+        firestore_root="organisations/fake/brands/fake", workspace="Synthetic workspace",
+        workspace_slug="fake")
+    # The other environments' sections, which a .env holds beside the selected one.
+    for name, value in {
         "PRINCIPLE_API_BASE_URL_PROD": API_URLS[Environment.PRODUCTION],
+        "PRINCIPLE_API_KEY_PROD": "synthetic-production-key",
+        "PRINCIPLE_PRACTICE_ID_PROD": "synthetic-production-practice",
+        "PRINCIPLE_UI_EMAIL_PROD": "fake@fake.invalid",
+        "PRINCIPLE_UI_PASSWORD_PROD": "fake-password",
+        "PRINCIPLE_FIREBASE_KEY_PROD": "fake-key",
+        "PRINCIPLE_FIREBASE_PROJECT_PROD": "principle",
+        "PRINCIPLE_FIRESTORE_ROOT_PROD": "organisations/fake/brands/fake",
+        "PRINCIPLE_WORKSPACE_PROD": "Synthetic workspace",
+        "PRINCIPLE_WORKSPACE_SLUG_PROD": "fake",
+        "PRINCIPLE_API_BASE_URL_FAKE": "http://127.0.0.1:8898",
         "PRINCIPLE_API_KEY_FAKE": FAKE_API_KEY,
         "PRINCIPLE_PRACTICE_ID_FAKE": FAKE_PRACTICE_ID,
-        "ADMIN_SIGN_IN": "google",
-        "OPENAI_BASE_URL": "https://api.openai.com/v1",
-        "ADMIN_AGENT_MODEL": "fake-model",
-        "AKAHU_BASE_URL": "https://api.akahu.io/v1",
-        "ADMIN_PLAYWRIGHT_MCP_PATH": "node_modules/@playwright/mcp/cli.js",
-        "ADMIN_DATA_ROOT": str(tmp_path / "data"),
-        "ADMIN_PUBLIC_BASE_URL": PUBLIC_ORIGIN,
-        "ADMIN_TASK_REPOSITORY": "fake-owner/fake-tasks",
-        "ADMIN_GITHUB_TOKEN": "fake-github-token",
-        **FAKE_AKAHU_ENV,
     }.items():
-        monkeypatch.setenv(key, value)
+        monkeypatch.setenv(name, value)
 
 
 def arguments(**overrides: object) -> argparse.Namespace:
@@ -132,7 +121,7 @@ def test_children_receive_the_resolved_configuration(credentials: None) -> None:
     assert env["PRINCIPLE_ENVIRONMENT"] == "fake"
     assert env["ADMIN_SIGN_IN"] == "google"
     assert env["OPENAI_BASE_URL"] == "https://api.openai.com/v1"
-    assert env["OPENAI_API_KEY"] == "fake-ai-key"
+    assert env["OPENAI_API_KEY"] == FAKE_AI_KEY
 
 
 @pytest.mark.parametrize("failure", ["startup", "running", "interrupt"])

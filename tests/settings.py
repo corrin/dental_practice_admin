@@ -5,9 +5,11 @@ only what it is about, with overrides; everything else is as here.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
+import pytest
 from pydantic import SecretStr
 
 from dental_practice_admin.config import (
@@ -52,6 +54,20 @@ def fake_settings(data_root: Path, **overrides: Any) -> Settings:
     """The fake environment's settings, with runtime data under `data_root`, which is created."""
     data_root.mkdir(parents=True, exist_ok=True)
     return Settings(**(FAKE_SETTINGS | {"data_root": data_root} | overrides))
+
+
+APPLICATION_PREFIXES = ("ADMIN_", "PRINCIPLE_", "OPENAI_", "AKAHU_")
+
+
+def use_fake_environment(monkeypatch: pytest.MonkeyPatch, data_root: Path,
+                         **overrides: Any) -> None:
+    """Replace this machine's settings variables with the fake environment's."""
+    for name in list(os.environ):
+        if name.startswith(APPLICATION_PREFIXES):
+            monkeypatch.delenv(name)
+    for name, value in fake_environment(data_root, **overrides).items():
+        if name.startswith(APPLICATION_PREFIXES):
+            monkeypatch.setenv(name, value)
 
 
 def fake_environment(data_root: Path, **overrides: Any) -> dict[str, str]:

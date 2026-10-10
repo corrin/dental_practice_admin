@@ -21,7 +21,7 @@ from dental_practice_admin.config import (
 )
 from dental_practice_admin.principle import PrincipleClient
 from tests.fake import FakeStore
-from tests.settings import API_URLS, fake_environment, fake_settings
+from tests.settings import API_URLS, fake_settings, use_fake_environment
 
 
 @pytest.fixture(autouse=True)
@@ -32,14 +32,12 @@ def _isolated_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     testing, and the failure would look like a bug in the guard. Every setting is present, so
     a test changes only the one it is about.
     """
-    for name in list(os.environ):
-        if name.startswith(("ADMIN_", "PRINCIPLE_", "OPENAI_", "AKAHU_")):
-            monkeypatch.delenv(name)
+    use_fake_environment(monkeypatch, tmp_path / "data")
+    # Each test supplies its own environment's Principle credentials, from .env or the shell.
     scoped = tuple(f"_{environment_suffix(e)}" for e in Environment)
-    for name, value in fake_environment(tmp_path / "data").items():
-        if name.startswith(("ADMIN_", "PRINCIPLE_", "OPENAI_", "AKAHU_")) and not name.endswith(
-                scoped):
-            monkeypatch.setenv(name, value)
+    for name in list(os.environ):
+        if name.startswith("PRINCIPLE_") and name.endswith(scoped):
+            monkeypatch.delenv(name)
     for environment, url in API_URLS.items():
         monkeypatch.setenv(f"PRINCIPLE_API_BASE_URL_{environment_suffix(environment)}", url)
     monkeypatch.chdir(tmp_path)
