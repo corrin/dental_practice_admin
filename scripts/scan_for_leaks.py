@@ -54,12 +54,10 @@ PUBLIC_SETTINGS = frozenset(
         # Rendered into the chat page by design; public by construction.
         "ADMIN_CHATKIT_DOMAIN_KEY",
         "OPENAI_BASE_URL",
-        # The installed package's path under node_modules, the default in config.py.
-        "ADMIN_PLAYWRIGHT_MCP_PATH",
-        # The address staff browse to, documented in the README and scripts/run.py.
-        "ADMIN_PUBLIC_BASE_URL",
-        # Akahu's public API host, the default in config.py.
         "AKAHU_BASE_URL",
+        "ADMIN_PUBLIC_BASE_URL",
+        "ADMIN_TASK_REPOSITORY",
+        "ADMIN_PLAYWRIGHT_MCP_PATH",
     }
 )
 
@@ -108,22 +106,37 @@ class Finding:
         return f"  {self.path}: {self.reason}"
 
 
-def secrets_from_env() -> dict[str, str]:
-    """The real values to look for, read from the gitignored .env.
+def read_env() -> dict[str, str]:
+    """Every setting in the main checkout's gitignored .env.
 
-    Reading them rather than hard-coding them is the point: the scanner knows the practice's actual
-    key and addresses without any of them being written into a tracked file.
+    The main checkout, not ROOT: a worktree has no .env of its own, and reading ROOT there would
+    silently check nothing.
     """
-    env = ROOT / ".env"
+    common = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        capture_output=True, text=True, cwd=ROOT, check=True,
+    ).stdout.strip()
+    env = Path(common).parent / ".env"
     if not env.exists():
         return {}
-    found: dict[str, str] = {}
+    settings: dict[str, str] = {}
     for line in env.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         name, _, value = line.partition("=")
-        name, value = name.strip(), value.strip()
+        settings[name.strip()] = value.strip()
+    return settings
+
+
+def secrets_from_env(env: dict[str, str]) -> dict[str, str]:
+    """The real values to look for, read from the gitignored .env.
+
+    Reading them rather than hard-coding them is the point: the scanner knows the practice's actual
+    key and addresses without any of them being written into a tracked file.
+    """
+    found: dict[str, str] = {}
+    for name, value in env.items():
         if name in PUBLIC_SETTINGS or len(value) < MIN_SECRET_LENGTH:
             continue
         if FAKE_MARKER.search(value):
@@ -169,7 +182,11 @@ def content_of(path: str, staged: bool) -> str | None:
 
 def scan(staged: bool = False) -> list[Finding]:
     """Every reason the given content must not be committed."""
-    secrets = secrets_from_env()
+    return scan_for(staged, secrets_from_env(read_env()))
+
+
+def scan_for(staged: bool, secrets: dict[str, str]) -> list[Finding]:
+    """Every reason the given content must not be committed, given the secrets to look for."""
     findings: list[Finding] = []
 
     for path in tracked_files(staged):
@@ -209,10 +226,12 @@ def main() -> int:
     )
     arguments = parser.parse_args()
 
-    findings = scan(staged=arguments.staged)
+    secrets = secrets_from_env(read_env())
+    findings = scan_for(arguments.staged, secrets)
     if not findings:
         where = "staged changes" if arguments.staged else "tracked files"
         print(f"No patient data, staff identities or credentials found in {where}.")
+        print(f"Checked {len(secrets)} values from .env.")
         return 0
 
     print(f"Refusing: {len(findings)} problem(s)\n", file=sys.stderr)
