@@ -420,6 +420,9 @@ class Settings(BaseSettings):
             raise ConfigurationError("Install the locked Playwright MCP package before startup")
         if which("node") is None:
             raise ConfigurationError("Install Node.js before startup")
+        # GitPython raises ImportError at import without it, which breaks every chat tool call.
+        if which("git") is None:
+            raise ConfigurationError("Install Git before startup")
 
 
 def setting_name(field: str, environment: Environment | None = None) -> str:

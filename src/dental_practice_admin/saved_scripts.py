@@ -123,7 +123,8 @@ def load(settings: Settings, name: str, revision: str, inputs: dict[str, Any],
         return scripts.Script.model_validate(
             task_files.load(settings, name, revision, inputs, owner))
     path = folder(settings, name, revision)
-    definition = task_files.Definition.model_validate_json((path / "task.json").read_text())
+    definition = task_files.Definition.model_validate_json(
+        (path / "task.json").read_text(encoding="utf-8"))
     validate(inputs, definition.inputs, format_checker=FormatChecker())
     return scripts.Script(language=definition.language,
         source=(path / "source.txt").read_text(encoding="utf-8"), inputs=inputs,
@@ -136,7 +137,8 @@ def publish_review(settings: Settings, name: str, revision: str,
     path = folder(settings, name, revision)
     provenance = json.loads((path / "provenance.json").read_text(encoding="utf-8"))
     review = task_files.Review(draft_id=provenance["draft_id"],
-        definition=task_files.Definition.model_validate_json((path / "task.json").read_text()),
+        definition=task_files.Definition.model_validate_json(
+            (path / "task.json").read_text(encoding="utf-8")),
         tests=(path / "test_task.py").read_text(encoding="utf-8"),
         checked_for_patient_data=checked_for_patient_data)
     return task_files.publish(settings, review, provenance["owner"])

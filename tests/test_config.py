@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -381,3 +382,16 @@ def test_automation_against_principle_needs_the_maps_key(tmp_path: Path) -> None
     without = complete.model_copy(update={"google_maps_api_key": SecretStr("")})
     with pytest.raises(ConfigurationError):
         without.require_automation_configured()
+
+
+def test_automation_refuses_to_start_without_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    playwright = tmp_path / "cli.js"
+    playwright.write_text("")
+    settings = configured(tmp_path, Environment.STAGING).model_copy(
+        update={"playwright_mcp_path": playwright})
+    monkeypatch.setattr("dental_practice_admin.config.which",
+                        lambda name: None if name == "git" else shutil.which(name))
+    with pytest.raises(ConfigurationError, match="Git"):
+        settings.require_automation_configured()
