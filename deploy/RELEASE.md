@@ -61,6 +61,9 @@ SMS. A real test message is the owner's call.
 ### 2. Prepare the release on the development machine
 
 At the commit to release, run `scripts\release_gate.ps1`. It must end "Release checks passed".
+Run it in the development checkout: its staging tier compares the fake with recordings of
+staging, which `scripts/record_principle_wire.py` keeps in `tests\recordings` outside version
+control, and a fresh clone fails that tier without them.
 
 ### 3. Accounts and folders on the server
 
