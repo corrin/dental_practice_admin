@@ -36,6 +36,7 @@ C:\Program Files\DentalPracticeAdmin\
     dental-practice-admin.xml
     releases\<commit>\            one checkout per release, with its own .venv and node_modules
     current\                      directory junction to the live release
+    deploy-in-progress            only while a deploy runs: the release current pointed at
 C:\ProgramData\DentalPracticeAdmin\
     shared\.env                   the host's settings; each release gets a link to it
     production\                   runtime data, as today (ADMIN_DATA_ROOT)
@@ -62,11 +63,13 @@ running release is untouched.
    origin/main`), not one from inside a merged branch, and its own `hermetic` run on `main`
    succeeded. CI runs on every push to `main`, and the repository is public, so GitHub's
    check-runs API answers without credentials: the host needs `git` and nothing signed in. An
-   unreachable API, or a run still pending, refuses the deploy and says which. A commit whose
-   directory is already in `releases\` passed this when it was installed, so going back to the
-   previous release skips it and does not depend on GitHub.
-2. Clone that commit into `releases\<commit>`, unless that directory already holds it: going
-   back to the previous release is the same command with its commit, and reuses its directory.
+   unreachable API, or a run still pending, refuses the deploy and says which. A release that
+   finished installing once holds an `installed` marker, written at the end of step 5, and
+   passed this check then; going back to it skips the check and does not depend on GitHub. A
+   release directory without the marker is a failed install, and is deleted and installed
+   again.
+2. Clone that commit into `releases\<commit>`, unless that directory is an installed release:
+   going back to the previous release is the same command with its commit, and reuses it.
 3. `uv sync --locked`, `npm ci`, and the locked Playwright browser, in the release.
 4. Link `shared\.env` into the release.
 5. Refuse, naming what differs, if:
@@ -75,35 +78,39 @@ running release is untouched.
      `deploy\` copies: the service definition changed, and the bootstrap checklist's re-install
      step applies first.
 
-   The old release is still serving.
-6. Write `deploy-in-progress` under `C:\Program Files\DentalPracticeAdmin\`, recording where
-   `current` points; step 9 or the end of a successful run removes it. Disable the task runner
-   and wait for any run in progress to finish, so no scheduled task is
+   The old release is still serving. Otherwise write `installed` in the release directory.
+6. Write `deploy-in-progress` beside `current`, recording the release it points at; this is
+   the one record of what to go back to. Disable the task runner and wait for any run in
+   progress to finish, so no scheduled task is
    writing to Principle while its code is switched underneath it. A run still going after ten
    minutes is a failure like any other in steps 6–8 (step 9): the deploy exits with failure,
    printing the stuck task's name to the person running it, who is watching. Then stop the
-   service, and record where `current` points.
+   service.
 7. Point `current` at the new release and start the service.
-8. Health: `/health` must answer within 60 seconds, then `scripts\verify.ps1` must pass. Only
-   then is the task runner enabled, so a release that is not healthy never runs a scheduled
-   task that writes to Principle.
+8. Health: `/health` must answer within 60 seconds, then `scripts\verify.ps1 -Deploying` must
+   pass (`-Deploying` skips only its refusal while `deploy-in-progress` exists). Only then is
+   the task runner enabled, so a release that is not healthy never runs a scheduled task that
+   writes to Principle, and `deploy-in-progress` removed.
 9. If anything fails from step 6 on, including the run being interrupted: put back what had
    changed by then, and exit with failure, naming the step to the person running it. Steps 6–8
    run inside one `try`/`finally` that does this, so every failure has one path back, in this
    order:
    - `current`, if repointed, points back at the recorded release;
-   - the service, if stopped, is started, and `verify.ps1` is run again;
-   - the task runner, if disabled, is enabled again, but only once that `verify.ps1` passes.
+   - the service, if stopped, is started, and `verify.ps1 -Deploying` is run again;
+   - only if that passes: the task runner, if disabled, is enabled again, and
+     `deploy-in-progress` is removed.
 
    A stuck run fails before the service is stopped, so it only re-enables the task runner. If
-   `verify.ps1` fails after the rollback too, the task runner stays disabled, the service is
-   left stopped, and the message says first that the practice now has no working release, then
-   which step failed in each. The person running the deploy is the one who tells the practice,
+   `verify.ps1` fails after the rollback too, the service is left running as restored, the
+   task runner stays disabled, `deploy-in-progress` stays so `verify.ps1` keeps refusing, and
+   the message says first that the practice has no healthy release, then which step failed in
+   each. The person running the deploy is the one who tells the practice,
    and staff see the sign-in page fail to load until a release is reinstated.
 
    A `finally` does not run if the window is closed or the process killed. That case leaves
    `deploy-in-progress` behind: `install.ps1` and `verify.ps1` both refuse while it exists and
-   say so, and `install.ps1 -Recover` puts back the release it records, as step 9 would have.
+   say so, and `install.ps1 -Recover` puts back the release it records. `-Recover` is step 9's
+   code run on its own, not a second way of doing it.
 10. Delete releases other than `current` and the one it replaced.
 
 The first install is the same command after a one-off bootstrap, written as its own checklist
@@ -128,7 +135,8 @@ and Caddy. Those happen once and need a person's judgement, so they are not scri
 
 1. **Layout and paths.** The path changes to the XML files and `verify.ps1`; the bootstrap
    checklist. Verify: the rehearsal installs and serves `/health` from `current`.
-2. **`install.ps1`.** Steps 1–10. Verify: the three rehearsal cases behave as described.
+2. **`install.ps1`.** Steps 1–10 and `-Recover`. Verify: each rehearsal case behaves as
+   described.
 3. **First install on the host.** Bootstrap, then `install.ps1` with #29's merged revision.
    Verify: `verify.ps1` passes, and `deploy/ACCEPTANCE.md` is worked through and signed.
 
