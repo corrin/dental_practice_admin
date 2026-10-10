@@ -91,9 +91,10 @@ Only credits are stored.
 SQLite tables in `storage.py`:
 
 **`bank_deposits`**
-- Columns: `akahu_id` (primary key), `date`, `amount_cents`, `payer_name`, `particulars`, `code`, `reference`, `kind` (`batch`/`individual`), `status`, `method`,
-  `decided_by`, `decided_at`, `note`.
-- `status` is one of `open`, `recording`, `matched`, `check` or `excluded`.
+- Columns: `akahu_id` (primary key), `date`, `amount_cents`, `description` (as the bank sent
+  it; the payer's name is part of it), `particulars`, `code`, `reference`, `status`,
+  `decided_by`, `decided_at`, `note`. Phase 2 adds `kind` (`batch`/`individual`) and `method`.
+- `status` is `open`, `matched` or `excluded`; Phase 3 adds `recording` and `check`.
 - `method` is one of `rule`, `sum`, `suggested` or `manual`.
 
 **`bank_matches`**
@@ -102,6 +103,8 @@ SQLite tables in `storage.py`:
 - A batch deposit has one row for each existing payment it covers.
 - An individual deposit has one row for each existing payment it matched
   (`created_here` = false) and one for each payment the page created (`created_here` = true).
+  A Phase 1 match to an invoice has no `principle_transaction_id`: staff key that payment in
+  Principle by hand.
 
 **`payer_links`**
 - Columns: `payer_name`, `patient_id`, `created_by`, `created_at`.
@@ -111,6 +114,13 @@ SQLite tables in `storage.py`:
   where any link can be deleted.
 - The memory is plain rows that staff can see and edit, as in Actual Budget, not a hidden model.
   One payer can link to several patients (a parent paying for a family).
+
+**`bank_account`** and **`bank_fetch`** hold when Akahu last read the bank, and when Fetch now
+last ran and what failed in it, for the page header.
+
+**`principle_cache`** and **`principle_cache_marks`** hold the unpaid invoices, complete payments
+and patient names the page shows, and how far each has been read, so showing the page makes no
+calls to Principle.
 
 ### Fetching from Akahu
 - An Akahu "personal app" on the practice's own account. `AKAHU_APP_TOKEN` and
