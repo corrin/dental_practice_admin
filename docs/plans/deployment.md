@@ -21,7 +21,7 @@ by itself if it is not.
 
 - **Capistrano's release layout.** Each release in its own directory under `releases\`, a
   `current` link pointing at the live one, configuration in `shared\` linked into every release,
-  and the last few releases kept so going back is a link change, not a reinstall.
+  and the previous release kept so going back is a link change, not a reinstall.
 - **Octopus Deploy's deploy, health check and roll back.** A deployment is a fixed sequence of
   steps on the target; after the switch a health check decides success; a failed deployment is
   answered by redeploying the previous release, here by pointing `current` back.
@@ -45,7 +45,9 @@ C:\ProgramData\DentalPracticeAdmin\
   as their working directory, so switching the junction switches both.
 - `deploy/dental-practice-admin.xml`, `deploy/task-runner.xml` and `scripts/verify.ps1` change
   their paths to `current`. WinSW and its XML move out of the release, because the release
-  directory is replaced on every deploy and the service definition must not be.
+  directory is replaced on every deploy and the service definition must not be. Every deploy
+  compares the installed service and task definitions with the release's copies (step 5), so
+  the two cannot drift apart unnoticed.
 - `.env` lives once, in `shared\`, as Capistrano's linked files: one copy, so releases cannot
   disagree about settings.
 
@@ -54,18 +56,29 @@ C:\ProgramData\DentalPracticeAdmin\
 Run elevated, on the host, by a person. Each step stops the run on failure; until step 6 the
 running release is untouched.
 
-1. Refuse unless `<commit>` is on `main` at `origin` and its `hermetic` check passed (`gh`).
-2. Clone that commit into `releases\<commit>`.
-3. `uv sync --locked`, `npm ci`, and the locked Playwright browser, in the new release.
+1. Refuse unless `<commit>` is on `origin/main` (`git merge-base --is-ancestor`). `main`
+   accepts only pull requests whose `hermetic` check passed, so this is also the CI check, and
+   the host needs `git` but no GitHub credentials.
+2. Clone that commit into `releases\<commit>`, unless that directory already holds it: going
+   back to the previous release is the same command with its commit, and reuses its directory.
+3. `uv sync --locked`, `npm ci`, and the locked Playwright browser, in the release.
 4. Link `shared\.env` into the release.
-5. `scripts\check_settings.ps1 -ReleaseRoot releases\<commit>`. A missing setting stops here,
-   named, with the old release still serving.
-6. Stop the service and disable the task runner; record where `current` points.
+5. Refuse, naming what differs, if:
+   - `scripts\check_settings.ps1 -ReleaseRoot releases\<commit>` fails: a setting is missing;
+   - the installed WinSW XML or the registered `Task runner` differs from the release's
+     `deploy\` copies: the service definition changed, and the bootstrap checklist's re-install
+     step applies first.
+
+   The old release is still serving.
+6. Disable the task runner and wait for any run in progress to finish, so no scheduled task is
+   writing to Principle while its code is switched underneath it. Stop the service. Record where
+   `current` points.
 7. Point `current` at the new release; enable the task runner; start the service.
 8. Health: `/health` must answer within 60 seconds, then `scripts\verify.ps1` must pass.
-9. On any failure in 7–8: point `current` back, start the service, run `verify.ps1` again, and
-   exit with failure, naming the step that failed.
-10. Keep the three newest releases and delete older ones.
+9. If anything fails from step 6 on, including the run being interrupted: point `current`
+   back, enable the task runner, start the service, run `verify.ps1` again, and exit with
+   failure, naming the step. Steps 6–8 run inside one `try`/`finally` that does this.
+10. Delete releases other than `current` and the one it replaced.
 
 The first install is the same command after a one-off bootstrap, written as its own checklist
 in `deploy/ACCEPTANCE.md`: the service account, `shared\.env`, WinSW install, task registration
