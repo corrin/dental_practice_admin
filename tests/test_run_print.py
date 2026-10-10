@@ -63,6 +63,20 @@ async def test_a_printable_result_is_saved_beside_its_audit_not_in_it(
     assert "printable" not in finished_event["result"]
 
 
+async def test_the_worker_returns_text_beyond_ascii_intact(configured: Settings) -> None:
+    """A patient name with a macron, or a page's en dash, crosses the worker unchanged."""
+    text = "T\u0101maki \u2013 9:00 \u00b7 notes\u2026"  # macron, en dash, middle dot, ellipsis
+    script = draft().model_copy(update={"source": (
+        "async def run(services, inputs):\n"
+        f"    return {{'summary': {text!r}, 'detail': {{}}, 'coverage': 'complete',"
+        f" 'printable': {('<p>' + text + '</p>')!r}}}\n")})
+
+    result = await scripts.worker_run(configured, script, "fake-run")
+
+    assert result.summary == text
+    assert result.printable == f"<p>{text}</p>"
+
+
 def test_the_run_page_offers_print_only_when_there_is_a_page(
         configured: Settings, client: TestClient) -> None:
     printable = finished(configured)

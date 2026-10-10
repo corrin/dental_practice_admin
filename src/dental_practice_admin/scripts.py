@@ -201,9 +201,13 @@ async def worker_run(settings: Settings, script: Script, run_id: str) -> Result:
 
 
 def main() -> int:
-    """Worker protocol uses stdin; credentials never appear in command-line arguments."""
+    """Worker protocol uses stdin; credentials never appear in command-line arguments.
+
+    Both directions are UTF-8 bytes. Text streams on Windows use the console code page, which
+    mangles a patient name with a macron or a page's en dash into JSON the caller cannot read.
+    """
     own_process_tree()
-    payload = json.load(sys.stdin)
+    payload = json.load(sys.stdin.buffer)
     settings = Settings(**{"_env_file": None, **payload["settings"]})
     settings.require_credentials()
     script = Script.model_validate(payload["script"])
@@ -214,7 +218,8 @@ def main() -> int:
     except Exception as error:
         print(type(error).__name__)
         return 1
-    print(result.model_dump_json())
+    sys.stdout.buffer.write(result.model_dump_json().encode("utf-8") + b"\n")
+    sys.stdout.buffer.flush()
     return 0
 
 
