@@ -45,12 +45,14 @@ The SMS bridge is dormant, waiting on Principle's API. Reactivating it is a sepa
   - **Reception.** Give it a DHCP reservation for 192.168.192.125. Allow 5170 from the server's
     address only, and disable any program-level allow rule for the bridge, which would otherwise
     open 5170 to the whole LAN. In `Caddyfile`, replace the `office` site's `respond` line
-    with `reverse_proxy 192.168.192.125:5170`.
+    with `reverse_proxy 192.168.192.125:5170`, carrying the same
+    `header_up X-Real-IP {remote_host}` as the `admin` site.
   - **The server.** Call Centre is a desktop program the SDK drives, so the server needs a
     signed-in session at boot: automatic sign-in to a dedicated account, Call Centre started at
     logon, and the phone paired from there. Bind the bridge to `http://127.0.0.1:5170` (a
     change in SMS_Bridge's `Program.cs`), and in `Caddyfile` replace the `office` site's
-    `respond` line with `reverse_proxy 127.0.0.1:5170`.
+    `respond` line with `reverse_proxy 127.0.0.1:5170`, carrying the same
+    `header_up X-Real-IP {remote_host}` as the `admin` site.
 - [ ] Add an alarm for the bridge's phone status. Texts that stop going out fail silently
       wherever the bridge runs.
 
