@@ -42,7 +42,7 @@ of this is worth doing.
 ## Repeat quarterly
 
 - [ ] Restore drill, as above.
-- [ ] `uv run pytest -m integration` against staging, to catch Principle changing under us.
+- [ ] `scripts\run_integration_tests.ps1` against staging, to catch Principle changing under us.
 - [ ] `uv run python scripts/record_principle_wire.py`, then review the diff. A change in the
       recordings is Principle moving, and the fake must follow.
 

@@ -59,6 +59,9 @@ SMS. A real test message is the owner's call.
 - **Reception's LAN address.** Give reception a DHCP reservation for `192.168.192.125`. The
   server's firewall admits reception's SMS check by that address, and a renumbered reception
   would see a false SMS warning every hour.
+- **The server's LAN address.** Give the server a DHCP reservation for
+  `192.168.192.30`. The router's forward for ports 80 and 443, the bridge's listen address and
+  reception's SMS check all name it.
 
 ### 2. Prepare the release on the development machine
 
@@ -81,8 +84,9 @@ control, and a fresh clone fails that tier without them.
 
 ### 4. Software on the server
 
-1. Install uv, Node.js (LTS) and Caddy (`caddy.exe` in `C:\Program Files\Caddy`). Download a
-   WinSW 2.x executable.
+1. Install uv, Node.js (LTS), Git for Windows and Caddy (`caddy.exe` in
+   `C:\Program Files\Caddy`). Download a WinSW 2.x executable. Chat and Reports & scripts save
+   task drafts through `git`, and fail without it on the service account's `PATH`.
 2. Set, once for the machine, where uv gets Python and how it installs packages. By default
    it uses any Python already installed, possibly a per-user one, or puts its own in the
    installing user's `%AppData%`, and it hardlinks packages from that user's cache, carrying its
@@ -93,10 +97,10 @@ control, and a fresh clone fails that tier without them.
    [Environment]::SetEnvironmentVariable('UV_PYTHON_INSTALL_DIR', 'C:\ProgramData\uv\python', 'Machine')
    [Environment]::SetEnvironmentVariable('UV_LINK_MODE', 'copy', 'Machine')
    ```
-3. **Reboot.** Services see the machine `PATH` the Node installer changed, and the variables
+3. **Reboot.** Services see the machine `PATH` the Node and Git installers changed, and the variables
    above, only after one.
 
-**Check:** in a new PowerShell, `node --version`, `uv --version` and
+**Check:** in a new PowerShell, `node --version`, `uv --version`, `git --version` and
 `& 'C:\Program Files\Caddy\caddy.exe' version` all answer.
 
 ### 5. The release directory
@@ -108,10 +112,20 @@ control, and a fresh clone fails that tier without them.
 3. As the service account (`runas /user:massey-admin powershell`), in that directory:
    `node node_modules/@playwright/mcp/cli.js install-browser chrome-for-testing`. The browser
    installs into that account's profile, which is where the automation looks for it.
-4. Create `.env` in the release directory. Both the service and the launcher read it, from
+
+### 6. Settings
+
+1. Google Cloud, OAuth client: add the authorised redirect URI
+   `https://admin.massey-smiles.co.nz/auth/callback`.
+2. OpenAI platform: register `admin.massey-smiles.co.nz` for ChatKit. Its key goes in
+   `ADMIN_CHATKIT_DOMAIN_KEY` below.
+3. Create `.env` in the release directory. Both the service and the launcher read it, from
    their working directory, and nothing else configures them. `Settings` in
    `src/dental_practice_admin/config.py` is the authority on what is required; the check below
    names anything missing.
+
+   Keep each comment on its own line. A comment after an empty value becomes the value:
+   `ADMIN_PUBLIC_BASE_URL=   # empty` sets it to `# empty`, and Google sign-in then fails.
 
    ```dotenv
    # Without these, both would run against staging, with a different database.
@@ -119,17 +133,22 @@ control, and a fresh clone fails that tier without them.
    ADMIN_DATA_ROOT=C:\ProgramData\DentalPracticeAdmin
    PRINCIPLE_API_BASE_URL_PROD=https://api.principle.dental
    ADMIN_PLAYWRIGHT_MCP_PATH=node_modules/@playwright/mcp/cli.js
-   ADMIN_PUBLIC_BASE_URL=            # empty: each request's own origin, which Caddy forwards
+   # Empty: each request's own origin, which Caddy forwards.
+   ADMIN_PUBLIC_BASE_URL=""
 
    ADMIN_SIGN_IN=google
    ADMIN_GOOGLE_CLIENT_ID=...
    ADMIN_GOOGLE_CLIENT_SECRET=...
-   ADMIN_SESSION_SECRET=...          # long random string, new for production
-   ADMIN_STAFF_EMAILS=...            # and/or ADMIN_STAFF_DOMAIN=massey-smiles.co.nz
-   ADMIN_CHATKIT_DOMAIN_KEY=...      # registered for admin.massey-smiles.co.nz (step 6)
+   # A long random string, new for production.
+   ADMIN_SESSION_SECRET=...
+   # One or both of these; "" for the one not used.
+   ADMIN_STAFF_EMAILS=...
+   ADMIN_STAFF_DOMAIN=massey-smiles.co.nz
+   ADMIN_CHATKIT_DOMAIN_KEY=...
    OPENAI_API_KEY=...
    OPENAI_BASE_URL=https://api.openai.com/v1
-   ADMIN_AGENT_MODEL=...             # a model /v1/models lists for that key
+   # A model /v1/models lists for that key.
+   ADMIN_AGENT_MODEL=...
 
    PRINCIPLE_API_KEY_PROD=...
    PRINCIPLE_PRACTICE_ID_PROD=...
@@ -138,18 +157,21 @@ control, and a fresh clone fails that tier without them.
    PRINCIPLE_FIREBASE_KEY_PROD=...
    PRINCIPLE_FIREBASE_PROJECT_PROD=...
    PRINCIPLE_FIRESTORE_ROOT_PROD=organisations/.../brands/...
-   PRINCIPLE_WORKSPACE_PROD=...      # the exact workspace option, e.g. "Massey Smiles Dental"
+   # The exact workspace option, e.g. "Massey Smiles Dental".
+   PRINCIPLE_WORKSPACE_PROD=...
    PRINCIPLE_WORKSPACE_SLUG_PROD=massey-smiles
 
    AKAHU_APP_TOKEN=...
    AKAHU_BASE_URL=https://api.akahu.io/v1
    AKAHU_USER_TOKEN=...
-   ADMIN_GOOGLE_MAPS_API_KEY=...     # Geocoding API enabled
+   # With the Geocoding API enabled.
+   ADMIN_GOOGLE_MAPS_API_KEY=...
    ADMIN_TASK_REPOSITORY=massey-reception-coder/admin_scripts
-   ADMIN_GITHUB_TOKEN=...            # contents and pull requests on that repository
+   # Contents and pull requests on that repository.
+   ADMIN_GITHUB_TOKEN=...
    ```
 
-5. Restrict `.env` to the service account and administrators. A file inherits its folder's
+4. Restrict `.env` to the service account and administrators. A file inherits its folder's
    permissions, and Program Files lets every local user read:
 
    ```powershell
@@ -158,16 +180,8 @@ control, and a fresh clone fails that tier without them.
 
 **Check:** `scripts\check_settings.ps1 -ReleaseRoot 'C:\Program Files\DentalPracticeAdmin'`
 prints `Ready: production C:\ProgramData\DentalPracticeAdmin\production`; otherwise it names
-each setting `.env` lacks. Nothing has a value in the code, so
-every line of the template above is needed, except that staff sign-in needs only one of
-`ADMIN_STAFF_EMAILS` and `ADMIN_STAFF_DOMAIN`.
-
-### 6. Google sign-in and ChatKit
-
-1. Google Cloud, OAuth client: add the authorised redirect URI
-   `https://admin.massey-smiles.co.nz/auth/callback`.
-2. OpenAI platform: register `admin.massey-smiles.co.nz` for ChatKit, and put its key in
-   `ADMIN_CHATKIT_DOMAIN_KEY`.
+each setting `.env` lacks. Nothing has a value in the code, so every line of the template above
+is needed. No value may still read `...`.
 
 ### 7. The application service
 
@@ -220,7 +234,8 @@ retry.
 again through the server, both with valid certificates. From a LAN machine other than reception,
 port 5170 on the server times out. Reception's SMS check passes that PRODUCTION.md's acceptance
 check for it. On reception, `sc.exe qc caddy` shows `DISABLED` and `sc.exe query caddy` shows
-`STOPPED`. **To undo:** point the router back at reception; stop the server's bridge, pair the
+`STOPPED`, and `Get-NetTCPConnection -LocalPort 5170 -State Listen` finds nothing, so the old
+bridge is not running. **To undo:** point the router back at reception; stop the server's bridge, pair the
 phone with reception's Call Centre again, and re-enable and start reception's bridge; then set
 reception's Caddy service back to Automatic (a disabled service can't be started) and start it.
 Re-register reception's SMS check with `-Url http://localhost:5170/smsgateway/phone-status`.
@@ -252,6 +267,35 @@ must pass.
 Work through [ACCEPTANCE.md](ACCEPTANCE.md): the reboot, an unattended scheduled run, staff access
 from outside, and the restore drill. Record the release in its table.
 
+### 12. Retire SMS on reception
+
+Once the release is signed off and the undo in step 8 is no longer wanted, remove what step 8
+left on reception. It holds the bridge's API key, Principle's webhook secret, past messages and
+the TLS keys for both public names, none of which reception needs any more. After this, step 8
+can't be undone.
+
+1. Find the old bridge's startup task with
+   `Get-ScheduledTask | Where-Object { $_.Actions.Execute -match 'SMS_Bridge' }`, delete it with
+   `Unregister-ScheduledTask`, then delete the installation directory its action names.
+2. Stop Call Centre starting at logon, in Settings > Apps > Startup or as a logon task in Task
+   Scheduler, unless reception uses it for calls.
+3. `sc.exe delete caddy`, then delete `C:\Program Files\Caddy` and Caddy's data directory, which
+   holds the certificates.
+4. Keep the message history from before the move. On reception, signed in with an account that
+   is an administrator on the server as well:
+   `robocopy C:\ProgramData\SMS_Bridge \\192.168.192.30\C$\ProgramData\SMS_Bridge\reception /E`.
+   Without `/COPY:S` the copies take the server folder's restricted permissions. Robocopy exit
+   codes of 8 and above mean files were not copied; don't delete anything until it reports 0
+   to 7 and the server's `reception` folder holds as many files as reception's. Then delete
+   everything in reception's `C:\ProgramData\SMS_Bridge` except `check-sms.ps1`, which
+   reception's SMS check runs.
+5. Remove any firewall rule on reception that admits port 5170, 80 or 443.
+
+**Check:** on reception, `sc.exe query caddy` reports that the service does not exist,
+`Get-NetTCPConnection -LocalPort 5170,80,443 -State Listen` finds nothing, and
+`C:\ProgramData\SMS_Bridge` holds only `check-sms.ps1`. Reception's SMS check still passes
+PRODUCTION.md's acceptance check for it.
+
 ## Later releases
 
 1. Run `scripts\release_gate.ps1` at the new commit, on the development machine.
@@ -278,7 +322,9 @@ from outside, and the restore drill. Record the release in its table.
    applies its start and failure settings only at install: `dental-practice-admin.exe uninstall`,
    `dental-practice-admin.exe install`, and set **Log On** again as in step 7.2.
 7. Run `uv sync --locked` and `npm ci`, then repeat step 5.3 as the service account, in case the
-   release moved Playwright to a new browser.
+   release moved Playwright to a new browser. Then run step 6's check of the first release,
+   `scripts\check_settings.ps1 -ReleaseRoot 'C:\Program Files\DentalPracticeAdmin'`, so a
+   missing setting shows before the service starts rather than as a service that stops.
 8. If step 2 listed other `deploy\` files, apply them:
    - `Caddyfile`: copy it to `C:\ProgramData\Caddy\Caddyfile`, validate as in step 8.1, and
      restart the `caddy` service.
@@ -288,9 +334,11 @@ from outside, and the restore drill. Record the release in its table.
 9. Start the service and enable the launcher
    (`Enable-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner'`). Wait five
    minutes, then run `scripts\verify.ps1`.
-10. **To roll back:** do steps 3 to 5 with `DentalPracticeAdmin-previous` renamed back into
-    place (keeping the failed release aside). If steps 6 or 8 applied changed `deploy\` files,
-    apply the previous release's versions the same way. Start, enable, verify.
+10. **To roll back:** stop the launcher and the service as in steps 3 to 5. Rename the release
+    directory to `DentalPracticeAdmin-failed`, and `DentalPracticeAdmin-previous` to
+    `DentalPracticeAdmin`. If steps 6 or 8 applied changed `deploy\` files, apply the previous
+    release's versions the same way. Then start the service, enable the launcher and verify as
+    in step 9.
 
 Installed practice tasks and their schedules live in the data directory and survive a release.
 
