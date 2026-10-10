@@ -230,7 +230,7 @@ Maintainers publish reviewed source, its input contract and synthetic tests usin
 Configure `ADMIN_TASK_REPOSITORY` as `owner/private-repository` and `ADMIN_GITHUB_TOKEN` with
 access to its contents and pull requests. Startup refuses to run without them, as for every
 other setting (ADR 0002: a missing setting stops the whole application even if only one
-feature uses it), so a host cannot discover the gap only when someone first asks for a review. The repository must already have a default branch.
+feature uses it). The repository must already have a default branch.
 Only `task.json`, `source.txt` and `test_task.py` are exported; local history and audits stay
 on the host. Repository setup and review are outside the staff interface.
 

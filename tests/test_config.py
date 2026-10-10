@@ -111,6 +111,7 @@ def test_the_settings_check_passes_a_complete_host(monkeypatch: pytest.MonkeyPat
     checked = subprocess.run([sys.executable, "-m", "dental_practice_admin.config"],
                              capture_output=True, text=True, check=False)
     assert checked.returncode == 0, checked.stderr
+    assert checked.stdout.split()[:2] == ["Ready:", "fake"]
 
 
 def test_a_principle_address_must_be_set() -> None:

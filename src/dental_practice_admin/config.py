@@ -375,8 +375,8 @@ class Settings(BaseSettings):
         self.require_credentials()
         self.require_automation_configured()
         self.require_chat_configured()
-        # Task review is part of the staff pages, so its settings are checked here with the
-        # rest rather than when someone first asks for a review (ADR 0002).
+        # Task review is part of the staff pages, so its settings are checked at startup with
+        # the rest (ADR 0002).
         if not self.task_repository or not self.github_token.get_secret_value():
             raise ConfigurationError("Task review needs ADMIN_TASK_REPOSITORY and"
                                      " ADMIN_GITHUB_TOKEN")
@@ -443,9 +443,12 @@ def current_settings(request: Request) -> Settings:
 
 if __name__ == "__main__":
     # python -m dental_practice_admin.config, from a release directory: refuse, naming the
-    # setting, if this host's .env lacks one the release needs.
+    # setting, if this host's .env lacks one the release needs; otherwise say which Principle
+    # and which data folder it will use, so a wrong but complete .env is seen too.
     try:
-        Settings().require_web_configured()
+        checked = Settings()
+        checked.require_web_configured()
+        print(f"Ready: {checked.environment.value} {checked.data_dir}")
     except ConfigurationError as error:
         raise SystemExit(f"Not ready: {error}") from None
     except ValidationError as error:
