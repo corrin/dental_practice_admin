@@ -1,5 +1,5 @@
 # Sets up the server to run the admin app. Elevated PowerShell, in the checkout:
-#   git pull; .\scripts\install_server.ps1
+#   git pull; powershell -ExecutionPolicy Bypass -File scripts\install_server.ps1
 # Safe to re-run, including after a failure. Stops at the first error.
 # After the first run, restart the server once so services see the new PATH.
 $ErrorActionPreference = 'Stop'
@@ -41,12 +41,13 @@ Run icacls .env /inheritance:r /grant:r 'SYSTEM:F' 'Administrators:F' "$($accoun
 # Stopping ends any run mid-write: pause the launcher, and refuse while a run is in progress.
 $launcher = Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner' -ErrorAction SilentlyContinue
 if ($launcher) { $launcher | Disable-ScheduledTask | Out-Null; while ((Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner').State -eq 'Running') { Start-Sleep 5 } }
+if (Get-Service dental-practice-admin -ErrorAction SilentlyContinue) {
+    $running = Run .venv\Scripts\python.exe -c "from dental_practice_admin.config import Settings; from dental_practice_admin.storage import Storage; print(Storage(Settings().database_path).db.execute('SELECT count(*) FROM task_runs WHERE outcome = ?', ('running',)).fetchone()[0])"
+    if ([int]$running) { if ($launcher) { $launcher | Enable-ScheduledTask | Out-Null }; throw "$running run(s) in progress (Results page); nothing changed; run this again when they finish" }
+}
+# A failure from here leaves the launcher paused, so no task starts against a half-installed release.
 try {
-    if (Get-Service dental-practice-admin -ErrorAction SilentlyContinue) {
-        $running = Run .venv\Scripts\python.exe -c "from dental_practice_admin.config import Settings; from dental_practice_admin.storage import Storage; print(Storage(Settings().database_path).db.execute('SELECT count(*) FROM task_runs WHERE outcome = ?', ('running',)).fetchone()[0])"
-        if ([int]$running) { throw "$running run(s) in progress (Results page); run this again when they finish" }
-        Stop-Service dental-practice-admin
-    }
+    if (Get-Service dental-practice-admin -ErrorAction SilentlyContinue) { Stop-Service dental-practice-admin }
     Run uv sync --locked
     Run npm.cmd ci
     Run powershell -NoProfile -File scripts\check_settings.ps1 -ReleaseRoot (Get-Location).Path
@@ -61,8 +62,8 @@ try {
     $health = $null; $deadline = (Get-Date).AddMinutes(2)
     while (-not $health -and (Get-Date) -lt $deadline) { Start-Sleep 5; try { $health = Invoke-RestMethod http://127.0.0.1:8080/health } catch { } }
     if (-not $health -or $health.status -ne 'ok' -or $health.principle -ne 'production') { throw "unhealthy: $($health | ConvertTo-Json -Compress); see C:\ProgramData\DentalPracticeAdmin\logs" }
-} finally {
-    if ($launcher) { $launcher | Enable-ScheduledTask | Out-Null }
+} catch {
+    throw "$_`nThe scheduled launcher stays paused until this script succeeds."
 }
 
 # Caddy (installed here, first started at the switch), firewall, launcher
