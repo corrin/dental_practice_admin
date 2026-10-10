@@ -81,6 +81,8 @@ ignore = ["D203", "D213", "D401", "D102", "D105", "D107"]
 [tool.mypy]
 python_version = "3.14"
 strict = true
+# Lets `Settings()` type-check: its required fields come from .env and the environment, which
+# mypy cannot otherwise see.
 plugins = ["pydantic.mypy"]
 files = ["src", "tests", "scripts"]
 # src is the package root; without these mypy reads src/dental_practice_admin/*.py twice, once

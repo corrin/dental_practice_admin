@@ -127,7 +127,8 @@ At the commit to release, run `scripts\release_gate.ps1`. It must end "Release c
 
 **Check:** `scripts\check_settings.ps1 -ReleaseRoot 'C:\Program Files\DentalPracticeAdmin'`
 exits cleanly; otherwise it names each setting `.env` lacks. Nothing has a value in the code, so
-every setting in the template above is required.
+every line of the template above is needed, except that staff sign-in needs only one of
+`ADMIN_STAFF_EMAILS` and `ADMIN_STAFF_DOMAIN`.
 
 ### 6. Google sign-in and ChatKit
 
