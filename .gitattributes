@@ -1,0 +1,6 @@
+# One line ending, whatever wrote the file: CRLF on disk, as Windows expects. Without this the
+# repository held LF, CRLF and mixed files side by side, and an edit that wrote the other style
+# showed as a whole-file diff.
+* text=auto eol=crlf
+# Run by sh, which reads a CR as part of the command.
+*.sh text eol=lf

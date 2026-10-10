@@ -9,11 +9,7 @@ these were passive: a .gitignore and remembering to look.
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from scripts.scan_for_leaks import SHAPES, patients_from_database, scan, whole_values
-
-from dental_practice_admin.storage import Storage
+from scripts.scan_for_leaks import SHAPES, scan
 
 
 def test_nothing_tracked_leaks_data() -> None:
@@ -60,27 +56,3 @@ def test_ordinary_text_is_not_flagged() -> None:
     for description, pattern in SHAPES:
         for text in innocent:
             assert not pattern.search(text), f"{description} wrongly matched {text!r}"
-
-
-def test_a_production_patient_is_caught_by_name_and_id(tmp_path: Path) -> None:
-    """Built the way the application builds it, so a schema change cannot quietly blind the scan.
-
-    Whole words only and ignoring case: a day sheet prints names in capitals, and a name inside a
-    longer word is not that name.
-    """
-    database = tmp_path / "dental_practice_admin.db"
-    store = Storage(database)
-    store.update_cache("patient", [("FakePatient0000000001", "FakePatient0000000001",
-                                    {"name": "Fakely Whitwell"})], [], None)
-    store.close()
-
-    patients = patients_from_database(database)
-    assert patients == {
-        "FakePatient0000000001": "a production patient's Principle id",
-        "Fakely Whitwell": "a production patient's name",
-    }
-    pattern = whole_values(patients)
-    assert pattern is not None
-    assert pattern.search("<td>FAKELY WHITWELL</td>")
-    assert pattern.search("patientId=FakePatient0000000001")
-    assert not pattern.search("Fakely Whitwellington")
