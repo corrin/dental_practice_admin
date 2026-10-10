@@ -77,10 +77,14 @@ running release is untouched.
    service, and record where `current` points.
 7. Point `current` at the new release; enable the task runner; start the service.
 8. Health: `/health` must answer within 60 seconds, then `scripts\verify.ps1` must pass.
-9. If anything fails from step 6 on, including the run being interrupted: put back whatever
-   step 6 onwards changed (`current`, the task runner, the service), run `verify.ps1` again,
-   and exit with failure, naming the step to the person running it. Steps 6–8 run inside one
-   `try`/`finally` that does this, so every failure has one path back.
+9. If anything fails from step 6 on, including the run being interrupted: put back what had
+   changed by then, and exit with failure, naming the step to the person running it. Steps 6–8
+   run inside one `try`/`finally` that does this, so every failure has one path back:
+   - the task runner, if disabled, is enabled again;
+   - `current`, if repointed, points back at the recorded release;
+   - the service, if stopped, is started, and `verify.ps1` is run again.
+
+   A stuck run fails before the service is stopped, so it only re-enables the task runner.
 10. Delete releases other than `current` and the one it replaced.
 
 The first install is the same command after a one-off bootstrap, written as its own checklist
