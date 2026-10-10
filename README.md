@@ -102,6 +102,17 @@ call `session.login(email, password)`, use `session.page` for Playwright navigat
 `session.read_document(name)` for an exact Firestore GET under that user's permissions. Record
 bodies and tokens remain in memory; callers must keep them out of logs and version control.
 
+To run one practice task by hand and see what it produced:
+
+```powershell
+uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet date=2026-09-28
+uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet --environment staging --real
+```
+
+It runs against the fake Principle, whose seeded day is 2026-09-28, saves the result, and
+prints a task that can print to an A4 PDF. Staging and production need `--real`, because a
+task may write and staging holds a copy of real patients. `--help` says the rest.
+
 ### Presets and configuration
 
 Principle, sign-in, and AI are independent. These examples change only the choices named:

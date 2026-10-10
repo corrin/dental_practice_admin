@@ -89,6 +89,22 @@ class Services:
         await self.firestore.aclose()
 
 
+def load_source(source: str, filename: str = "<workflow>") -> dict[str, Any]:
+    """A Python task's source, executed into a fresh namespace holding its `run`.
+
+    `filename` is what tracebacks name: a file path when the source came from one.
+    """
+    namespace: dict[str, Any] = {}
+    exec(compile(source, filename, "exec"), namespace)
+    return namespace
+
+
+async def run_loaded(namespace: dict[str, Any], services: Services,
+                     inputs: dict[str, Any]) -> Result:
+    """Run a loaded task and hold its answer to the result contract."""
+    return Result.model_validate(await namespace["run"](services, inputs))
+
+
 async def execute(settings: Settings, script: Script) -> Result:
     """Execute source without involving a model."""
     services = Services(settings)
@@ -100,9 +116,7 @@ async def execute(settings: Settings, script: Script) -> Result:
         shared = str(settings.data_dir / "installed" / script.task_id / script.revision / "shared")
         sys.path.insert(0, shared)
         try:
-            namespace: dict[str, Any] = {}
-            exec(compile(script.source, "<workflow>", "exec"), namespace)
-            return Result.model_validate(await namespace["run"](services, script.inputs))
+            return await run_loaded(load_source(script.source), services, script.inputs)
         finally:
             sys.path.remove(shared)
     finally:
