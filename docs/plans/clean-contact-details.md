@@ -89,8 +89,8 @@ Taken by the owner on 2026-10-10, from a read of every production patient.
   Labels are lower case. A blank label is inferred from the number: `+642…` is `mobile`,
   a landline is `home`, and `+64800…` or `+64508…` is `work`.
 - **Addresses** use the layout Principle's verified-address picker saves, which is NZ Post
-  order (town or city, then postcode). They may be matched with Google geocoding, restricted
-  to New Zealand. Only the address string is sent: no name, identifier or other detail.
+  order (town or city, then postcode). They may be matched with Google Places (New), as
+  docketworks does, accepting only New Zealand matches. Only the address string is sent: no name, identifier or other detail.
   Overseas addresses are left alone.
 - **Staff** hear through this application's pages, and only about active patients whose
   details can't be fixed from evidence. Reception's list stays as short as possible.
