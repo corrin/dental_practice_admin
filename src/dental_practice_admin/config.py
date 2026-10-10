@@ -189,8 +189,8 @@ class Settings(BaseSettings):
 
     # The origin staff reach, when it cannot be read from the request -- for example a scheduled
     # task building a link. Set it empty to take the origin from each request, which behind a
-    # proxy carries it. Empty must be written in .env: Windows drops an environment variable
-    # set to empty.
+    # proxy carries it. Write empty in .env or a child's environment block: setting a variable
+    # to empty from a Windows shell or os.environ deletes it instead.
     public_base_url: str
 
     # Runtime data sits outside the source checkout on a real host (ARCHITECTURE.md,

@@ -140,8 +140,8 @@ credentials are not used.
 `ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL` (`https://api.openai.com/v1` for
 the real model), `OPENAI_API_KEY`, and `ADMIN_AGENT_MODEL` configure AI. Use only the
 `OPENAI_*` spellings for its key and endpoint. `ADMIN_PUBLIC_BASE_URL` is the access address;
-set it empty, in `.env`, to take the address from each request (Windows drops an environment
-variable set to empty). The fake preset sets the fake bank, the
+set it empty, in `.env`, to take the address from each request (setting a variable to empty
+from a Windows shell deletes it instead). The fake preset sets the fake bank, the
 fake AI and `http://localhost:8080` itself. The fake Principle is whatever the `_FAKE` settings
 in `.env` name, and the launcher serves it on the port `PRINCIPLE_API_BASE_URL_FAKE` gives. Presets are shortcuts,
 not restrictions on mixing providers. Developer identity is prominently announced and has no

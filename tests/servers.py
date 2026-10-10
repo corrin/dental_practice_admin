@@ -101,7 +101,9 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
 
     # Every setting, as the fake environment has it, with only the simulations' real addresses
     # changed. OpenAI's own documented base URL selects the simulated model, so no production
-    # code branches on being under test.
+    # code branches on being under test. The empty public address survives in the child's
+    # environment block; tests/smoke/test_behind_a_proxy.py shows the app then reads the origin
+    # from each request.
     env = dict(os.environ) | fake_environment(
         data_root,
         api_base_url=f"http://127.0.0.1:{fake_port}",

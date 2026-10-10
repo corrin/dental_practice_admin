@@ -106,7 +106,7 @@ def test_the_settings_check_refuses_an_incomplete_host_in_one_line(
 
 
 def test_the_settings_check_passes_a_complete_host(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Windows drops a variable set to empty, so the subprocess gets a real address.
+    # os.environ deletes a variable set to empty on Windows, so this sets a real address.
     monkeypatch.setenv("ADMIN_PUBLIC_BASE_URL", "https://admin.fake.invalid")
     checked = subprocess.run([sys.executable, "-m", "dental_practice_admin.config"],
                              capture_output=True, text=True, check=False)
