@@ -19,6 +19,7 @@ from dental_practice_admin.config import (
 )
 from dental_practice_admin.principle import PrincipleClient
 from tests.fake import FakeStore
+from tests.test_auth_boundary import configured
 
 PRODUCTION_API_URL = "https://api.principle.dental"
 
@@ -285,7 +286,6 @@ async def test_fake_server_accepts_its_synthetic_uuid(fake_client: PrincipleClie
 
 
 def test_automation_against_principle_needs_the_maps_key(tmp_path: Path) -> None:
-    from tests.test_auth_boundary import configured
     playwright = tmp_path / "cli.js"
     playwright.write_text("")
     complete = configured(tmp_path, Environment.STAGING).model_copy(

@@ -42,6 +42,7 @@ def credentials(monkeypatch: pytest.MonkeyPatch) -> None:
         "ADMIN_GOOGLE_CLIENT_SECRET": "fake-google-secret",
         "ADMIN_STAFF_EMAILS": "staff@fake.invalid",
         "ADMIN_CHATKIT_DOMAIN_KEY": "fake-registered-domain",
+        "ADMIN_GOOGLE_MAPS_API_KEY": "fake-maps-key",
     }.items():
         monkeypatch.setenv(key, value)
 
