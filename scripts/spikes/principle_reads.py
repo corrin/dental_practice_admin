@@ -3,10 +3,10 @@
     uv run python -m scripts.spikes.principle_reads methods 2026-09-01 2026-10-01
     uv run python -m scripts.spikes.principle_reads candidates 2026-04-01
 
-`methods` totals payments per method per day, dated both by entry and by the appointment
-day Open Dental-style data carries. `candidates` times the reads the page would make to list
-patients who owe money. Both save their rows beside the app's database and print only counts,
-totals and timings.
+`methods` totals payments per method per NZ day of entry (`createdAt`); the API carries no
+appointment date for payments keyed in Principle. `candidates` times the reads the page would
+make to list patients who owe money. Both save their rows beside the app's database and print
+only counts, totals and timings.
 """
 from __future__ import annotations
 
@@ -14,9 +14,10 @@ import argparse
 import asyncio
 import collections
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from scripts.spikes.common import (
     accept_invoices,
@@ -31,19 +32,23 @@ from scripts.spikes.common import (
 from dental_practice_admin.config import Environment
 from dental_practice_admin.principle import CallError, PrincipleClient, PrincipleError
 
+NZ = ZoneInfo("Pacific/Auckland")
+
 
 def day(stamp: str) -> str:
-    """The NZ calendar day of a Principle UTC timestamp (NZ is UTC+12 or +13)."""
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
+    """The NZ calendar day of a Principle UTC timestamp."""
+    return datetime.fromisoformat(stamp).astimezone(NZ).date().isoformat()
 
-    return datetime.fromisoformat(stamp).astimezone(ZoneInfo("Pacific/Auckland")).date().isoformat()
+
+def nz_midnight(day: str) -> str:
+    """The start of an NZ calendar day, with the offset in force that day (+12 or +13)."""
+    return datetime.fromisoformat(day).replace(tzinfo=NZ).isoformat()
 
 
 async def methods(config: Any, start: str, end: str) -> None:
     """Payments per method per day; the Principle half of 'do card days add up'."""
     rows = await raw_rows(config, "/v1/transactions", {
-        "createdFrom": f"{start}T00:00:00+12:00", "createdTo": f"{end}T00:00:00+12:00"})
+        "createdFrom": nz_midnight(start), "createdTo": nz_midnight(end)})
     unique = {transaction_key(r): r for r in rows}
     print("rows", len(rows), "unique (id, invoice)", len(unique),
           "repeats", len(rows) - len(unique))
@@ -68,7 +73,7 @@ async def candidates(config: Any, since: str) -> None:
     async with PrincipleClient(config) as client:
         began = time.perf_counter()
         invoices = [r async for r in client.rows(
-            "listInvoicesByDateRange", query={"createdFrom": f"{since}T00:00:00+12:00"})]
+            "listInvoicesByDateRange", query={"createdFrom": nz_midnight(since)})]
         listed = time.perf_counter() - began
         unpaid = [r for r in invoices if r["status"] == "issued"]
         owing: dict[str, float] = collections.defaultdict(float)
@@ -96,7 +101,7 @@ async def candidates(config: Any, since: str) -> None:
         since_update = (date.today() - timedelta(days=days)).isoformat()
         began = time.perf_counter()
         changed = await raw_rows(config, "/v1/invoices",
-                                 {"updatedFrom": f"{since_update}T00:00:00+12:00"})
+                                 {"updatedFrom": nz_midnight(since_update)})
         print(f"updatedFrom {days} day(s): {len(changed)} invoices in",
               f"{time.perf_counter() - began:.1f}s")
     print("saved", save(config, "candidates", {"invoices": invoices, "timings": timings}))

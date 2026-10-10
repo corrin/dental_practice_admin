@@ -80,7 +80,8 @@ stricter than the data in two places. Each refusal blocks an otherwise good read
    patient-scoped call, so none of that patient's invoices can be read. 1 in 15 production
    patients who owe money, 5 in 60 staging patients.
 3. **`listTransactionsByDateRange` over a split payment.** `PrincipleClient.rows` treats the
-   repeated `id` as a restarted walk.
+   repeated `id` as a restarted walk. Seen on staging's migrated payments (115 of 1,899 rows);
+   none in 890 production rows from 2026-09-01 to 2026-10-09.
 
 ## Missing for recording payments
 

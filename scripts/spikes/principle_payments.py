@@ -83,8 +83,7 @@ async def main() -> None:
                         f"{config.api_base_url}/v1/patients/{args.patient}/invoices/"
                         f"{args.invoice}/transactions",
                         json=body, headers={"X-API-Key": config.api_key.get_secret_value()})
-                record["response"] = {"status": response.status_code, "body": response.json()}
-                response.raise_for_status()
+                record["response"] = {"status": response.status_code, "body": response.text}
             else:
                 record["response"] = await client.call(
                     "createTransaction", {"patientId": args.patient, "invoiceId": args.invoice,

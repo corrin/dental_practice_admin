@@ -242,9 +242,10 @@ Principle"** until someone ticks it done. This gap is also listed in
 ### Writing to Principle (ADR 0005 write rules)
 **Confirming an individual match.** For each ticked invoice the page calls
 `createTransaction` on `/v1/patients/{pid}/invoices/{iid}/transactions`. The call carries:
-- the "bank transfer" type and provider (the values are found in Phase 0);
+- `provider` `manual`, the only value the API accepts; it cannot set the payment method;
 - the amount;
-- `createdAt` set to the bank date;
+- the bank date in `description`, because `createdAt` is ignored and the payment is dated when
+  the call is made (Phase 0);
 - `reference` set to the Akahu id, so every payment can be traced back to its deposit.
 
 The steps are:
@@ -337,7 +338,9 @@ Build:
 7. Tests: re-fetching does not duplicate deposits; a split must reach $0.00; Exclude needs a
    reason; e2e: match a deposit by hand.
 
-Reads from Principle use the existing API client, with the calls Phase 0 timed.
+Reads from Principle use the existing API client, with the calls Phase 0 timed. Phase 1 first
+fixes the client's three refusals listed in `api-gaps.md`, and caches the unpaid-invoice list,
+refreshed by `updatedFrom` on Fetch now.
 
 **Milestone 1:** reception uses the page alongside the manual process for a week. We note what
 they look for that the page doesn't show.
@@ -367,7 +370,8 @@ caused each day that didn't (forgotten payment, wrong method, wrong day, duplica
 decides whether Phase 3 needs searches for causes other than a forgotten payment.
 
 ### Phase 3: recording payments in Principle
-The write mechanics were proven on staging in Phase 0, so this phase is wiring and safety. The
+Phase 0 showed that create works but cannot set the method or date, and did not test voiding.
+This phase starts by testing void on staging, then wiring and safety. The
 first production writes are made on a handful of real deposits, with someone checking each one in
 Principle.
 
