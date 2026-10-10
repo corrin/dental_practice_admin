@@ -223,16 +223,20 @@ def content_of(path: str, staged: bool) -> str | None:
         return None
 
 
-def scan(staged: bool = False, patients: dict[str, str] | None = None) -> list[Finding]:
-    """Every reason the given content must not be committed.
-
-    `patients` defaults to what this machine's production database holds.
-    """
+def known_values() -> tuple[dict[str, str], dict[str, str]]:
+    """The secrets in .env, and the patients in this machine's production database."""
     env = read_env()
-    secrets = secrets_from_env(env)
-    if patients is None:
-        database = production_database(env)
-        patients = patients_from_database(database) if database else {}
+    database = production_database(env)
+    return secrets_from_env(env), patients_from_database(database) if database else {}
+
+
+def scan(staged: bool = False) -> list[Finding]:
+    """Every reason the given content must not be committed."""
+    return scan_for(staged, *known_values())
+
+
+def scan_for(staged: bool, secrets: dict[str, str], patients: dict[str, str]) -> list[Finding]:
+    """Every reason the given content must not be committed, given what to look for."""
     by_folded = {value.casefold(): what for value, what in patients.items()}
     patient_pattern = whole_values(patients)
     findings: list[Finding] = []
@@ -279,14 +283,12 @@ def main() -> int:
     )
     arguments = parser.parse_args()
 
-    env = read_env()
-    database = production_database(env)
-    patients = patients_from_database(database) if database else {}
-    findings = scan(staged=arguments.staged, patients=patients)
+    secrets, patients = known_values()
+    findings = scan_for(arguments.staged, secrets, patients)
     if not findings:
         where = "staged changes" if arguments.staged else "tracked files"
         print(f"No patient data, staff identities or credentials found in {where}.")
-        print(f"Checked {len(secrets_from_env(env))} values from .env and "
+        print(f"Checked {len(secrets)} values from .env and "
               f"{len(patients)} production patient names and ids.")
         return 0
 
