@@ -3,14 +3,16 @@
     uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet date=2026-09-28
     uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet --environment staging
 
-Runs the task's `source.txt` the way the application does, through `Services`, against the
-fake Principle by default. The fake is one in-process store seeded for 2026-09-28, the day the
-day sheet's scenarios sit on. Prints the summary and coverage and saves the result. When the
+Loads and runs the task's `source.txt` with the application's own loader and `Services`,
+against the fake Principle by default. Shared modules come from the practice repository's
+`shared/` beside the task, where installation copies them from. The fake is one in-process
+store seeded for 2026-09-28, the day the day sheet's scenarios sit on. Prints the summary and
+coverage and saves the result. When the
 task defines `printable(detail, printed)`, it also prints the page to an A4 PDF and opens it,
 the same check a person does at the surgery printer.
 
-Staging and production run against the real Principle. A task may write, so production needs
-`--production` as well.
+Staging and production run against the real Principle. Staging is a test copy, so a task
+writing there is acceptable; production needs `--production` as well, because a task may write.
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ from dental_practice_admin.config import (
     Environment,
     Settings,
 )
-from dental_practice_admin.scripts import Services
+from dental_practice_admin.scripts import Result, Services, load_source, run_loaded
 
 
 def arguments() -> argparse.Namespace:
@@ -62,16 +64,14 @@ def services(environment: Environment) -> Services:
     return Services(settings)
 
 
-async def run(task: Path, inputs: dict[str, str], environment: Environment) -> tuple[Any, Any]:
+async def run(task: Path, inputs: dict[str, str],
+              environment: Environment) -> tuple[Result, Any]:
     """The task's result, and its `printable` function when it has one."""
-    # A practice repository keeps shared modules beside its tasks, as installation does.
     sys.path.insert(0, str(task.resolve().parents[1] / "shared"))
-    namespace: dict[str, Any] = {}
-    exec(compile((task / "source.txt").read_text(encoding="utf-8"), str(task / "source.txt"),
-                 "exec"), namespace)
+    namespace = load_source((task / "source.txt").read_text(encoding="utf-8"))
     integrations = services(environment)
     try:
-        return await namespace["run"](integrations, inputs), namespace.get("printable")
+        return await run_loaded(namespace, integrations, inputs), namespace.get("printable")
     finally:
         await integrations.aclose()
 
@@ -97,21 +97,25 @@ def main() -> None:
     args = arguments()
     if args.environment is Environment.PRODUCTION and not args.production:
         raise SystemExit("a task may write: add --production to run it against production")
+    malformed = [item for item in args.inputs if "=" not in item]
+    if malformed:
+        raise SystemExit(f"inputs are NAME=VALUE: {', '.join(malformed)}")
     inputs = dict(item.split("=", 1) for item in args.inputs)
     result, printable = asyncio.run(run(args.task, inputs, args.environment))
 
-    print(f"{result['coverage']}: {result['summary']}")
+    print(f"{result.coverage.value}: {result.summary}")
     # Real runs carry patient data, so their output stays in the environment's data directory.
     out = Settings(environment=args.environment).data_dir / "try"
     out.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     saved = out / f"{args.task.name}-{stamp}.json"
-    saved.write_text(json.dumps(result, indent=1, ensure_ascii=False), encoding="utf-8")
+    saved.write_text(json.dumps(result.model_dump(mode="json"), indent=1, ensure_ascii=False),
+                     encoding="utf-8")
     print(f"result: {saved}")
     if printable is None:
         return
     pdf = saved.with_suffix(".pdf")
-    pages = print_pdf(printable(result["detail"], datetime.now().strftime("%H:%M")), pdf)
+    pages = print_pdf(printable(result.detail, datetime.now().strftime("%H:%M")), pdf)
     print(f"printed: {pdf} ({pages} pages)")
     if not args.no_open and hasattr(os, "startfile"):
         os.startfile(pdf)

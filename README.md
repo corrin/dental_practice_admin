@@ -109,11 +109,8 @@ uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet date=2026-09-
 uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet --environment staging
 ```
 
-It runs the task through `Services` as the application does, against the fake Principle
-unless told otherwise; the fake's seeded day is 2026-09-28. It prints the summary and
-coverage and saves the result under the environment's data directory. A task with a
-`printable` function is also printed to an A4 PDF, which opens. Production needs
-`--production` as well, because a task may write.
+It runs against the fake Principle unless told otherwise, saves the result, and prints a
+task that can print to an A4 PDF. `--help` says the rest.
 
 ### Presets and configuration
 
