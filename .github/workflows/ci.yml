@@ -9,9 +9,9 @@ on:
   pull_request:
 
 jobs:
-  # Changes only to deployment, documentation or the server install script can't affect the
-  # tests, so they skip them. A job skipped by its condition counts as passed for the required
-  # `hermetic` check.
+  # Changes only to documentation or the server install script can't affect the tests, so they
+  # skip them. A job skipped by its condition counts as passed for the required `hermetic` check,
+  # so hermetic runs whenever this job didn't succeed. deploy/ is tested (test_deploy_files.py).
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -25,14 +25,13 @@ jobs:
           filters: |
             app:
               - '**'
-              - '!deploy/**'
               - '!docs/**'
               - '!**/*.md'
               - '!scripts/install_server.ps1'
 
   hermetic:
     needs: changes
-    if: needs.changes.outputs.app == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.app == 'true') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
