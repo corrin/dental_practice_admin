@@ -61,10 +61,9 @@ The ordinary setup is Principle staging, Google login, real OpenAI, and ngrok at
 Stop it with Ctrl+C; the launcher stops its child processes. Only one local run can hold port
 8080: the launcher refuses to start while something else already has it.
 
-Keep credentials in the gitignored `.env`: `PRINCIPLE_API_KEY_STAGING`,
-`PRINCIPLE_PRACTICE_ID_STAGING`, `OPENAI_API_KEY`, `ADMIN_GOOGLE_CLIENT_ID`,
-`ADMIN_GOOGLE_CLIENT_SECRET`, `ADMIN_SESSION_SECRET`, and `ADMIN_STAFF_EMAILS` and/or
-`ADMIN_STAFF_DOMAIN`. Register the Google callback
+Keep every setting in the gitignored `.env`. The fields of `Settings` in
+[`config.py`](src/dental_practice_admin/config.py) are the complete list, and startup names any
+that is missing; nothing falls back to a value in the code. Register the Google callback
 `https://massey-admin-dev.ngrok-free.app/auth/callback` and configure
 `ADMIN_CHATKIT_DOMAIN_KEY` for that hostname. Install ngrok and authenticate it through its own
 configuration. Fake Principle credentials are accepted only by the simulation, not staging.
@@ -130,15 +129,21 @@ Principle always requires Google. A production investigation needs production cr
 the loader selects credentials from the chosen environment's section.
 
 CLI selections override `.env` and the shell. For settings not selected on the command line,
-shell variables override `.env`. `PRINCIPLE_ENVIRONMENT` selects Principle (default `staging`).
-Group its key and practice ID under matching `_FAKE`, `_STAGING`, and `_PROD` settings in `.env`.
-Optional endpoint overrides use `PRINCIPLE_API_BASE_URL_FAKE`, `_STAGING`, or `_PROD`; otherwise
-standard endpoints apply. Shared, unscoped Principle credentials are not used. Missing selected
-credentials fail startup.
+shell variables override `.env`. No setting has a value in the code: each is either required,
+or empty until set and refused by the startup check of the feature that uses it, so a missing
+one fails startup. `ADMIN_DATA_ROOT` must be an
+existing folder, so a mistyped one is refused rather than starting an empty database. `PRINCIPLE_ENVIRONMENT` selects
+Principle. Group its endpoint, key and practice ID under matching `_FAKE`, `_STAGING`, and
+`_PROD` settings in `.env`, such as `PRINCIPLE_API_BASE_URL_STAGING`. Shared, unscoped Principle
+credentials are not used.
 `--principle` overrides `--preset`, which overrides the configured environment.
-`ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL`, `OPENAI_API_KEY`, and
-`ADMIN_AGENT_MODEL` configure AI. Use only the `OPENAI_*` spellings for its key and endpoint.
-`ADMIN_PUBLIC_BASE_URL` overrides the access address for diagnostics. Presets are shortcuts,
+`ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL` (`https://api.openai.com/v1` for
+the real model), `OPENAI_API_KEY`, and `ADMIN_AGENT_MODEL` configure AI. Use only the
+`OPENAI_*` spellings for its key and endpoint. `ADMIN_PUBLIC_BASE_URL` is the access address;
+set it empty, in `.env`, to take the address from each request (setting a variable to empty
+from a Windows shell deletes it instead). The fake preset sets the fake bank, the
+fake AI and `http://localhost:8080` itself. The fake Principle is whatever the `_FAKE` settings
+in `.env` name, and the launcher serves it on the port `PRINCIPLE_API_BASE_URL_FAKE` gives. Presets are shortcuts,
 not restrictions on mixing providers. Developer identity is prominently announced and has no
 sign-out button because it does not establish a Google session.
 
@@ -223,7 +228,9 @@ Shared packages survive private draft cleanup. Back them up with the runtime dat
 Maintainers publish reviewed source, its input contract and synthetic tests using
 `task_files.publish`, then install merged revisions with `task_files.install_existing`.
 Configure `ADMIN_TASK_REPOSITORY` as `owner/private-repository` and `ADMIN_GITHUB_TOKEN` with
-access to its contents and pull requests. The repository must already have a default branch.
+access to its contents and pull requests. Startup refuses to run without them, as for every
+other setting (ADR 0002: a missing setting stops the whole application even if only one
+feature uses it). The repository must already have a default branch.
 Only `task.json`, `source.txt` and `test_task.py` are exported; local history and audits stay
 on the host. Repository setup and review are outside the staff interface.
 
@@ -264,8 +271,8 @@ Browser login runs automatically before each workflow. The persistent profile, b
 output and cross-process lock live under the environment's data directory. Only one
 browser workflow runs at a time; API and Firestore work can continue. Firebase reads
 refresh their tokens and sign in once if a refresh is rejected. Invalid credentials
-fail explicitly. No Firestore writes are exposed. Set `ADMIN_PLAYWRIGHT_MCP_PATH` when
-the locked Node package lives outside the application's working directory.
+fail explicitly. No Firestore writes are exposed. `ADMIN_PLAYWRIGHT_MCP_PATH` locates the
+locked Node package's command-line entry point under `node_modules`.
 
 ### Production incompatibility warning
 

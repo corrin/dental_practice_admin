@@ -21,6 +21,12 @@ function Check {
     }
 }
 
+Check 'Configuration is complete' {
+    # Startup refuses a missing setting; this names it, instead of only a stopped service.
+    & "$PSScriptRoot\check_settings.ps1" -ReleaseRoot $InstallRoot
+    if ($LASTEXITCODE -ne 0) { throw 'a required setting is missing; the error above names it' }
+    'every setting present'
+}
 Check 'Application service is running as a designated account' {
     $service = Get-CimInstance Win32_Service -Filter "Name='dental-practice-admin'"
     if (-not $service -or $service.State -ne 'Running') { throw 'service is not running' }

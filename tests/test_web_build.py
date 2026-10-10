@@ -10,13 +10,15 @@ import pytest
 from dental_practice_admin.config import Environment, Settings
 from dental_practice_admin.principle import ACCEPTED_WEB_BUILDS, check_web_build
 from dental_practice_admin.storage import Storage
+from tests.settings import API_URLS, fake_settings
 
 ACCEPTED = sorted(ACCEPTED_WEB_BUILDS)[0]
 
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    return Settings(environment=Environment.STAGING, data_root=tmp_path)
+    return fake_settings(tmp_path, environment=Environment.STAGING,
+                         api_base_url=API_URLS[Environment.STAGING])
 
 
 def serving(body: str, status: int = 200) -> httpx.MockTransport:

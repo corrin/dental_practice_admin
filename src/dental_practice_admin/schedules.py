@@ -221,6 +221,7 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
 def main() -> int:
     """Check due tasks once for the Windows launcher."""
     settings = Settings()
+    settings.require_data_root()
     settings.require_credentials()
     return asyncio.run(run_due(settings))
 

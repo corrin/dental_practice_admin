@@ -20,9 +20,7 @@ from pathlib import Path
 import httpx2 as httpx
 import pytest
 
-from tests.fake.store import FAKE_API_KEY, FAKE_PRACTICE_ID
-from tests.fake_ai import FAKE_AI_KEY
-from tests.fake_akahu import FAKE_AKAHU_ENV
+from tests.settings import fake_environment
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -101,26 +99,17 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
     fake_bank_port = _free_port()
     app_port = _free_port()
 
-    env = dict(os.environ)
-    env.update(
-        {
-            "PRINCIPLE_ENVIRONMENT": "fake",
-            "PRINCIPLE_API_BASE_URL_FAKE": f"http://127.0.0.1:{fake_port}",
-            "PRINCIPLE_API_KEY_FAKE": FAKE_API_KEY,
-            "PRINCIPLE_PRACTICE_ID_FAKE": FAKE_PRACTICE_ID,
-            "ADMIN_DATA_ROOT": str(data_root),
-            "ADMIN_SIGN_IN": "developer",
-            "ADMIN_PUBLIC_BASE_URL": "",
-            "ADMIN_CHATKIT_DOMAIN_KEY": "domain_pk_localhost",
-            "PYTHONPATH": str(REPO),
-            # OpenAI's own documented overrides, so the application needs no knowledge that its
-            # model is simulated. No production code branches on being under test.
-            "OPENAI_BASE_URL": f"http://127.0.0.1:{fake_ai_port}/v1",
-            "OPENAI_API_KEY": FAKE_AI_KEY,
-            "AKAHU_BASE_URL": f"http://127.0.0.1:{fake_bank_port}/v1",
-            **FAKE_AKAHU_ENV,
-        }
-    )
+    # Every setting, as the fake environment has it, with only the simulations' real addresses
+    # changed. OpenAI's own documented base URL selects the simulated model, so no production
+    # code branches on being under test. The empty public address survives in the child's
+    # environment block; tests/smoke/test_behind_a_proxy.py shows the app then reads the origin
+    # from each request.
+    env = dict(os.environ) | fake_environment(
+        data_root,
+        api_base_url=f"http://127.0.0.1:{fake_port}",
+        openai_base_url=f"http://127.0.0.1:{fake_ai_port}/v1",
+        akahu_base_url=f"http://127.0.0.1:{fake_bank_port}/v1",
+    ) | {"PYTHONPATH": str(REPO)}
 
     logs = {name: data_root / f"{name}.log" for name in ("fake", "fake_ai", "fake_bank", "app")}
     fake = _serve("tests.fake.server:app", fake_port, env, logs["fake"])

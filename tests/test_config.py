@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -11,36 +13,119 @@ from pydantic import SecretStr, ValidationError
 
 from dental_practice_admin.config import (
     FAKE_API_URL,
+    PRODUCTION_API_URL,
     STAGING_API_URL,
     ConfigurationError,
     Environment,
     Settings,
     SignIn,
+    environment_suffix,
+    setting_name,
 )
 from dental_practice_admin.principle import PrincipleClient
 from tests.fake import FakeStore
+from tests.settings import API_URLS, FAKE_SETTINGS, fake_settings, use_fake_environment
 from tests.test_auth_boundary import configured
-
-PRODUCTION_API_URL = "https://api.principle.dental"
 
 
 @pytest.fixture(autouse=True)
 def _isolated_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Build settings from the arguments alone.
+    """Start from the complete fake environment, and nothing from this machine.
 
     A developer's .env or exported variables would otherwise decide what these assertions are
-    testing, and the failure would look like a bug in the guard. Both prefixes: ADMIN_ for this
-    application, PRINCIPLE_ for the patient management system.
+    testing, and the failure would look like a bug in the guard. Every setting is present, so
+    a test changes only the one it is about.
     """
+    use_fake_environment(monkeypatch, tmp_path / "data")
+    # Each test supplies its own environment's Principle credentials, from .env or the shell.
+    scoped = tuple(f"_{environment_suffix(e)}" for e in Environment)
     for name in list(os.environ):
-        if name.startswith(("ADMIN_", "PRINCIPLE_", "OPENAI_")):
+        if name.startswith("PRINCIPLE_") and name.endswith(scoped):
             monkeypatch.delenv(name)
+    for environment, url in API_URLS.items():
+        monkeypatch.setenv(f"PRINCIPLE_API_BASE_URL_{environment_suffix(environment)}", url)
     monkeypatch.chdir(tmp_path)
 
 
 def _settings(**overrides: Any) -> Settings:
-    overrides.setdefault("environment", Environment.FAKE)
-    return Settings(**overrides)
+    return fake_settings(Path("data"), **overrides)
+
+
+@pytest.mark.parametrize("name", sorted(
+    name for name, field in Settings.model_fields.items() if field.is_required()))
+def test_a_setting_without_a_value_is_refused(
+    name: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nothing falls back to a value in the code: `sign_in`, for one, is never assumed."""
+    monkeypatch.delenv(setting_name(name))
+    complete = _settings().model_dump()
+    complete.pop(name)
+    with pytest.raises(ValidationError):
+        Settings(**complete)
+
+
+def test_no_setting_has_a_value_written_in_the_code() -> None:
+    """A default may only be empty, meaning unset, for a `require_*` method to refuse."""
+    for name, field in Settings.model_fields.items():
+        if field.is_required():
+            continue
+        default = field.default
+        value = default.get_secret_value() if isinstance(default, SecretStr) else default
+        assert value == "", f"{name} defaults to {value!r}"
+
+
+def test_missing_automation_settings_are_named_as_dotenv_names_them() -> None:
+    settings = _settings(environment=Environment.STAGING, api_base_url=STAGING_API_URL,
+                         ui_email="fake@fake.invalid", ui_password=SecretStr("fake-password"),
+                         firebase_key="fake-key", firebase_project="principle-staging",
+                         firestore_root="organisations/fake/brands/fake", workspace_slug="fake")
+    with pytest.raises(ConfigurationError, match=r"PRINCIPLE_WORKSPACE_STAGING$"):
+        settings.require_automation_configured()
+
+
+def test_a_data_folder_that_is_not_there_is_refused(tmp_path: Path) -> None:
+    missing = _settings().model_copy(update={"data_root": tmp_path / "mistyped"})
+    with pytest.raises(ConfigurationError, match="ADMIN_DATA_ROOT"):
+        missing.require_web_configured()
+    assert not (tmp_path / "mistyped").exists()
+
+
+@pytest.mark.parametrize("missing", ["ADMIN_TASK_REPOSITORY", "ADMIN_AGENT_MODEL"])
+def test_the_settings_check_refuses_an_incomplete_host_in_one_line(
+    monkeypatch: pytest.MonkeyPatch, missing: str,
+) -> None:
+    """One line naming the setting, and no setting's value in it."""
+    monkeypatch.setenv("ADMIN_PUBLIC_BASE_URL", "https://admin.fake.invalid")
+    monkeypatch.delenv(missing)
+    checked = subprocess.run([sys.executable, "-m", "dental_practice_admin.config"],
+                             capture_output=True, text=True, check=False)
+    assert checked.returncode == 1
+    assert len(checked.stderr.strip().splitlines()) == 1
+    assert missing in checked.stderr
+    assert FAKE_SETTINGS["openai_api_key"].get_secret_value() not in checked.stderr
+
+
+def test_the_settings_check_passes_a_complete_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    # os.environ deletes a variable set to empty on Windows, so this sets a real address.
+    monkeypatch.setenv("ADMIN_PUBLIC_BASE_URL", "https://admin.fake.invalid")
+    checked = subprocess.run([sys.executable, "-m", "dental_practice_admin.config"],
+                             capture_output=True, text=True, check=False)
+    assert checked.returncode == 0, checked.stderr
+    assert checked.stdout.split()[:2] == ["Ready:", "fake"]
+
+
+def test_a_principle_address_must_be_set() -> None:
+    with pytest.raises(ConfigurationError, match="PRINCIPLE_API_BASE_URL_STAGING"):
+        _settings(environment=Environment.STAGING, api_base_url="")
+
+
+@pytest.mark.parametrize("missing", ["task_repository", "github_token", "openai_base_url"])
+def test_the_application_refuses_to_start_without_what_its_features_need(
+    missing: str,
+) -> None:
+    with pytest.raises(ConfigurationError):
+        _settings(**{missing: SecretStr("") if missing == "github_token" else ""}
+                  ).require_web_configured()
 
 
 @pytest.mark.parametrize("environment", [Environment.FAKE, Environment.STAGING])
@@ -76,7 +161,8 @@ def test_real_environment_refuses_missing_credentials() -> None:
 
     A skip or an empty result is indistinguishable from a pass in a summary line.
     """
-    settings = _settings(environment=Environment.STAGING, api_base_url=STAGING_API_URL)
+    settings = _settings(environment=Environment.STAGING, api_base_url=STAGING_API_URL,
+                         api_key=SecretStr(""), practice_id="")
     with pytest.raises(ConfigurationError, match="PRINCIPLE_API_KEY"):
         settings.require_credentials()
 
@@ -250,6 +336,7 @@ def test_scoped_shell_overrides_dotenv_and_explicit_values_override_both(
         "PRINCIPLE_API_KEY_STAGING=fake-file-key\nPRINCIPLE_API_BASE_URL_STAGING=https://file.fake.invalid\n"
     )
     monkeypatch.setitem(Settings.model_config, "env_file", str(dotenv))
+    monkeypatch.setenv("PRINCIPLE_ENVIRONMENT", "staging")
     monkeypatch.setenv("PRINCIPLE_API_KEY_STAGING", "fake-shell-key")
     monkeypatch.setenv("PRINCIPLE_API_BASE_URL_STAGING", STAGING_API_URL)
     settings = Settings()
@@ -268,7 +355,7 @@ async def test_fake_server_rejects_incorrect_keys(key: str, fake_store: FakeStor
     from dental_practice_admin.principle import PrincipleClient, PrincipleError
     from tests.fake import transport
 
-    settings = Settings(environment=Environment.FAKE, api_key=SecretStr(key))
+    settings = _settings(api_key=SecretStr(key))
     async with PrincipleClient(settings, transport=transport(fake_store)) as client:
         with pytest.raises(PrincipleError) as error:
             await client.get("listPractices")

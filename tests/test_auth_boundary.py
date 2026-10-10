@@ -11,13 +11,14 @@ from starlette.responses import RedirectResponse
 from dental_practice_admin.app import create_app
 from dental_practice_admin.config import ConfigurationError, Environment, Settings, SignIn
 from dental_practice_admin.storage import Coverage, Outcome, Storage
-from tests.fake_akahu import FAKE_AKAHU_SETTINGS
+from tests.settings import API_URLS, fake_settings
 
 
 def configured(tmp_path: Path, environment: Environment = Environment.FAKE) -> Settings:
-    return Settings(
+    return fake_settings(
+        tmp_path,
         environment=environment,
-        data_root=tmp_path,
+        api_base_url=API_URLS[environment],
         api_key=SecretStr("fake-review-key"),
         practice_id="fake-review-practice",
         sign_in=SignIn.GOOGLE,
@@ -34,7 +35,6 @@ def configured(tmp_path: Path, environment: Environment = Environment.FAKE) -> S
         workspace="Synthetic workspace",
         workspace_slug="fake",
         google_maps_api_key=SecretStr("fake-maps-key"),
-        **FAKE_AKAHU_SETTINGS,
     )
 
 
@@ -115,10 +115,6 @@ def test_settings_do_not_change_until_restart(
     with TestClient(app) as client:
         monkeypatch.setenv("ADMIN_SIGN_IN", "developer")
         assert client.get("/").status_code == 401
-
-
-def test_google_is_the_default_even_with_fake_principle() -> None:
-    assert Settings(environment=Environment.FAKE).sign_in is SignIn.GOOGLE
 
 
 @pytest.mark.parametrize(

@@ -8,14 +8,13 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 
 from dental_practice_admin import scripts
 from dental_practice_admin.app import create_app
 from dental_practice_admin.auth import FAKE_STAFF
-from dental_practice_admin.config import Environment, Settings, SignIn
+from dental_practice_admin.config import Settings
 from dental_practice_admin.storage import Coverage, Outcome, Storage
-from tests.fake_akahu import FAKE_AKAHU_SETTINGS
+from tests.settings import fake_settings
 from tests.test_automation import draft
 
 PAGE = "<!doctype html><html><body><section>Synthetic day sheet</section></body></html>"
@@ -23,9 +22,7 @@ PAGE = "<!doctype html><html><body><section>Synthetic day sheet</section></body>
 
 @pytest.fixture
 def configured(tmp_path: Path) -> Settings:
-    return Settings(environment=Environment.FAKE, data_root=tmp_path,
-                    sign_in=SignIn.DEVELOPER, openai_api_key=SecretStr("fake-ai-key"),
-                    **FAKE_AKAHU_SETTINGS)
+    return fake_settings(tmp_path)
 
 
 @pytest.fixture

@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import os
 from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
 
 import pytest
-from pydantic import SecretStr
 
 from dental_practice_admin.config import (
     ConfigurationError,
@@ -20,7 +20,8 @@ from dental_practice_admin.config import (
     is_production_host,
 )
 from dental_practice_admin.principle import PrincipleClient
-from tests.fake import FAKE_API_KEY, FAKE_PRACTICE_ID, FakeStore, seed, transport
+from tests import settings as test_settings
+from tests.fake import FakeStore, seed, transport
 
 
 @pytest.fixture(autouse=True)
@@ -60,12 +61,8 @@ def fake_store() -> Iterator[FakeStore]:
 
 
 @pytest.fixture
-def fake_settings() -> Settings:
-    return Settings(
-        environment=Environment.FAKE,
-        api_key=SecretStr(FAKE_API_KEY),
-        practice_id=FAKE_PRACTICE_ID,
-    )
+def fake_settings(tmp_path: Path) -> Settings:
+    return test_settings.fake_settings(tmp_path)
 
 
 @pytest.fixture
@@ -81,9 +78,7 @@ async def fake_client(
 @pytest.fixture
 def staging_settings() -> Settings:
     """Staging configuration, refusing when credentials are absent."""
-    settings = Settings(
-        environment=Environment.STAGING,
-    )
+    settings = Settings(environment=Environment.STAGING)
     if is_production_host(settings.api_base_url):
         raise ConfigurationError("the integration tier must not address production")
     settings.require_credentials()
