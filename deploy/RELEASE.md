@@ -277,13 +277,16 @@ can't be undone.
 1. Find the old bridge's startup task with
    `Get-ScheduledTask | Where-Object { $_.Actions.Execute -match 'SMS_Bridge' }`, delete it with
    `Unregister-ScheduledTask`, then delete the installation directory its action names.
-2. Stop Call Centre starting at logon (Settings > Apps > Startup), unless reception uses it for
-   calls.
+2. Stop Call Centre starting at logon, in Settings > Apps > Startup or as a logon task in Task
+   Scheduler, unless reception uses it for calls.
 3. `sc.exe delete caddy`, then delete `C:\Program Files\Caddy` and Caddy's data directory, which
    holds the certificates.
-4. Keep the message history from before the move. On reception, as an administrator:
+4. Keep the message history from before the move. On reception, signed in with an account that
+   is an administrator on the server as well:
    `robocopy C:\ProgramData\SMS_Bridge \\192.168.192.30\C$\ProgramData\SMS_Bridge\reception /E`.
-   Without `/COPY:S` the copies take the server folder's restricted permissions. Then delete
+   Without `/COPY:S` the copies take the server folder's restricted permissions. Robocopy exit
+   codes of 8 and above mean files were not copied; don't delete anything until it reports 0
+   to 7 and the server's `reception` folder holds as many files as reception's. Then delete
    everything in reception's `C:\ProgramData\SMS_Bridge` except `check-sms.ps1`, which
    reception's SMS check runs.
 5. Remove any firewall rule on reception that admits port 5170, 80 or 443.
@@ -319,9 +322,9 @@ PRODUCTION.md's acceptance check for it.
    applies its start and failure settings only at install: `dental-practice-admin.exe uninstall`,
    `dental-practice-admin.exe install`, and set **Log On** again as in step 7.2.
 7. Run `uv sync --locked` and `npm ci`, then repeat step 5.3 as the service account, in case the
-   release moved Playwright to a new browser. Then run step 6's check of the first release
-   (`scripts\check_settings.ps1 -ReleaseRoot 'C:\Program Files\DentalPracticeAdmin'`), so a missing setting shows before the service starts rather
-   than as a service that stops.
+   release moved Playwright to a new browser. Then run step 6's check of the first release,
+   `scripts\check_settings.ps1 -ReleaseRoot 'C:\Program Files\DentalPracticeAdmin'`, so a
+   missing setting shows before the service starts rather than as a service that stops.
 8. If step 2 listed other `deploy\` files, apply them:
    - `Caddyfile`: copy it to `C:\ProgramData\Caddy\Caddyfile`, validate as in step 8.1, and
      restart the `caddy` service.
