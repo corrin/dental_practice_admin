@@ -20,11 +20,11 @@ def test_staff_match_a_transfer_to_the_payment_already_in_principle(
     rows.filter(has_text="FAKE PAYER SMITH").get_by_role("link", name="Find & Match").click()
     ok = page.get_by_test_id("match-ok")
     expect(ok).to_be_disabled()
-    page.get_by_role("checkbox", name="Match Lily Fake").check()
+    page.get_by_role("checkbox", name="Match Lily Smith").check()
     expect(ok).to_be_enabled()
     ok.click()
 
     expect(rows).to_have_count(2)
     page.get_by_role("link", name="Reconciled").click()
-    expect(rows.filter(has_text="FAKE PAYER SMITH")).to_contain_text("Lily Fake")
+    expect(rows.filter(has_text="FAKE PAYER SMITH")).to_contain_text("Lily Smith")
     assert not errors
