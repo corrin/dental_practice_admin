@@ -207,7 +207,7 @@ categories, and with them the new-patient flag, would not show.
 | Fact | Open Dental | Day sheet |
 |---|---|---|
 | Start, end, length | Position and height on the grid | Same. No time text on the card |
-| Category | Block colour | Principle's own category colour ([firestore.md](../principle/firestore.md)), lightened only enough to keep 7:1 contrast for black text. A legend lists the day's categories |
+| Category | Block colour | A 2.5 mm strip of Principle's own category colour ([firestore.md](../principle/firestore.md)) down the card's left edge; the card is white. A legend lists the day's categories |
 | Patient | Name first | Name first, 12 pt bold |
 | New patient | "NP-" prefix | The New Patient Exam colour alone |
 | Procedures, teeth | Abbreviations: "PBWs, Hyg-Std, Ex", "#47-V-C1(P)" | Open Dental's abbreviations after the name, teeth after each: "Exo 28 18 46, C1 48o". A name with no abbreviation prints in full |
@@ -216,7 +216,7 @@ categories, and with them the new-patient flag, would not show.
 | Confirmation | Coloured dot | A hollow circle on unconfirmed only, since Principle has two states |
 | Online booking | Blue dot | Globe, as Principle's timeline shows it |
 | Lunch, meetings | Pastel block, label | Grey hatch, label. Includes blocks edited for one day, which Principle keeps as calendar events ([firestore.md](../principle/firestore.md)) |
-| Pending online request | — | White card naming the requested treatment, with an hourglass. Principle's timeline shows these; it has no patient until accepted |
+| Pending online request | — | White card naming the requested treatment, with an hourglass. The owner asked for these (2026-10-10); Principle's timeline shows them. It has no patient until accepted |
 | Free time | White | White |
 
 - **Page.** A4 portrait, 10 mm margins, a 16 mm header, and a 9 mm time column labelled
