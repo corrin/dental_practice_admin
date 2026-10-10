@@ -7,12 +7,11 @@
 #          +---------------------+--------------------------+
 #          |                                                |
 #   admin.massey-smiles.co.nz                 office.massey-smiles.co.nz
-#   -> 127.0.0.1:8080  (this machine)         -> reception:5170  (over the LAN)
+#   -> 127.0.0.1:8080  (this machine)         -> 127.0.0.1:5170  (this machine)
 #      dental_practice_admin                           SMS_Bridge, /smsgateway/*
 #
 # Both names are A records pointing at the SAME public IP. Caddy tells them apart by the Host
-# header, and obtains a separate certificate for each. That is why one router and one address
-# serve two machines without a second port forward.
+# header, and obtains a separate certificate for each, so one port forward serves both services.
 #
 # A subdomain rather than a path for the admin application is deliberate: no path prefix means the
 # application needs no URL rewriting, and its session cookie stays scoped to its own host instead
@@ -106,10 +105,8 @@ office.massey-smiles.co.nz {
 		-Server
 	}
 
-	# 192.168.192.125 is reception, where the bridge runs. RELEASE.md's "SMS go-live" secures the
-	# bridge before this file is ever live, and its "Caddy, DNS and the router" step has it listen
-	# on this address and admit only this server through reception's firewall.
-	reverse_proxy 192.168.192.125:5170 {
+	# SMS_Bridge runs on this server, installed in RELEASE.md's "Caddy, DNS and the router" step.
+	reverse_proxy 127.0.0.1:5170 {
 		header_up X-Real-IP {remote_host}
 	}
 }

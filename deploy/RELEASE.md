@@ -35,8 +35,9 @@ Secure it before Principle switches SMS on, and before step 8 moves `office` to 
    phone and `/smsgateway/test/test-patient-lookup` returns patient identifiers. Principle's
    webhook signs with `WEBHOOK_SECRET`, so the new key changes nothing for Principle.
 3. Point Principle's webhook at `https://office.massey-smiles.co.nz/smsgateway/webhooks/principle`.
-4. Arrange an alarm for the bridge's phone status. Nothing provides one yet, and texts that stop
-   going out fail silently: until one exists, someone checks Call Centre's connection daily.
+4. Register the SMS check on reception, as [SMS_Bridge's PRODUCTION.md](https://github.com/corrin/SMS_Bridge/blob/master/PRODUCTION.md)
+   "SMS warning on reception" describes, with `-Url http://localhost:5170/smsgateway/phone-status`
+   while the bridge runs on reception. It warns reception within 5 minutes of texts stopping.
 
 **Check, without sending an SMS:** from outside the practice network,
 `https://office.massey-smiles.co.nz/smsgateway/debug-status` answers 401 without the key, and 200
@@ -55,8 +56,9 @@ SMS. A real test message is the owner's call.
   Akahu (the bank feed).
 - **A quiet hour** for step 8, which moves both public names from reception to the server.
 - **SMS go-live done**, above. Step 8 carries live SMS traffic.
-- **Reception's LAN address.** Give reception a DHCP reservation for `192.168.192.125`: the
-  server's Caddy forwards SMS to it, and a renumbered machine silently stops SMS arriving.
+- **Reception's LAN address.** Give reception a DHCP reservation for `192.168.192.125`. The
+  server's firewall admits reception's SMS check by that address, and a renumbered reception
+  would see a false SMS warning every hour.
 
 ### 2. Prepare the release on the development machine
 
@@ -178,8 +180,9 @@ every line of the template above is needed, except that staff sign-in needs only
 
 ### 8. Caddy, DNS and the router
 
-This moves both public names from reception's own Caddy to the server's, whose `office` site
-forwards to the bridge on reception over the LAN. Do it in the quiet hour, after SMS go-live.
+This moves both public names from reception's own Caddy to the server's, and moves SMS
+(SMS_Bridge, Call Centre and the paired phone) from reception to the server. Do it in the quiet
+hour, after SMS go-live.
 Caddy can obtain certificates only once the router sends ports 80 and 443 to it, so it starts
 after the switch, not before: a failed attempt backs off, and inbound SMS would wait on its
 retry.
@@ -195,26 +198,32 @@ retry.
    sc.exe config caddy obj= "NT SERVICE\caddy"
    icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'NT SERVICE\caddy:(OI)(CI)M'
    ```
-3. Server firewall: allow inbound TCP 80 and 443. Reception's firewall: allow inbound TCP 5170
-   from the server's address only, and disable any program-level allow rule for the bridge,
-   which would otherwise open 5170 to the whole LAN.
+3. Server firewall: allow inbound TCP 80 and 443, and inbound TCP 5170 from reception
+   (`192.168.192.125`) only, for reception's SMS check. Disable any program-level allow rule for
+   the bridge, which would otherwise open 5170 to the whole LAN.
+   Install SMS on the server as [SMS_Bridge's PRODUCTION.md](https://github.com/corrin/SMS_Bridge/blob/master/PRODUCTION.md)
+   describes: Call Centre under an account that signs in automatically, the bridge with a copy of
+   reception's `install-settings.json` (key, `WEBHOOK_SECRET`, debug mode off) and listening on
+   `localhost:5170` and the server's LAN address. Don't start it yet.
 4. DNS: an A record `admin.massey-smiles.co.nz` for the practice's public address, the same
    address `office.massey-smiles.co.nz` already uses.
 5. Together, with nothing in between: stop and disable Caddy on reception
    (`sc.exe stop caddy`, then `sc.exe config caddy start= disabled`; in PowerShell `sc` means
-   `Set-Content`); in reception's `install-settings.json` set `Hosting:ListenUrl` to
-   `http://192.168.192.125:5170` and restart the bridge; switch the router's forward for TCP 80
-   and 443 to the server; and start the server's `caddy` service. Watch `C:\ProgramData\Caddy\logs` until it has obtained both
+   `Set-Content`); stop the bridge on reception and disable its startup task; pair the phone
+   with the server's Call Centre and start the server's bridge; switch the router's forward for
+   TCP 80 and 443 to the server; and start the server's `caddy` service. Then re-register
+   reception's SMS check with `-Url http://192.168.192.30:5170/smsgateway/phone-status`. Watch `C:\ProgramData\Caddy\logs` until it has obtained both
    certificates. Leave reception's Caddyfile and certificates in place for the undo.
 
 **Check:** from outside the practice network (a phone off Wi-Fi),
 `https://admin.massey-smiles.co.nz` shows the Google sign-in, and the SMS go-live check passes
-again through the server, both with valid certificates. From another LAN machine, port 5170 on
-reception times out. On reception, `sc.exe qc caddy` shows `DISABLED` and `sc.exe query caddy`
-shows `STOPPED`. **To undo:** point the router back at reception; on reception set
-`Hosting:ListenUrl` back to `http://localhost:5170` and restart the bridge, which reception's
-Caddy reaches as `localhost:5170`; then set reception's Caddy service back to Automatic (a
-disabled service can't be started) and start it.
+again through the server, both with valid certificates. From a LAN machine other than reception,
+port 5170 on the server times out. Reception's SMS check passes that PRODUCTION.md's acceptance
+check for it. On reception, `sc.exe qc caddy` shows `DISABLED` and `sc.exe query caddy` shows
+`STOPPED`. **To undo:** point the router back at reception; stop the server's bridge, pair the
+phone with reception's Call Centre again, and re-enable and start reception's bridge; then set
+reception's Caddy service back to Automatic (a disabled service can't be started) and start it.
+Re-register reception's SMS check with `-Url http://localhost:5170/smsgateway/phone-status`.
 
 ### 9. The launcher
 
