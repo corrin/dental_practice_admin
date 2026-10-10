@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -85,6 +87,24 @@ def test_a_data_folder_that_is_not_there_is_refused(tmp_path: Path) -> None:
     with pytest.raises(ConfigurationError, match="ADMIN_DATA_ROOT"):
         missing.require_web_configured()
     assert not (tmp_path / "mistyped").exists()
+
+
+def test_the_settings_check_refuses_an_incomplete_host_in_one_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("ADMIN_TASK_REPOSITORY")
+    checked = subprocess.run([sys.executable, "-m", "dental_practice_admin.config"],
+                             capture_output=True, text=True, check=False)
+    assert checked.returncode == 1
+    assert "Traceback" not in checked.stderr
+
+
+def test_the_settings_check_passes_a_complete_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Windows drops a variable set to empty, so the subprocess gets a real address.
+    monkeypatch.setenv("ADMIN_PUBLIC_BASE_URL", "https://admin.fake.invalid")
+    checked = subprocess.run([sys.executable, "-m", "dental_practice_admin.config"],
+                             capture_output=True, text=True, check=False)
+    assert checked.returncode == 0, checked.stderr
 
 
 def test_a_principle_address_must_be_set() -> None:

@@ -118,8 +118,9 @@ Principle always requires Google. A production investigation needs production cr
 the loader selects credentials from the chosen environment's section.
 
 CLI selections override `.env` and the shell. For settings not selected on the command line,
-shell variables override `.env`. No setting has a default in the code: every one is set in
-`.env` or the environment, and a missing one fails startup. `ADMIN_DATA_ROOT` must be an
+shell variables override `.env`. No setting has a value in the code: each is either required,
+or empty until set and refused by the startup check of the feature that uses it, so a missing
+one fails startup. `ADMIN_DATA_ROOT` must be an
 existing folder, so a mistyped one is refused rather than starting an empty database. `PRINCIPLE_ENVIRONMENT` selects
 Principle. Group its endpoint, key and practice ID under matching `_FAKE`, `_STAGING`, and
 `_PROD` settings in `.env`, such as `PRINCIPLE_API_BASE_URL_STAGING`. Shared, unscoped Principle
@@ -365,10 +366,10 @@ docs/principle/          what tasks have learned about Principle's website and F
 Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher.
 The service invokes `dental_practice_admin.app:create_app --factory`; install the package with
 `uv sync --locked` in the release directory before starting it. Runtime configuration lives in
-the host's `.env`, separately from the development checkout; the service definition sets none. Before
-stopping the running service, run `.venv\Scripts\python.exe -m dental_practice_admin.config` in
-the new release directory: it names any setting the release needs that the host lacks, so the
-old release keeps serving until the host is ready.
+the host's `.env` and the service environment, separately from the development checkout. Before
+stopping the running service, run `scripts\check_settings.ps1 -ReleaseRoot <new release>`: it
+names any setting the release needs that the host lacks, so the old release keeps serving
+until the host is ready.
 
 [`scripts/verify.ps1`](scripts/verify.ps1) is the gate — service identity, data directory outside
 the release, health endpoint naming its configured Principle, scheduled task registered without

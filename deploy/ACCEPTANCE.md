@@ -8,8 +8,8 @@ Run `scripts\verify.ps1` first; it must pass before any of this is worth doing.
 ## Before staff use it
 
 - [ ] **Settings before the switch.** In the new release directory, before stopping the running
-      service, run `.venv\Scripts\python.exe -m dental_practice_admin.config`. It must exit
-      cleanly; otherwise it names the setting the host's `.env` lacks.
+      service, run `scripts\check_settings.ps1 -ReleaseRoot <new release>`. It must exit
+      cleanly; otherwise it names the setting the host lacks.
 
 - [ ] **Reboot.** Restart the host. Without logging in, confirm the service came back
       (`scripts\verify.ps1`) and that the staff page loads from another machine on the

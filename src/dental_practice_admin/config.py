@@ -22,7 +22,7 @@ from shutil import which
 from typing import Any
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 from starlette.requests import Request
 
@@ -236,7 +236,6 @@ class Settings(BaseSettings):
     @property
     def data_dir(self) -> Path:
         """Per-environment directory for the database, logs and browser session state."""
-        self.require_data_root()
         return self.data_root / self.environment.value
 
     def require_data_root(self) -> None:
@@ -414,4 +413,7 @@ def current_settings(request: Request) -> Settings:
 if __name__ == "__main__":
     # python -m dental_practice_admin.config, from a release directory: refuse, naming the
     # setting, if this host's .env lacks one the release needs.
-    Settings().require_web_configured()
+    try:
+        Settings().require_web_configured()
+    except (ConfigurationError, ValidationError) as error:
+        raise SystemExit(f"Not ready: {error}") from None

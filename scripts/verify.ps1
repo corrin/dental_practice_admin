@@ -23,12 +23,8 @@ function Check {
 
 Check 'Configuration is complete' {
     # Startup refuses a missing setting; this names it, instead of only a stopped service.
-    $python = Join-Path $InstallRoot '.venv\Scripts\python.exe'
-    Push-Location $InstallRoot
-    try {
-        & $python -m dental_practice_admin.config
-        if ($LASTEXITCODE -ne 0) { throw 'a required setting is missing; the error above names it' }
-    } finally { Pop-Location }
+    & "$PSScriptRoot\check_settings.ps1" -ReleaseRoot $InstallRoot
+    if ($LASTEXITCODE -ne 0) { throw 'a required setting is missing; the error above names it' }
     'every setting present'
 }
 Check 'Application service is running as a designated account' {
