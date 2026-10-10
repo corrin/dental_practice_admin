@@ -8,7 +8,8 @@ One implementation, two ways in, like `tests/fake/`:
 
 Shapes are the ones the practice's account returned on 2026-10-10: `items` and `cursor.next`
 (null on the last page), `meta` holding only the fields the payer filled in, `date` at NZ
-midnight in UTC, and `refreshed` on the account. Pages are two rows, so every walk pages.
+midnight in UTC, and `refreshed` on each account in `/accounts`. Pages are two rows, so
+every walk pages.
 Dates are relative to today, so a fetch of "the last fortnight" always finds the seed.
 """
 from __future__ import annotations
@@ -66,18 +67,19 @@ class FakeAkahu:
     def __init__(self, transactions: list[dict[str, Any]] | None = None) -> None:
         self.transactions = seed() if transactions is None else transactions
         self.refreshed = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        self.accounts = [{
+            "_id": FAKE_AKAHU_ACCOUNT_ID, "name": "FAKE DAY TO DAY", "status": "ACTIVE",
+            "refreshed": {"balance": self.refreshed, "meta": self.refreshed,
+                          "transactions": self.refreshed}}]
 
     def answer(self, path: str, query: dict[str, str], headers: dict[str, str]) -> tuple[int, Any]:
         if (headers.get("authorization") != f"Bearer {FAKE_AKAHU_USER_TOKEN}"
                 or headers.get("x-akahu-id") != FAKE_AKAHU_APP_TOKEN):
             return 401, {"success": False}
-        account = f"/accounts/{FAKE_AKAHU_ACCOUNT_ID}"
-        if path == account:
-            return 200, {"success": True, "item": {
-                "_id": FAKE_AKAHU_ACCOUNT_ID, "name": "FAKE DAY TO DAY", "status": "ACTIVE",
-                "refreshed": {"balance": self.refreshed, "meta": self.refreshed,
-                              "transactions": self.refreshed}}}
-        if path != f"{account}/transactions" or set(query) - {"start", "cursor"}:
+        if path == "/accounts":
+            return 200, {"success": True, "items": self.accounts}
+        if (path != f"/accounts/{FAKE_AKAHU_ACCOUNT_ID}/transactions"
+                or set(query) - {"start", "cursor"}):
             raise FakeAkahuUnhandledRequestError(f"no answer for {path} {sorted(query)}")
         start = datetime.fromisoformat(query["start"])
         rows = sorted((t for t in self.transactions

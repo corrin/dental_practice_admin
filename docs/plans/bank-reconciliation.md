@@ -113,8 +113,9 @@ SQLite tables in `storage.py`:
   One payer can link to several patients (a parent paying for a family).
 
 ### Fetching from Akahu
-- An Akahu "personal app" on the practice's own account. `AKAHU_APP_TOKEN`, `AKAHU_USER_TOKEN`
-  and `AKAHU_ACCOUNT_ID` are validated in `Settings` at startup (ADR 0002).
+- An Akahu "personal app" on the practice's own account. `AKAHU_APP_TOKEN` and
+  `AKAHU_USER_TOKEN` are validated in `Settings` at startup (ADR 0002). The account is the one
+  active account `GET /v1/accounts` returns, as in akahu_to_budget; more than one is refused.
 - `GET /v1/accounts/{id}/transactions?start=…`, paged by `cursor.next`. Deposits carry
   `description` and, on most, `meta.particulars`, `meta.code` and `meta.reference`; never
   `meta.other_account`. `date` is NZ midnight in UTC, so its NZ day is the next UTC date.

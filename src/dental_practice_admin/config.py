@@ -170,7 +170,6 @@ class Settings(BaseSettings):
     akahu_app_token: SecretStr = Field(default=SecretStr(""), validation_alias="AKAHU_APP_TOKEN")
     akahu_user_token: SecretStr = Field(default=SecretStr(""),
                                         validation_alias="AKAHU_USER_TOKEN")
-    akahu_account_id: str = Field(default="", validation_alias="AKAHU_ACCOUNT_ID")
     akahu_base_url: str = Field(default="https://api.akahu.io/v1",
                                 validation_alias="AKAHU_BASE_URL")
 
@@ -351,8 +350,7 @@ class Settings(BaseSettings):
             raise ConfigurationError("Chat needs OPENAI_API_KEY")
         missing = [name for name, value in (
             ("AKAHU_APP_TOKEN", self.akahu_app_token.get_secret_value()),
-            ("AKAHU_USER_TOKEN", self.akahu_user_token.get_secret_value()),
-            ("AKAHU_ACCOUNT_ID", self.akahu_account_id)) if not value]
+            ("AKAHU_USER_TOKEN", self.akahu_user_token.get_secret_value())) if not value]
         if missing:
             raise ConfigurationError(f"Bank reconciliation needs {', '.join(missing)}")
 

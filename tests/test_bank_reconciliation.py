@@ -53,6 +53,13 @@ async def test_statement_starts_at_the_day_asked_for(bank_settings: Settings) ->
     assert [d.akahu_id for d in found.deposits] == ["new"]
 
 
+async def test_more_than_one_active_account_is_refused(bank_settings: Settings) -> None:
+    bank = FakeAkahu()
+    bank.accounts.append({**bank.accounts[0], "_id": "acc_fake_other"})
+    with pytest.raises(akahu.AkahuError):
+        await akahu.statement(bank_settings, date.today(), transport(bank))
+
+
 async def test_refused_credentials_raise(bank_settings: Settings) -> None:
     wrong = bank_settings.model_copy(update={"akahu_user_token": SecretStr("revoked")})
     with pytest.raises(httpx.HTTPStatusError):

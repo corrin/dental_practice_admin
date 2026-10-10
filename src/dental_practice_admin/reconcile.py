@@ -55,7 +55,7 @@ async def fetch(settings: Settings, store: Storage,
     try:
         statement = await akahu.statement(settings, since, bank)
         store.record_deposits(statement.deposits, statement.refreshed)
-    except httpx.HTTPError as error:
+    except (httpx.HTTPError, akahu.AkahuError) as error:
         problems.append(f"Akahu: {error}")
     try:
         await _read_principle(settings, store, since - NEAR, principle)

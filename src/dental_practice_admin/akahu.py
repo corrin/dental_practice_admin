@@ -19,6 +19,10 @@ from dental_practice_admin.config import Settings
 NZ = ZoneInfo("Pacific/Auckland")
 
 
+class AkahuError(Exception):
+    """Akahu answered, but not with what reconciliation needs."""
+
+
 @dataclass(frozen=True)
 class Deposit:
     """One credit to the account, as the bank sent it."""
@@ -59,15 +63,23 @@ def _deposit(row: dict[str, Any]) -> Deposit:
 
 async def statement(settings: Settings, since: date,
                     transport: httpx.AsyncBaseTransport | None = None) -> Statement:
-    """Every deposit dated `since` or later, oldest first. HTTP failures propagate."""
+    """Every deposit dated `since` or later, oldest first. HTTP failures propagate.
+
+    The account is the one active account the tokens can see, found as akahu_to_budget finds
+    it. More than one would make the choice a guess, so that is refused.
+    """
     headers = {"Authorization": f"Bearer {settings.akahu_user_token.get_secret_value()}",
                "X-Akahu-ID": settings.akahu_app_token.get_secret_value()}
-    account = f"/accounts/{settings.akahu_account_id}"
     start = datetime.combine(since, datetime.min.time(), NZ).isoformat()
     rows: list[dict[str, Any]] = []
     async with httpx.AsyncClient(base_url=settings.akahu_base_url, headers=headers,
                                  transport=transport, timeout=60) as client:
-        refreshed = (await client.get(account)).raise_for_status().json()["item"]["refreshed"]
+        accounts = (await client.get("/accounts")).raise_for_status().json()["items"]
+        active = [a for a in accounts if a["status"] == "ACTIVE"]
+        if len(active) != 1:
+            raise AkahuError(f"the Akahu tokens see {len(active)} active bank accounts;"
+                             " reconciliation needs exactly one")
+        account, refreshed = f"/accounts/{active[0]['_id']}", active[0]["refreshed"]
         params = {"start": start}
         while True:
             page = (await client.get(f"{account}/transactions", params=params)
