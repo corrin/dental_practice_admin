@@ -17,13 +17,13 @@ from pathlib import Path
 from typing import Any
 
 import httpx2 as httpx
+from scripts.spikes.common import accept_invoices, amount_paid, save, staging_settings
 
-from dental_practice_admin.config import Environment
 from dental_practice_admin.principle import PrincipleClient
-from scripts.spikes.common import accept_invoices, amount_paid, save, settings
 
 
 async def invoice_state(client: PrincipleClient, patient: str, invoice: str) -> dict[str, Any]:
+    """The invoice fields a payment should change, and its transactions."""
     row = await client.get("getInvoice", path_params={"patientId": patient, "invoiceId": invoice})
     transactions = await client.get(
         "listTransactions", path_params={"patientId": patient, "invoiceId": invoice})
@@ -39,6 +39,7 @@ async def invoice_state(client: PrincipleClient, patient: str, invoice: str) -> 
 
 
 async def main() -> None:
+    """Run one command and save the invoice before and after."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--env-file", type=Path, default=Path(".env"))
     commands = parser.add_subparsers(dest="command", required=True)
@@ -60,9 +61,9 @@ async def main() -> None:
     show.add_argument("invoice")
     args = parser.parse_args()
 
-    config = settings(args.env_file, Environment.STAGING)
-    if config.environment is not Environment.STAGING:
-        raise SystemExit("Staging only")
+    if args.command == "create" and bool(args.type_name) != bool(args.type_id):
+        raise SystemExit("--type-name and --type-id go together")
+    config = staging_settings(args.env_file)
     accept_invoices()
     record: dict[str, Any] = {"command": vars(args) | {"env_file": str(args.env_file)}}
     async with PrincipleClient(config) as client:
@@ -83,6 +84,7 @@ async def main() -> None:
                         f"{args.invoice}/transactions",
                         json=body, headers={"X-API-Key": config.api_key.get_secret_value()})
                 record["response"] = {"status": response.status_code, "body": response.json()}
+                response.raise_for_status()
             else:
                 record["response"] = await client.call(
                     "createTransaction", {"patientId": args.patient, "invoiceId": args.invoice,

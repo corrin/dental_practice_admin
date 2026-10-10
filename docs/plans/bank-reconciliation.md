@@ -296,6 +296,25 @@ into the repo. Findings go in `docs/principle/`, and gaps in `api-gaps.md`. Rank
 
 **Milestone 0:** each risk has a recorded answer, and the design is adjusted where one failed.
 
+#### Phase 0 findings (2026-10-10)
+Details are in [`api-gaps.md`](../principle/api-gaps.md). Risks 2 and 4 wait on the Akahu app.
+
+| # | Answer so far |
+|---|---|
+| 1 | **Partly answered; create works, with limits.** One staging create succeeded. The API cannot set the payment method (only `provider` `manual`) or the date (`createdAt` is ignored), and straight afterwards the invoice was still `issued` with nothing allocated. Voiding was not tested: after that write, staging work stopped at the owner's direction (production reads only). The test payment is still on staging, reference `spike-2aabbd98-…`. |
+| 2 | **Principle half answered.** Card payments are two methods, Credit Card and EFTPOS, so two queues are possible. Which acquirer settles which, and whether net of fees, needs the deposits. |
+| 3 | **Fallback applies.** Listing all invoices takes 99 s, while only 32 are unpaid (29 patients). Refreshing by `updatedFrom` takes 1.5 s for a day, 3.7 s for a week, so the unpaid list is cached and refreshed on Fetch now. Reading one patient's unpaid invoices takes about 1.4 s. The client refuses invoices and some patients (see api-gaps), so Phase 1 starts by fixing `principle.py`. |
+| 4 | **Waiting on the Akahu personal app.** |
+| 5 | **Entered per patient: yes.** Southern Cross and ACC payments are individual rows per patient, but carry no batch number, so insurer slips start with nothing ticked. Whether they are entered before the deposit needs the deposit dates. Principle's `acc` provider also has `pending` and `failed` rows; only `complete` ones join a queue. |
+
+Design questions raised, not yet decided:
+- **Reception already records most transfers.** There were 65 Direct Deposit payments in 40
+  days, against an expected ~70 individual deposits. If most individual deposits are already in
+  Principle, they match like a batch of one, against a Direct Deposit queue, and creating payments
+  is needed only for the ones nobody keyed.
+- **Payments the page creates have no method or bank date.** Add missing payment cannot record a
+  card payment as EFTPOS or Credit Card through the API.
+
 ### Phase 1: a basic read-only page
 Staff see every deposit and can match it by hand. Matches are recorded in the page's own tables
 and Principle is not touched; payments are still keyed into Principle as they are today. Principle stays the record of payments; a Phase 1 match only notes that the

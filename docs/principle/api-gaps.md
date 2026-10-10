@@ -46,3 +46,55 @@ Requests to Principle:
 
 - **The "C" badge.** Every appointment on the timeline shows "C". All 19 have `status`
   `scheduled`, so the badge is not the status, and no Firestore field read so far explains it.
+
+# What bank reconciliation found in the payments API
+
+Phase 0 of [the bank reconciliation plan](../plans/bank-reconciliation.md). Production reads
+2026-10-10; one staging write the same day. The scripts are in the Phase 0 pull request's
+history under `scripts/spikes/`.
+
+## How payments are recorded
+
+- Every payment keyed at the desk has `provider` `manual`. The method staff chose is
+  `extendedData.transactionType.name`, the practice's own list: Credit Card, EFTPOS, Direct
+  Deposit, Southern Cross, ACC Payment, Cash, WINZ (card or bank deposit), Refer a Friend
+  credit. Principle's ACC integration uses `provider` `acc`, with `pending` and `failed` rows
+  as well as `complete`.
+- One payment split across invoices is one row per invoice, with the same `id` and that
+  invoice's share as `amount`. A row's identity is (`id`, `invoiceId`).
+- Insurer payments carry no batch or remittance number: `reference` is Principle's own id and
+  `description` is usually empty.
+- `Patient` has no balance. What a patient owes is the sum over their `issued` invoices of
+  `total` less the allocations in `transactionAllocations`.
+
+## Client refusals
+
+`PrincipleClient` validates every response against the published specification, which is
+stricter than the data in two places. Each refusal blocks an otherwise good read:
+
+1. **Every invoice with allocations.** `AllocationTarget` puts a `discriminator` on inline
+   `oneOf` branches with no mapping, so openapi-core looks for component schemas named
+   `practitioner` and `unallocated`. The `oneOf` alone accepts the data.
+2. **Patients with a spaced phone number.** `ContactNumber.number` must match
+   `^\+?\d{6,15}$`; numbers like `021 123 4567` fail. The client reads `getPatient` before every
+   patient-scoped call, so none of that patient's invoices can be read. 1 in 15 production
+   patients who owe money, 5 in 60 staging patients.
+3. **`listTransactionsByDateRange` over a split payment.** `PrincipleClient.rows` treats the
+   repeated `id` as a restarted walk.
+
+## Missing for recording payments
+
+1. **A payment method.** `createTransaction` accepts only `provider` `manual` and has no
+   `extendedData`, so a payment made through the API has no method. It cannot be recorded as
+   EFTPOS or Direct Deposit, and Principle's takings by method will not include it.
+   *Request:* `transactionTypeId` on `createTransaction`.
+2. **The payment date.** `createdAt` in the request is ignored; the payment is dated when the
+   call is made (staging, sent 2026-03-27, stored 2026-10-10).
+3. **Account credit.** No endpoint creates one, so an overpayment cannot be recorded.
+4. **Voiding.** `updateTransaction` changes only `status`. Whether `failed` reverses a payment
+   is not yet tested.
+5. **Filtering invoices by status practice-wide.** `listInvoicesByDateRange` has no `status`,
+   so finding unpaid invoices means reading all of them: 7,716 since 2025-01-01, 99 s.
+
+Straight after `createTransaction` on staging, the invoice still read `issued` with nothing
+allocated. Whether Principle allocates the payment later was not re-checked.

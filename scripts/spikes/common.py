@@ -14,15 +14,27 @@ import httpx2 as httpx
 import jsonref
 from jsonschema import Draft202012Validator
 
-from dental_practice_admin.config import Environment, Settings
+from dental_practice_admin.config import STAGING_API_URL, Environment, Settings
 from dental_practice_admin.principle import SPEC
 
 PLAIN_SPEC = jsonref.replace_refs(SPEC, proxies=False, lazy_load=False)
 
 
 def settings(env_file: Path, environment: Environment) -> Settings:
+    """The app's configuration for one environment, from the given .env."""
     options: dict[str, Any] = {"_env_file": env_file, "environment": environment}
     return Settings(**options)
+
+
+def staging_settings(env_file: Path) -> Settings:
+    """Settings that can only address staging; anything that writes starts here.
+
+    `environment` is always what was asked for, so the URL is what proves where calls go.
+    """
+    config = settings(env_file, Environment.STAGING)
+    if config.api_base_url.rstrip("/") != STAGING_API_URL:
+        raise SystemExit("Refusing: the API URL is not staging")
+    return config
 
 
 def save(settings: Settings, name: str, data: object) -> Path:
@@ -96,7 +108,7 @@ def payment_method(transaction: dict[str, Any]) -> str:
     manual transaction type, e.g. "EFTPOS", "Credit Card", "Southern Cross".
     """
     kind = (transaction.get("extendedData") or {}).get("transactionType") or {}
-    return kind.get("name") or transaction["provider"]
+    return str(kind.get("name") or transaction["provider"])
 
 
 def transaction_key(transaction: dict[str, Any]) -> tuple[str, str]:
@@ -110,5 +122,5 @@ def transaction_key(transaction: dict[str, Any]) -> tuple[str, str]:
 
 def amount_paid(invoice: dict[str, Any]) -> float:
     """What has been allocated to an invoice so far, in dollars (Phase 1)."""
-    return round(sum(a["allocatedAmount"] for t in invoice.get("transactionAllocations", [])
+    return round(sum(float(a["allocatedAmount"]) for t in invoice.get("transactionAllocations", [])
                      for a in t["allocations"]), 2)
