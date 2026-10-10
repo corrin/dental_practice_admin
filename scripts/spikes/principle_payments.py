@@ -95,6 +95,8 @@ async def main() -> None:
                 "transactionId": args.transaction, "status": args.status})
         record["after"] = await invoice_state(client, args.patient, args.invoice)
     path = save(config, f"payments-{args.command}", record)
+    if args.type_name and record["response"]["status"] >= 400:
+        raise SystemExit(f"Create refused: {record['response']['status']}, saved {path}")
     for key in ("before", "after"):
         state = record[key]
         print(key, state["status"], "paidAt", state["paidAt"], "total", state["total"],

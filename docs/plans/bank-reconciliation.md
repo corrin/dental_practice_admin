@@ -163,7 +163,8 @@ from inside the match screen:
 - **Add missing payment** opens Find & Match restricted to unpaid invoices, filtered by default
   to patients seen on the takings day. Nothing in it is pre-selected; staff tick the invoice
   themselves, as in any Find & Match. Recording the payment there creates the card payment in
-  Principle through the same write path as individual deposits, and it joins the slip.
+  Principle through the same write path as individual deposits, and it joins the slip. The API
+  cannot give it a card method; Phase 0's findings leave this open.
 - If Smartpay's transaction list is available (Phase 4), the slip shows terminal payments with
   no Principle payment of the same amount beside it, which names the missing payment directly.
 - **Accept difference**, like Xero's Adjustments, needs a reason, and labels the match
@@ -242,10 +243,10 @@ Principle"** until someone ticks it done. This gap is also listed in
 ### Writing to Principle (ADR 0005 write rules)
 **Confirming an individual match.** For each ticked invoice the page calls
 `createTransaction` on `/v1/patients/{pid}/invoices/{iid}/transactions`. The call carries:
-- `provider` `manual`, the only value the API accepts; it cannot set the payment method;
+- `provider` `manual`, the only value the API accepts, so no payment method;
 - the amount;
-- the bank date in `description`, because `createdAt` is ignored and the payment is dated when
-  the call is made (Phase 0);
+- the bank date: open, because Principle ignores `createdAt` and dates the payment when the
+  call is made (Phase 0 findings);
 - `reference` set to the Akahu id, so every payment can be traced back to its deposit.
 
 The steps are:
@@ -257,8 +258,8 @@ The steps are:
    each invoice. It sets the deposit to `matched` or back to `open`.
 
 **Remove & redo** reverses only payments with `created_here` set. It uses `updateTransaction`
-to void them; Phase 0 verifies that this is possible and what Principle shows afterwards. If
-it cannot, Phase 0's fallback applies. The deposit returns to `open`. If the match was labelled **Remembered**, the
+to void them; Phase 3 verifies on staging that this is possible and what Principle shows
+afterwards. If it cannot, Phase 0's fallback for risk 1 applies. The deposit returns to `open`. If the match was labelled **Remembered**, the
 confirmation asks "Forget that this account pays for <patient>?" so a wrong link is dealt with
 at the moment it is found.
 
@@ -277,7 +278,7 @@ is tested first.
   decide, by putting a plain version in front of them.
 - **Phase 2** tests whether the suggestions and deposit slips are right often enough to save
   time.
-- **Phase 3** turns on production writes, whose mechanics Phase 0 already proved on staging.
+- **Phase 3** turns on production writes, after testing on staging what Phase 0 left open.
 - **Phase 4** is optional.
 
 ### Phase 0: test the riskiest parts first
@@ -324,23 +325,24 @@ Phase 3 starts. Only matches confirmed from Phase 3 onwards create
 payments.
 
 Build:
-1. `Settings` for the Akahu credentials. A small Akahu client using httpx, with a fake
+1. Fix the client refusals in `api-gaps.md` that block these reads: invoices with allocations,
+   and patients with a spaced phone number. Cache the unpaid-invoice list, refreshed by
+   `updatedFrom` on Fetch now.
+2. `Settings` for the Akahu credentials. A small Akahu client using httpx, with a fake
    transport for tests.
-2. `bank_deposits` and `bank_matches` in `storage.py`, and fetch-and-update by Akahu id.
-3. `/reconcile` with the To reconcile, Reconciled and Excluded tabs, and the "Bank data as of"
+3. `bank_deposits` and `bank_matches` in `storage.py`, and fetch-and-update by Akahu id.
+4. `/reconcile` with the To reconcile, Reconciled and Excluded tabs, and the "Bank data as of"
    header.
-4. Find & Match, read-only: search a patient and see their unpaid invoices from Principle. Tick
+5. Find & Match, read-only: search a patient and see their unpaid invoices from Principle. Tick
    invoices, see the running total, and press OK to record the match locally.
-5. Exclude with a reason, and Unreconcile.
-6. The fake Principle: add read routes for invoices to `tests/fake/`, shaped from the real
+6. Exclude with a reason, and Unreconcile.
+7. The fake Principle: add read routes for invoices to `tests/fake/`, shaped from the real
    responses, and update `tests/test_fake_covers_catalogue.py`, which currently expects
    invoices to be unhandled.
-7. Tests: re-fetching does not duplicate deposits; a split must reach $0.00; Exclude needs a
+8. Tests: re-fetching does not duplicate deposits; a split must reach $0.00; Exclude needs a
    reason; e2e: match a deposit by hand.
 
-Reads from Principle use the existing API client, with the calls Phase 0 timed. Phase 1 first
-fixes the client's three refusals listed in `api-gaps.md`, and caches the unpaid-invoice list,
-refreshed by `updatedFrom` on Fetch now.
+Reads from Principle use the existing API client, with the calls Phase 0 timed.
 
 **Milestone 1:** reception uses the page alongside the manual process for a week. We note what
 they look for that the page doesn't show.
