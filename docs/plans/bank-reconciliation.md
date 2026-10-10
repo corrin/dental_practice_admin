@@ -164,7 +164,7 @@ from inside the match screen:
   to patients seen on the takings day. Nothing in it is pre-selected; staff tick the invoice
   themselves, as in any Find & Match. Recording the payment there creates the card payment in
   Principle through the same write path as individual deposits, and it joins the slip. The API
-  cannot give it a card method; Phase 0's findings leave this open.
+  cannot give it a card method; what to do about that is an open question in Phase 0's findings.
 - If Smartpay's transaction list is available (Phase 4), the slip shows terminal payments with
   no Principle payment of the same amount beside it, which names the missing payment directly.
 - **Accept difference**, like Xero's Adjustments, needs a reason, and labels the match
@@ -326,7 +326,8 @@ payments.
 
 Build:
 1. Fix the client refusals in `api-gaps.md` that block these reads: invoices with allocations,
-   and patients with a spaced phone number. Cache the unpaid-invoice list, refreshed by
+   and patients with a spaced phone number. The third, split payments in transaction lists,
+   matters from Phase 2's queues. Cache the unpaid-invoice list, refreshed by
    `updatedFrom` on Fetch now.
 2. `Settings` for the Akahu credentials. A small Akahu client using httpx, with a fake
    transport for tests.
