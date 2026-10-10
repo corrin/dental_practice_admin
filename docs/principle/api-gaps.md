@@ -90,14 +90,16 @@ stricter than the data in two places. Each refusal blocks an otherwise good read
 
 1. **Every invoice with allocations.** `AllocationTarget` puts a `discriminator` on inline
    `oneOf` branches with no mapping, so openapi-core looks for component schemas named
-   `practitioner` and `unallocated`. The `oneOf` alone accepts the data.
+   `practitioner` and `unallocated`. The `oneOf` alone accepts the data, so the client
+   validates without the discriminator (`principle._validator`).
 2. **Patients with a spaced phone number.** `ContactNumber.number` must match
    `^\+?\d{6,15}$`; numbers like `021 123 4567` fail. The client reads `getPatient` before every
    patient-scoped call, so none of that patient's invoices can be read. 1 in 15 production
    patients who owe money, 5 in 60 staging patients.
 3. **`listTransactionsByDateRange` over a split payment.** `PrincipleClient.rows` treats the
    repeated `id` as a restarted walk. Seen on staging's migrated payments (115 of 1,899 rows);
-   none in 890 production rows from 2026-09-01 to 2026-10-09.
+   none in 890 production rows from 2026-09-01 to 2026-10-09. The client keys these rows by
+   (`id`, `invoiceId`) (`principle.ROW_KEYS`).
 
 ## Missing for recording payments
 

@@ -27,7 +27,23 @@ SPEC_BYTES = Path(__file__).with_name("principle_openapi.json").read_bytes()
 SPEC = json.loads(SPEC_BYTES)
 INTERFACE_ID = hashlib.sha256(SPEC_BYTES).hexdigest()
 RESOLVED = jsonref.replace_refs(SPEC, lazy_load=False)
-VALIDATOR = OpenAPI.from_dict(SPEC)
+
+
+def _validator() -> OpenAPI:
+    """Response validation against the released document, less one construct it misuses.
+
+    `AllocationTarget` puts a `discriminator` on inline `oneOf` branches with no mapping, so
+    openapi-core looks for component schemas named after the type values, finds none, and
+    rejects every invoice that has allocations. The `oneOf` alone accepts exactly the valid
+    shapes. Reported in docs/principle/api-gaps.md; a release without the discriminator
+    makes the `pop` fail at import, which is the cue to delete this.
+    """
+    spec = json.loads(SPEC_BYTES)
+    spec["components"]["schemas"]["AllocationTarget"].pop("discriminator")
+    return OpenAPI.from_dict(spec)
+
+
+VALIDATOR = _validator()
 
 
 class CallError(ValueError):
@@ -64,6 +80,10 @@ CATALOGUE = tuple(
     and not path.startswith(("/v1/oauth", "/v1/webhooks", "/v1/notifications"))
 )
 BY_NAME = {call.name: call for call in CATALOGUE}
+
+# A transaction listing has one row per invoice a payment was split across, each with the
+# payment's `id` and that invoice's share, so `id` alone repeats within a correct walk.
+ROW_KEYS = {"listTransactionsByDateRange": ("id", "invoiceId")}
 
 
 ACCEPTED_WEB_BUILDS = frozenset({"main.ecfbec0077a05029.js", "main.8e7a8bfa2c5bf44c.js"})
@@ -218,19 +238,21 @@ class PrincipleClient:
     async def rows(self, name: str, *, path_params: Mapping[str, Any] | None = None,
                    query: Mapping[str, Any] | None = None, page_size: int = 100,
                    max_pages: int = 1000) -> AsyncIterator[dict[str, Any]]:
-        """Walk pages; repeated IDs/cursors fail rather than produce inflated totals."""
+        """Walk pages; repeated rows/cursors fail rather than produce inflated totals."""
         call = BY_NAME[name]
+        key = ROW_KEYS.get(name, ("id",))
         seen: set[str] = set()
-        ids: set[str] = set()
+        ids: set[tuple[str, ...]] = set()
         sent = dict(query or {})
         if call.paginated:
             sent["limit"] = page_size
         for _ in range(max_pages):
             envelope = await self.get(name, path_params=path_params, query=sent)
             for row in envelope["data"]:
-                if row["id"] in ids:
+                identity = tuple(row[field] for field in key)
+                if identity in ids:
                     raise self._incompatible(call, "duplicate_row")
-                ids.add(row["id"])
+                ids.add(identity)
                 yield row
             cursor = envelope.get("meta", {}).get("nextOffsetId")
             if not call.paginated or not cursor:
