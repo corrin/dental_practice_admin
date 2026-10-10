@@ -171,7 +171,8 @@ retry.
 certificates. On reception, `sc.exe qc caddy` shows `DISABLED` and `sc.exe query caddy` shows
 `STOPPED`. **To undo:** point the router back at reception, set
 reception's Caddy service back to Automatic (a disabled service can't be started), and start
-it.
+it. Reception's Caddy forwards `office` to the bridge, so keep the bridge stopped until
+[Reactivating SMS](#reactivating-sms) is done: with debug mode on it serves patient identifiers.
 
 ### 9. The launcher
 
@@ -252,8 +253,9 @@ Before it carries traffic again:
 2. Turn debug mode off in `C:\ProgramData\SMS_Bridge\install-settings.json`. While it is on,
    `/smsgateway/test/test-patient-lookup` returns patient identifiers to anyone, and
    `/smsgateway/test/check-send-sms` sends a real SMS. Never probe that one to test.
-3. Decide where the bridge runs. Install Call Centre on the server, pair the phone and leave it
-   connected for a day: if it holds, the server; if anything is flaky, reception.
+3. Decide where the bridge runs. Windows Server is not a platform JustRemotePhone lists, so
+   before choosing the server, pair the phone with Call Centre there and leave it connected for
+   a day.
    - **Reception.** Give it a DHCP reservation (192.168.192.125), since a renumbered machine
      silently stops SMS. Allow inbound TCP 5170 from the server's address only, and disable any
      program-level allow rule for the bridge, which would otherwise open 5170 to the whole LAN.
