@@ -49,12 +49,10 @@ From outside the practice network,
   the OpenAI platform (ChatKit domains), GitHub (`massey-reception-coder/admin_scripts`), and
   Akahu (the bank feed).
 - **A quiet hour** for step 8, which moves both public names from reception to the server.
-- **Reception's LAN address.** Give reception a DHCP reservation for `192.168.192.125`. The
-  server's firewall admits reception's SMS check by that address, and a renumbered reception
-  would see a false SMS warning every hour.
-- **The server's LAN address.** Give the server a DHCP reservation for
-  `192.168.192.30`. The router's forward for ports 80 and 443, the bridge's listen address and
-  reception's SMS check all name it.
+- **Reserved addresses.** Check the router still reserves `192.168.192.125` for reception and
+  `192.168.192.30` for the server. The server's firewall admits reception's SMS check by
+  reception's address, and the router's forward, the bridge's listen address and reception's
+  SMS check all name the server's.
 
 ### 2. Prepare the release on the development machine
 
@@ -206,8 +204,17 @@ retry.
    icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'NT SERVICE\caddy:(OI)(CI)M'
    ```
 3. Server firewall: allow inbound TCP 80 and 443, and inbound TCP 5170 from reception
-   (`192.168.192.125`) only, for reception's SMS check. Disable any program-level allow rule for
-   the bridge, which would otherwise open 5170 to the whole LAN.
+   (`192.168.192.125`) only, for reception's SMS check. The server sometimes comes up on the
+   Public network profile after a restart, so the rules apply to every profile; a Private-only
+   rule would then shut out both public names and reception's check without any error.
+
+   ```powershell
+   New-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -Direction Inbound -Protocol TCP -LocalPort 80,443 -Action Allow -Profile Any
+   New-NetFirewallRule -DisplayName 'SMS bridge from reception' -Direction Inbound -Protocol TCP -LocalPort 5170 -RemoteAddress 192.168.192.125 -Action Allow -Profile Any
+   ```
+
+   Disable any program-level allow rule for the bridge, which would otherwise open 5170 to the
+   whole LAN.
 4. SMS on the server, as [SMS_Bridge's PRODUCTION.md](https://github.com/corrin/SMS_Bridge/blob/master/PRODUCTION.md)
    describes. Nothing is built at the practice:
    1. On the development machine, which has the Open Dental and JustPhone SDK libraries the build
