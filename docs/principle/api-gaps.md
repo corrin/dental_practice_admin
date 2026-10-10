@@ -69,7 +69,7 @@ history under `scripts/spikes/`.
   gross. Southern Cross payments are recorded the day before Southern Cross pays them. ACC
   payments are often recorded after ACC's deposit arrives. Almost every bank transfer is
   recorded as a Direct Deposit payment (or WINZ), usually the same day. Verified by
-  `scripts/spikes/card_days.py` and `transfers.py`.
+  `card_days.py` and `transfers.py` in that history.
 - `Patient` has no balance. What a patient owes is the sum over their `issued` invoices of
   `total` less the allocations in `transactionAllocations`.
 

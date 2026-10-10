@@ -317,7 +317,8 @@ into the repo. Findings go in `docs/principle/`, and gaps in `api-gaps.md`. Rank
 
 #### Phase 0 findings (2026-10-10)
 Details are in [`api-gaps.md`](../principle/api-gaps.md). Deposits are 1 September to 9 October
-2026 from the practice's DAY TO DAY account; the scripts are `card_days.py` and `transfers.py`.
+2026 from the practice's DAY TO DAY account. The scripts are in this pull request's history under
+`scripts/spikes/`, last present in the commit before their removal.
 
 | # | Answer so far |
 |---|---|
