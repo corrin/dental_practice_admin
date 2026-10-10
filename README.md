@@ -376,7 +376,8 @@ docs/principle/          what tasks have learned about Principle's website and F
 Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher.
 The service invokes `dental_practice_admin.app:create_app --factory`; install the package with
 `uv sync --locked` in the release directory before starting it. Runtime configuration lives in
-the host's `.env` and the service environment, separately from the development checkout.
+the release directory's `.env`, which the service and the scheduled launcher both read, separately
+from the development checkout.
 
 [`scripts/verify.ps1`](scripts/verify.ps1) is the gate — service identity, data directory outside
 the release, health endpoint naming its configured Principle, scheduled task registered without

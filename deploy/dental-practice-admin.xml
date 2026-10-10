@@ -18,10 +18,9 @@
   <workingdirectory>%BASE%</workingdirectory>
 
   <!-- Development reload is not part of a service: it watches the filesystem and restarts
-       mid-request. -->
-  <env name="PRINCIPLE_ENVIRONMENT" value="production" />
-  <env name="PRINCIPLE_API_BASE_URL_PROD" value="https://api.principle.dental" />
-  <env name="ADMIN_DATA_ROOT" value="C:\ProgramData\DentalPracticeAdmin" />
+       mid-request. Configuration, including PRINCIPLE_ENVIRONMENT and ADMIN_DATA_ROOT, is in the
+       release directory's .env, which the scheduled launcher reads too: one place, so the two
+       can't run against different Principles or databases. -->
 
   <onfailure action="restart" delay="10 sec" />
   <onfailure action="restart" delay="60 sec" />

@@ -43,9 +43,10 @@ At the commit to release, run `scripts\release_gate.ps1`. It must end "Release c
 1. Install uv, Node.js (LTS) and Caddy (`caddy.exe` in `C:\Program Files\Caddy`). Download a
    WinSW 2.x executable.
 2. Python must live where the service account can read it. uv otherwise installs it in the
-   installing user's `%AppData%`, which the service account can't reach. In the PowerShell
-   session used for the next step, set `$env:UV_PYTHON_INSTALL_DIR = 'C:\ProgramData\uv\python'`
-   and grant the service account **Read & execute** on `C:\ProgramData\uv`.
+   installing user's `%AppData%`, which the service account can't reach. Set it once for the
+   machine, then open a new PowerShell:
+   `[Environment]::SetEnvironmentVariable('UV_PYTHON_INSTALL_DIR', 'C:\ProgramData\uv\python', 'Machine')`.
+   Grant the service account **Read & execute** on `C:\ProgramData\uv`.
 
 **Check:** `caddy version`, `node --version` and `uv --version` all answer.
 
@@ -58,11 +59,10 @@ At the commit to release, run `scripts\release_gate.ps1`. It must end "Release c
    `node node_modules/@playwright/mcp/cli.js install-browser chrome-for-testing`. The browser
    installs into that account's profile, which is where the automation looks for it.
 4. Create `.env` in the release directory. Both the service and the launcher read it, from
-   their working directory:
+   their working directory, and nothing else configures them:
 
    ```dotenv
-   # Also in dental-practice-admin.xml, but the launcher reads only this file. Without
-   # these it would run against staging, with a different database.
+   # Without these, both would run against staging, with a different database.
    PRINCIPLE_ENVIRONMENT=production
    ADMIN_DATA_ROOT=C:\ProgramData\DentalPracticeAdmin
 
@@ -169,9 +169,9 @@ from outside, and the restore drill. Record the release in its table.
    `.env` before starting. A missing setting stops the service at startup.
 3. Stop the `dental-practice-admin` service. Rename the release directory to keep it, for
    example `DentalPracticeAdmin-previous`, and copy the new release in its place.
-4. Copy `.env`, `dental-practice-admin.xml` and `dental-practice-admin.exe` across from the
-   kept release. Run `uv sync --locked` and `npm ci`, with `UV_PYTHON_INSTALL_DIR` set as in
-   step 4.
+4. Copy `.env` and `dental-practice-admin.exe` across from the kept release, and
+   `deploy\dental-practice-admin.xml` from the new one, so a changed service definition takes
+   effect. Run `uv sync --locked` and `npm ci`.
 5. Start the service, wait five minutes, run `scripts\verify.ps1`.
 6. **To roll back:** stop the service, swap the directories back, start, and verify.
 
