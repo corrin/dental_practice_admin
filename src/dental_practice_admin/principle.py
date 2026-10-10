@@ -47,7 +47,8 @@ class RecordError(PrincipleError):
     """The response is valid apart from the named records, which break the specification.
 
     `body` is the response as received, so a caller can still report or repair those records.
-    For getPatient it is raised only after the patient's practice scope is confirmed.
+    Unlike other PrincipleErrors it holds patient data: never log it or show it outside the
+    practice. For getPatient it is raised only after the patient's practice scope is confirmed.
     """
 
     body: dict[str, Any]
@@ -206,7 +207,8 @@ class PrincipleClient:
             records = self._bad_records(req, resp)
             if records is None:
                 raise self._incompatible(call, "response_schema") from None
-            # Recorded under its own id, so the next compatible response clears it.
+            # Recorded under its own id, so the next compatible response clears it. The warning
+            # says a record broke recently; which ones is the contact-details cleaner's report.
             self._incompatible(call, "record_schema", "record")
             raise RecordError(call, records, json.loads(response.content)) from None
         if self.settings.environment is Environment.PRODUCTION:
