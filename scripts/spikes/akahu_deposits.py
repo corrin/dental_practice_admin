@@ -18,9 +18,9 @@ from typing import Any
 
 import httpx2 as httpx
 from dotenv import dotenv_values
+from scripts.spikes.common import save, settings
 
 from dental_practice_admin.config import Environment
-from scripts.spikes.common import save, settings
 
 AKAHU = "https://api.akahu.io/v1"
 
@@ -70,13 +70,13 @@ async def main() -> None:
             return
         rows = await transactions(client, args.account, args.start)
         account = (await client.get(f"/accounts/{args.account}")).raise_for_status().json()
-    credits = [r for r in rows if r.get("amount", 0) > 0]
-    print("transactions", len(rows), "credits", len(credits))
+    deposits_in = [r for r in rows if r.get("amount", 0) > 0]
+    print("transactions", len(rows), "deposits", len(deposits_in))
     print("refreshed", account.get("item", {}).get("refreshed"))
-    print("credit fields", collections.Counter(k for r in credits for k in r))
-    print("meta fields", collections.Counter(k for r in credits for k in (r.get("meta") or {})))
-    print("types", collections.Counter(r.get("type") for r in credits))
-    print("saved", save(config, "akahu-deposits", credits))
+    print("deposit fields", collections.Counter(k for r in deposits_in for k in r))
+    print("meta fields", collections.Counter(k for r in deposits_in for k in (r.get("meta") or {})))
+    print("types", collections.Counter(r.get("type") for r in deposits_in))
+    print("saved", save(config, "akahu-deposits", deposits_in))
 
 
 if __name__ == "__main__":
