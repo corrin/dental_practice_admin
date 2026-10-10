@@ -73,6 +73,8 @@ Open Dental. The owner will say where it is. Its rules are a starting point.
 - The regular check is running, and has reported at least once.
 - The day sheet (`admin_scripts` PR #5) runs for 2026-11-16 against production without a
   failure.
+- A synthetic test shows that a patient whose contact detail breaks the specification makes
+  the day sheet partial, with that record named, and does not stop it.
 - The `getPatient / response_schema` interface warning that this record raised is cleared.
 - `docs/principle/` records what was learned, with no patient data.
 - Merged to `main`, following `AGENTS.md`.
