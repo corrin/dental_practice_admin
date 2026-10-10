@@ -54,7 +54,11 @@ Requests to Principle:
    `Appointment`.
 5. **Online booking.** The timeline shows a globe on appointments booked online, the
    equivalent of Open Dental's blue "Created from Web Sched" dot. Firestore has
-   `appointmentRequestRef` on the appointment document. `Appointment` has no such field.
+   `appointmentRequestRef` on the appointment document. `Appointment` has no such field, so
+   the day sheet reads each appointment's document: one Firestore read per appointment. On
+   2026-10-12 the two flagged appointments were the two with a globe. The 2026-11-16
+   appointment Open Dental marks "Created from Web Sched" has no `appointmentRequestRef` in
+   Principle, so at least that migrated booking lost it.
    *Request:* the booking source, or the appointment request ID, on `Appointment`.
 
 # What bank reconciliation found in the payments API
@@ -99,6 +103,15 @@ block an otherwise good read; the client works around the first and third:
    invoices can be read. On 2026-10-10, 19 of the 287 production patients with an unpaid
    invoice or a recent payment failed: 18 on a phone number, 1 on an email address. On staging,
    5 in 60. The reconcile page shows such a patient as unreadable and carries on.
+   - It also stopped the day sheet for every practitioner: 1 of the 15 patients booked on
+     2026-11-16. The day sheet takes that patient's name from the timeline card instead and
+     marks the sheet partial. Remove that fallback, the `getPatient` handler in admin_scripts'
+     `tasks/day_sheet/source.txt`, once Principle fixes this.
+   - The practice's own data is being cleaned: see
+     [the contact details plan](../plans/clean-contact-details.md).
+   - *Request to Principle:* reject contact numbers and email addresses on entry that the
+     specification doesn't allow, in the website and the API, or correct the specification to
+     match what is stored.
 3. **`listTransactionsByDateRange` over a split payment.** `PrincipleClient.rows` treats the
    repeated `id` as a restarted walk. Seen on staging's migrated payments (115 of 1,899 rows);
    none in 890 production rows from 2026-09-01 to 2026-10-09. The client keys these rows by
