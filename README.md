@@ -371,6 +371,8 @@ docs/principle/          what tasks have learned about Principle's website and F
 
 ## Deployment
 
+[`deploy/RELEASE.md`](deploy/RELEASE.md) is the step-by-step release, first time and after.
+
 Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher.
 The service invokes `dental_practice_admin.app:create_app --factory`; install the package with
 `uv sync --locked` in the release directory before starting it. Runtime configuration lives in

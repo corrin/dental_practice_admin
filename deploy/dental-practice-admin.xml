@@ -11,8 +11,9 @@
   <description>Staff pages and run history for the practice, over Principle Dental.</description>
 
   <executable>%BASE%\.venv\Scripts\python.exe</executable>
-  <!-- --proxy-headers is load-bearing: Caddy terminates TLS, and without it every absolute URL
-       this application builds names 127.0.0.1:8080, including the Google OAuth redirect. -->
+  <!-- The proxy-headers option is load-bearing: Caddy terminates TLS, and without it every
+       absolute URL this application builds names 127.0.0.1:8080, including the Google OAuth
+       redirect. A comment may not contain two hyphens in a row, or WinSW can't read this file. -->
   <arguments>-m uvicorn dental_practice_admin.app:create_app --factory --host 127.0.0.1 --port 8080 --proxy-headers --forwarded-allow-ips 127.0.0.1</arguments>
   <workingdirectory>%BASE%</workingdirectory>
 

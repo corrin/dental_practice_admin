@@ -3,7 +3,8 @@
 Automated checks cover what a machine can check. These are the ones a person signs off,
 because they need a reboot, a second account, or a deliberate act of destruction.
 
-Run `scripts\verify.ps1` first; it must pass before any of this is worth doing.
+Release with [RELEASE.md](RELEASE.md), then run `scripts\verify.ps1`; it must pass before any
+of this is worth doing.
 
 ## Before staff use it
 

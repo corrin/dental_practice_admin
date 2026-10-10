@@ -1,0 +1,37 @@
+<!--
+  WinSW service definition for Caddy, the same wrapper as the application's service. Copy
+  alongside caddy.exe and a WinSW release renamed caddy-service.exe, then
+  `caddy-service.exe install`. Caddy's own documentation offers this or sc.exe; one wrapper for
+  both services means one way to start, stop and read logs.
+
+  Windows services cannot be reloaded: after changing the Caddyfile, run caddy reload with the
+  same config and adapter options as the arguments below.
+-->
+<service>
+  <id>caddy</id>
+  <name>Caddy</name>
+  <description>HTTPS for admin.massey-smiles.co.nz and office.massey-smiles.co.nz.</description>
+
+  <executable>%BASE%\caddy.exe</executable>
+  <arguments>run --config C:\ProgramData\Caddy\Caddyfile --adapter caddyfile</arguments>
+
+  <!-- Certificates and account keys go here rather than the service account's %AppData%, so
+       backups of C:\ProgramData find them. -->
+  <env name="XDG_DATA_HOME" value="C:\ProgramData\Caddy\data" />
+  <env name="XDG_CONFIG_HOME" value="C:\ProgramData\Caddy\config" />
+
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <onfailure action="none" />
+  <resetfailure>1 hour</resetfailure>
+
+  <startmode>Automatic</startmode>
+
+  <log mode="roll-by-size-time">
+    <sizeThreshold>10240</sizeThreshold>
+    <pattern>yyyyMMdd</pattern>
+    <autoRollAtTime>00:00:00</autoRollAtTime>
+    <keepFiles>30</keepFiles>
+  </log>
+  <logpath>C:\ProgramData\Caddy\logs</logpath>
+</service>
