@@ -9,6 +9,7 @@ import sys
 import uuid
 from collections.abc import Awaitable, Callable
 from importlib.metadata import version
+from pathlib import Path
 from typing import Any, Literal
 
 import httpx2 as httpx
@@ -43,6 +44,9 @@ class Result(BaseModel):
     summary: str
     detail: dict[str, Any]
     coverage: Coverage
+    # A self-contained HTML page for printing, built from `detail`. Served at
+    # /runs/{id}/print with no scripts allowed.
+    printable: str | None = None
 
 
 def save_draft(settings: Settings, script: Script) -> str:
@@ -137,6 +141,11 @@ def execution_lock(settings: Settings, script: Script) -> portalocker.Lock:
     return portalocker.Lock(str(folder / (name + ".lock")), timeout=0)
 
 
+def printable_path(settings: Settings, run_id: str) -> Path:
+    """Where a run's printable page is kept, beside its audit."""
+    return settings.data_dir / "printables" / f"{run_id}.html"
+
+
 async def recorded(settings: Settings, script: Script, task: str,
                    operation: Callable[[str], Awaitable[Result]], run_id: str | None = None) -> str:
     """File evidence precedes execution; SQLite indexes the same run for staff pages."""
@@ -149,7 +158,11 @@ async def recorded(settings: Settings, script: Script, task: str,
                     application=version("dental-practice-admin"), environment=settings.environment)
         with recording(audit):
             result = await operation(run_id)
-        audit.write("finished", result=result.model_dump())
+        audit.write("finished", result=result.model_dump(exclude={"printable"}))
+        if result.printable is not None:
+            page = printable_path(settings, run_id)
+            page.parent.mkdir(parents=True, exist_ok=True)
+            page.write_text(result.printable, encoding="utf-8")
         storage.finish_run(run_id, Outcome.SUCCEEDED, result.coverage, result.summary,
                            {**result.detail, "inputs": script.inputs, "revision": script.revision})
         return run_id

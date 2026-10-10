@@ -24,7 +24,7 @@ from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import Environment, Settings, SignIn, current_settings
-from dental_practice_admin.scripts import load_draft
+from dental_practice_admin.scripts import load_draft, printable_path
 from dental_practice_admin.storage import Storage, TaskRun
 from dental_practice_admin.task_ui import router as task_router
 
@@ -209,7 +209,29 @@ def run_detail(
     if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
         raise HTTPException(status_code=404, detail=f"no run {run_id}")
     return render(request, "run.html", staff, configured, store, run=run,
-                  has_audit=(configured.data_dir / "audits" / f"{run_id}.jsonl").is_file())
+                  has_audit=(configured.data_dir / "audits" / f"{run_id}.jsonl").is_file(),
+                  has_printable=printable_path(configured, run_id).is_file())
+
+
+# The printable page is the task's own HTML, so it runs nothing: inline styles and inline
+# images only, never a script, a fetch or a frame.
+PRINT_POLICY = ("default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
+                "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+
+
+@router.get("/runs/{run_id}/print", response_class=HTMLResponse)
+def run_print(run_id: str, staff: CurrentStaff,
+              configured: Annotated[Settings, Depends(settings)],
+              store: Annotated[Storage, Depends(storage)]) -> HTMLResponse:
+    """A run's printable page, under the same staff ownership boundary as its result."""
+    run = store.run(run_id)
+    path = printable_path(configured, run_id)
+    if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
+        raise HTTPException(404)
+    if not path.is_file():
+        raise HTTPException(404)
+    return HTMLResponse(path.read_text(encoding="utf-8"), headers={
+        "Content-Security-Policy": PRINT_POLICY, "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/runs/{run_id}/audit")

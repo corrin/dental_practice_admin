@@ -7,9 +7,8 @@ Loads and runs the task's `source.txt` with the application's own loader and `Se
 against the fake Principle by default. Shared modules come from the practice repository's
 `shared/` beside the task, where installation copies them from. The fake is one in-process
 store seeded for 2026-09-28, the day the day sheet's scenarios sit on. Prints the summary and
-coverage and saves the result. When the
-task defines `printable(detail, printed)`, it also prints the page to an A4 PDF and opens it,
-the same check a person does at the surgery printer.
+coverage and saves the result. When the result carries a printable page, the one the run page
+links to, it also prints it to an A4 PDF and opens it, the check a person does at the printer.
 
 Staging and production are real Principles: staging holds a migrated copy of the practice's
 patients. A task may write, so either needs `--real` as well.
@@ -25,7 +24,6 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from pydantic import SecretStr
 
@@ -64,15 +62,14 @@ def services(environment: Environment) -> Services:
     return Services(settings)
 
 
-async def run(task: Path, inputs: dict[str, str],
-              environment: Environment) -> tuple[Result, Any]:
-    """The task's result, and its `printable` function when it has one."""
+async def run(task: Path, inputs: dict[str, str], environment: Environment) -> Result:
+    """The task's result, held to the application's result contract."""
     sys.path.insert(0, str(task.resolve().parents[1] / "shared"))
     source = task / "source.txt"
     namespace = load_source(source.read_text(encoding="utf-8"), str(source))
     integrations = services(environment)
     try:
-        return await run_loaded(namespace, integrations, inputs), namespace.get("printable")
+        return await run_loaded(namespace, integrations, inputs)
     finally:
         await integrations.aclose()
 
@@ -103,7 +100,7 @@ def main() -> None:
     if malformed:
         raise SystemExit(f"inputs are NAME=VALUE: {', '.join(malformed)}")
     inputs = dict(item.split("=", 1) for item in args.inputs)
-    result, printable = asyncio.run(run(args.task, inputs, args.environment))
+    result = asyncio.run(run(args.task, inputs, args.environment))
 
     print(f"{result.coverage.value}: {result.summary}")
     # Real runs carry patient data, so their output stays in the environment's data directory.
@@ -111,13 +108,13 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     saved = out / f"{args.task.name}-{stamp}.json"
-    saved.write_text(json.dumps(result.model_dump(mode="json"), indent=1, ensure_ascii=False),
-                     encoding="utf-8")
+    saved.write_text(json.dumps(result.model_dump(mode="json", exclude={"printable"}),
+                                indent=1, ensure_ascii=False), encoding="utf-8")
     print(f"result: {saved}")
-    if printable is None:
+    if result.printable is None:
         return
     pdf = saved.with_suffix(".pdf")
-    pages = print_pdf(printable(result.detail, datetime.now().strftime("%H:%M")), pdf)
+    pages = print_pdf(result.printable, pdf)
     print(f"printed: {pdf} ({pages} pages)")
     if not args.no_open and hasattr(os, "startfile"):
         os.startfile(pdf)
