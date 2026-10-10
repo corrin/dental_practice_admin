@@ -13,6 +13,7 @@ from dental_practice_admin.app import create_app
 from dental_practice_admin.auth import FAKE_STAFF
 from dental_practice_admin.config import SignIn
 from dental_practice_admin.storage import Storage
+from tests.fake_akahu import FAKE_AKAHU_SETTINGS
 from tests.test_automation import settings
 
 SOURCE = '''from pathlib import Path
@@ -89,7 +90,8 @@ def test_preparation_rejects_broken_tests_and_foreign_evidence(tmp_path: Path) -
 
 def test_staff_flow_and_server_schedule_guard(tmp_path: Path) -> None:
     configured = settings(tmp_path).model_copy(update={"sign_in": SignIn.DEVELOPER,
-                                                     "openai_api_key": SecretStr("fake-ai")})
+                                                     "openai_api_key": SecretStr("fake-ai"),
+                                                     **FAKE_AKAHU_SETTINGS})
     script = scripts.Script(source=SOURCE, language="python", inputs={},
                             owner=FAKE_STAFF, thread="private-thread")
     identifier = saved_scripts.prepare(configured, script, DEFINITION, TESTS)

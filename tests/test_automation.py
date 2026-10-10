@@ -14,6 +14,7 @@ from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.scripts import Script, execute, load_draft, run, save_draft
 from dental_practice_admin.storage import Coverage, Outcome, Storage
+from tests.fake_akahu import FAKE_AKAHU_SETTINGS
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows process ownership")
@@ -62,6 +63,7 @@ def test_draft_source_and_results_are_private_on_staff_pages(tmp_path: Path) -> 
     configured = settings(tmp_path).model_copy(update={
         "sign_in": SignIn.DEVELOPER,
         "openai_api_key": SecretStr("fake-ai"),
+        **FAKE_AKAHU_SETTINGS,
     })
     own = save_draft(configured, draft().model_copy(update={"owner": FAKE_STAFF}))
     foreign = save_draft(configured, draft())

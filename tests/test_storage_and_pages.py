@@ -13,6 +13,7 @@ from pydantic import SecretStr
 from dental_practice_admin.app import create_app
 from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.storage import Coverage, Outcome, Storage
+from tests.fake_akahu import FAKE_AKAHU_SETTINGS
 
 
 @pytest.fixture
@@ -109,6 +110,7 @@ def pages(tmp_path: Path) -> Iterator[Pages]:
         data_root=tmp_path,
         sign_in=SignIn.DEVELOPER,
         openai_api_key=SecretStr("fake-ai-key"),
+        **FAKE_AKAHU_SETTINGS,
     )
     app = create_app(configured)
     seeding = Storage(configured.database_path)

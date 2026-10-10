@@ -16,6 +16,7 @@ from dental_practice_admin.config import (
     SignIn,
 )
 from tests.fake.store import FAKE_API_KEY
+from tests.fake_akahu import FAKE_AKAHU_ENV
 
 
 @pytest.fixture
@@ -42,6 +43,7 @@ def credentials(monkeypatch: pytest.MonkeyPatch) -> None:
         "ADMIN_GOOGLE_CLIENT_SECRET": "fake-google-secret",
         "ADMIN_STAFF_EMAILS": "staff@fake.invalid",
         "ADMIN_CHATKIT_DOMAIN_KEY": "fake-registered-domain",
+        **FAKE_AKAHU_ENV,
     }.items():
         monkeypatch.setenv(key, value)
 
