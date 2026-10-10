@@ -7,7 +7,7 @@
 #          +---------------------+--------------------------+
 #          |                                                |
 #   admin.massey-smiles.co.nz                 office.massey-smiles.co.nz
-#   -> 127.0.0.1:8080  (this machine)         -> reception:5170  (over the LAN)
+#   -> 127.0.0.1:8080  (this machine)         -> 503 while SMS_Bridge is dormant
 #      dental_practice_admin                           SMS_Bridge, /smsgateway/*
 #
 # Both names are A records pointing at the SAME public IP. Caddy tells them apart by the Host
@@ -107,7 +107,7 @@ office.massey-smiles.co.nz {
 	}
 
 	# The SMS bridge is dormant, waiting on Principle's API. While its debug routes are on they
-	# return patient identifiers to anyone, so nothing reaches it until "Before reactivating SMS"
-	# in ACCEPTANCE.md is done; that checklist replaces this line with the bridge's upstream.
+	# return patient identifiers to anyone, so nothing reaches it until "Reactivating SMS" in
+	# RELEASE.md is done; that section replaces this line with the bridge's upstream.
 	respond "SMS gateway inactive" 503
 }
