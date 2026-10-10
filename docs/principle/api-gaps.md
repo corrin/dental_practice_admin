@@ -86,7 +86,8 @@ history under `scripts/spikes/`.
 ## Client refusals
 
 `PrincipleClient` validates every response against the published specification, which is
-stricter than the data in two places. Each refusal blocks an otherwise good read:
+stricter than the data in two places, and pages in a way it did not expect in one. Each would
+block an otherwise good read; the client works around the first and third:
 
 1. **Every invoice with allocations.** `AllocationTarget` puts a `discriminator` on inline
    `oneOf` branches with no mapping, so openapi-core looks for component schemas named
