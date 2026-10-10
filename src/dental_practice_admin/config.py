@@ -360,8 +360,8 @@ class Settings(BaseSettings):
         if self.environment is Environment.FAKE:
             return
         suffix = environment_suffix(self.environment)
-        missing = [f"PRINCIPLE_{name.upper()}_{suffix}" for name in ENVIRONMENT_FIELDS[3:]
-                   if not getattr(self, name)]
+        missing = [f"{Settings.model_fields[name].validation_alias}_{suffix}"
+                   for name in ENVIRONMENT_FIELDS[3:] if not getattr(self, name)]
         if missing:
             raise ConfigurationError(f"Automation needs {', '.join(missing)}")
         staging = self.environment is Environment.STAGING

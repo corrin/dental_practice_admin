@@ -75,6 +75,15 @@ def test_no_setting_has_a_value_written_in_the_code() -> None:
         assert value == "", f"{name} defaults to {value!r}"
 
 
+def test_missing_automation_settings_are_named_as_dotenv_names_them() -> None:
+    settings = _settings(environment=Environment.STAGING, api_base_url=STAGING_API_URL,
+                         ui_email="fake@fake.invalid", ui_password=SecretStr("fake-password"),
+                         firebase_key="fake-key", firebase_project="principle-staging",
+                         firestore_root="organisations/fake/brands/fake", workspace_slug="fake")
+    with pytest.raises(ConfigurationError, match="PRINCIPLE_WORKSPACE_STAGING$"):
+        settings.require_automation_configured()
+
+
 def test_a_principle_address_must_be_set() -> None:
     with pytest.raises(ConfigurationError, match="PRINCIPLE_API_BASE_URL_STAGING"):
         _settings(environment=Environment.STAGING, api_base_url="")
