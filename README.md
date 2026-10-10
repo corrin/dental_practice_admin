@@ -128,8 +128,9 @@ credentials are not used.
 the real model), `OPENAI_API_KEY`, and `ADMIN_AGENT_MODEL` configure AI. Use only the
 `OPENAI_*` spellings for its key and endpoint. `ADMIN_PUBLIC_BASE_URL` is the access address;
 set it empty to take the address from each request. The fake preset sets the fake bank, the
-fake AI and `http://localhost:8080` itself; the fake Principle's address, key and practice ID
-are the `_FAKE` settings in `.env`. Presets are shortcuts,
+fake AI and `http://localhost:8080` itself, and choosing the fake Principle on the command line
+points at the fake server the launcher starts. The `_FAKE` settings in `.env` apply when `.env`
+itself selects the fake. Presets are shortcuts,
 not restrictions on mixing providers. Developer identity is prominently announced and has no
 sign-out button because it does not establish a Google session.
 
@@ -255,7 +256,7 @@ output and cross-process lock live under the environment's data directory. Only 
 browser workflow runs at a time; API and Firestore work can continue. Firebase reads
 refresh their tokens and sign in once if a refresh is rejected. Invalid credentials
 fail explicitly. No Firestore writes are exposed. `ADMIN_PLAYWRIGHT_MCP_PATH` locates the
-locked Node package, normally `node_modules/@playwright/mcp/cli.js`.
+locked Node package's command-line entry point under `node_modules`.
 
 ### Production incompatibility warning
 
@@ -345,7 +346,10 @@ docs/principle/          what tasks have learned about Principle's website and F
 Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher.
 The service invokes `dental_practice_admin.app:create_app --factory`; install the package with
 `uv sync --locked` in the release directory before starting it. Runtime configuration lives in
-the host's `.env` and the service environment, separately from the development checkout.
+the host's `.env` and the service environment, separately from the development checkout. Before
+stopping the running service, run `.venv\Scripts\python.exe -m dental_practice_admin.config` in
+the new release directory: it names any setting the release needs that the host lacks, so the
+old release keeps serving until the host is ready.
 
 [`scripts/verify.ps1`](scripts/verify.ps1) is the gate — service identity, data directory outside
 the release, health endpoint naming its configured Principle, scheduled task registered without

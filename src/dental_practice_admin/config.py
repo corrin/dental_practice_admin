@@ -389,3 +389,9 @@ def current_settings(request: Request) -> Settings:
     """The configuration captured when this application starts; restart to change it."""
     configured: Settings = request.app.state.settings
     return configured
+
+
+if __name__ == "__main__":
+    # python -m dental_practice_admin.config, from a release directory: refuse, naming the
+    # setting, if this host's .env lacks one the release needs.
+    Settings().require_web_configured()
