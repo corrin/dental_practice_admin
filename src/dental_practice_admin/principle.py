@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 from collections.abc import AsyncIterator, Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -40,6 +41,20 @@ class PrincipleError(Exception):
     def __init__(self, status: int, method: str, url: str, body: object) -> None:
         super().__init__(f"{method} {url}: status {status}")
         self.status, self.body = status, body
+
+
+class RecordError(PrincipleError):
+    """The response is valid apart from the named records, which break the specification.
+
+    `body` is the response as received, so a caller can still report or repair those records.
+    For getPatient it is raised only after the patient's practice scope is confirmed.
+    """
+
+    body: dict[str, Any]
+
+    def __init__(self, call: Call, records: list[str], body: dict[str, Any]) -> None:
+        super().__init__(502, call.method, call.path, body)
+        self.records = records
 
 
 @dataclass(frozen=True)
@@ -124,14 +139,47 @@ class PrincipleClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    def _incompatible(self, call: Call, reason: str) -> PrincipleError:
+    def _incompatible(self, call: Call, reason: str,
+                      interface_id: str = INTERFACE_ID) -> PrincipleError:
         if self.settings.environment is Environment.PRODUCTION:
             store = Storage(self.settings.database_path)
             try:
-                store.interface_warning(call.name, INTERFACE_ID, reason)
+                store.interface_warning(call.name, interface_id, reason)
             finally:
                 store.close()
         return PrincipleError(502, call.method, call.path, reason)
+
+    @staticmethod
+    def _bad_records(req: SimpleNamespace, resp: SimpleNamespace) -> list[str] | None:
+        """Ids of the records that break the specification, if nothing else in `resp` does.
+
+        A body is one record (getPatient) or an envelope whose `data` lists records
+        (searchPatients). Each record is checked alone, by the same validator, in an otherwise
+        unchanged response.
+        """
+        def valid(body: Any) -> bool:
+            try:
+                VALIDATOR.validate_response(
+                    req, SimpleNamespace(**{**vars(resp), "data": json.dumps(body).encode()}))
+            except Exception:
+                return False
+            return True
+
+        try:
+            body = json.loads(resp.data)
+        except ValueError:
+            return None
+        if not isinstance(body, dict):
+            return None
+        rows = body.get("data")
+        if not isinstance(rows, list):
+            return [body["id"]] if isinstance(body.get("id"), str) else None
+        bad = [row for row in rows if not valid({**body, "data": [row]})]
+        if not all(isinstance(row, dict) and isinstance(row.get("id"), str) for row in bad):
+            return None
+        if not valid({**body, "data": [row for row in rows if row not in bad]}):
+            return None
+        return [row["id"] for row in bad]
 
     async def _response(self, response: httpx.Response) -> None:
         await response.aread()
@@ -155,7 +203,12 @@ class PrincipleClient:
         try:
             VALIDATOR.validate_response(req, resp)
         except Exception:
-            raise self._incompatible(call, "response_schema") from None
+            records = self._bad_records(req, resp)
+            if records is None:
+                raise self._incompatible(call, "response_schema") from None
+            # Recorded under its own id, so the next compatible response clears it.
+            self._incompatible(call, "record_schema", "record")
+            raise RecordError(call, records, json.loads(response.content)) from None
         if self.settings.environment is Environment.PRODUCTION:
             store = Storage(self.settings.database_path)
             try:
@@ -191,12 +244,16 @@ class PrincipleClient:
             raise CallError(f"{name} requires arguments matching its schema")
         patient_id = values.get("patientId")
         if patient_id and name != "getPatient":
-            await self.call("getPatient", {"patientId": patient_id})
+            # In scope even if its record breaks the specification, which may be what is fixed.
+            with suppress(RecordError):
+                await self.call("getPatient", {"patientId": patient_id})
         try:
             result = await self.server.call_tool(name, values)
         except Exception as error:
             cause: BaseException | None = error
             while cause is not None:
+                if isinstance(cause, RecordError) and name == "getPatient":
+                    await self._in_practice(values["patientId"], cause.body.get("name"))
                 if isinstance(cause, (PrincipleError, httpx.HTTPError)):
                     raise cause from None
                 cause = cause.__cause__ or cause.__context__
@@ -205,10 +262,19 @@ class PrincipleClient:
         if not isinstance(output, dict):
             raise self._incompatible(call, "missing_data")
         if name == "getPatient":
-            scoped = await self.call("searchPatients", {"name": output["name"]})
-            if not any(row["id"] == patient_id for row in scoped["data"]):
-                raise CallError("Patient is outside this practice or search is inconclusive")
+            await self._in_practice(values["patientId"], output["name"])
         return output
+
+    async def _in_practice(self, patient_id: str, name: object) -> None:
+        """Refuse a patient the practice-scoped search by their name does not return."""
+        if not isinstance(name, str):
+            raise CallError("Patient is outside this practice or search is inconclusive")
+        try:
+            rows = (await self.call("searchPatients", {"name": name}))["data"]
+        except RecordError as error:
+            rows = error.body["data"]
+        if not any(row["id"] == patient_id for row in rows):
+            raise CallError("Patient is outside this practice or search is inconclusive")
 
     async def get(self, name: str, *, path_params: Mapping[str, Any] | None = None,
                   query: Mapping[str, Any] | None = None) -> dict[str, Any]:
