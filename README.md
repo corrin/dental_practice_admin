@@ -140,7 +140,8 @@ credentials are not used.
 `ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL` (`https://api.openai.com/v1` for
 the real model), `OPENAI_API_KEY`, and `ADMIN_AGENT_MODEL` configure AI. Use only the
 `OPENAI_*` spellings for its key and endpoint. `ADMIN_PUBLIC_BASE_URL` is the access address;
-set it empty to take the address from each request. The fake preset sets the fake bank, the
+set it empty, in `.env`, to take the address from each request (Windows drops an environment
+variable set to empty). The fake preset sets the fake bank, the
 fake AI and `http://localhost:8080` itself. The fake Principle is whatever the `_FAKE` settings
 in `.env` name, and the launcher serves it on the port `PRINCIPLE_API_BASE_URL_FAKE` gives. Presets are shortcuts,
 not restrictions on mixing providers. Developer identity is prominently announced and has no
@@ -380,9 +381,9 @@ docs/principle/          what tasks have learned about Principle's website and F
 Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher.
 The service invokes `dental_practice_admin.app:create_app --factory`; install the package with
 `uv sync --locked` in the release directory before starting it. Runtime configuration lives in
-the host's `.env` and the service environment, separately from the development checkout. Before
-stopping the running service, run `scripts\check_settings.ps1 -ReleaseRoot <new release>`: it
-names any setting the release needs that the host lacks, so the old release keeps serving
+the host's `.env` and the service environment, separately from the development checkout. Check
+the host's settings before switching releases, as
+[`deploy/ACCEPTANCE.md`](deploy/ACCEPTANCE.md) describes, so the old release keeps serving
 until the host is ready.
 
 [`scripts/verify.ps1`](scripts/verify.ps1) is the gate — service identity, data directory outside
