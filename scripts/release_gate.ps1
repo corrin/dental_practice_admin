@@ -11,6 +11,10 @@ Set-Location (Split-Path $PSScriptRoot -Parent)
 function Stage {
     param([string]$Name, [scriptblock]$Run)
     Write-Host "Checking $Name"
+    # A stage passes or fails on its exit code. Under Windows PowerShell 5.1, a tool's notice on
+    # stderr (uv's "Using CPython", npm's warnings) becomes an error record when output is
+    # redirected, and Stop would fail a stage that passed.
+    $ErrorActionPreference = 'Continue'
     try {
         & $Run
         if ($LASTEXITCODE -ne 0) { throw "exit code $LASTEXITCODE" }

@@ -34,13 +34,10 @@ The commands below use `massey-admin` for the service account; substitute your c
 
 ### 2. Prepare the release on the development machine
 
-At the commit to release, run `scripts\release_gate.ps1` in a console. It must end "Release
-checks passed".
-- Run it in the development checkout, at the commit. Its staging tier compares the fake with
-  recordings of staging in `tests\recordings`, which are kept only there and never committed;
-  a fresh clone fails that tier for want of them.
-- Don't redirect its output. Under Windows PowerShell 5.1 that turns tools' notices on stderr
-  (uv's "Using CPython", npm's warnings) into errors, and the gate fails stages that passed.
+At the commit to release, run `scripts\release_gate.ps1`. It must end "Release checks passed".
+Its staging tier compares the fake with recordings of staging, which
+`scripts/record_principle_wire.py` keeps in `tests\recordings` outside version control, so run it
+where those recordings are.
 
 ### 3. Accounts and folders on the server
 
