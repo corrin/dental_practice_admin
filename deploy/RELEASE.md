@@ -9,7 +9,7 @@ The server runs two Windows services and one scheduled task:
 | What | Where | Runs as |
 | --- | --- | --- |
 | `dental-practice-admin` service: uvicorn on `127.0.0.1:8080`, [dental-practice-admin.xml](dental-practice-admin.xml) | `C:\Program Files\DentalPracticeAdmin` (the release) | the service account |
-| `caddy` service: HTTPS for both public names, [caddy-service.xml](caddy-service.xml), [Caddyfile](Caddyfile) | `C:\Program Files\Caddy` | Local Service |
+| `caddy` service: HTTPS for both public names, [caddy-service.xml](caddy-service.xml), [Caddyfile](Caddyfile) | `C:\Program Files\Caddy` | its own virtual account, `NT SERVICE\caddy` |
 | `\Massey Smiles Admin\Task runner`: the five-minute launcher, [task-runner.xml](task-runner.xml) | Task Scheduler | the service account |
 
 Runtime data lives in `C:\ProgramData\DentalPracticeAdmin` and `C:\ProgramData\Caddy`, never in
@@ -45,7 +45,6 @@ At the commit to release, run `scripts\release_gate.ps1`. It must end "Release c
    ```powershell
    New-Item -ItemType Directory C:\ProgramData\DentalPracticeAdmin, C:\ProgramData\Caddy\logs, C:\ProgramData\uv
    icacls C:\ProgramData\DentalPracticeAdmin /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'massey-admin:(OI)(CI)M'
-   icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'LOCAL SERVICE:(OI)(CI)M'
    icacls C:\ProgramData\uv /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'massey-admin:(OI)(CI)RX'
    ```
 
@@ -147,8 +146,14 @@ after the switch, not before: a failed attempt backs off, and SMS would wait on 
    `RECEPTION_HOST` with reception's reserved LAN address. Check it with
    `& 'C:\Program Files\Caddy\caddy.exe' validate --config C:\ProgramData\Caddy\Caddyfile --adapter caddyfile`.
 2. Copy [caddy-service.xml](caddy-service.xml) to `C:\Program Files\Caddy`, with the WinSW
-   executable beside it renamed `caddy-service.exe`. Run `caddy-service.exe install`, then in
-   `services.msc` set its **Log On** to **Local Service**. Don't start it yet.
+   executable beside it renamed `caddy-service.exe`, and run `caddy-service.exe install`. Run it
+   as the service's own virtual account, which exists once the service does and which only
+   Caddy uses, and give that account alone its data. Don't start it yet.
+
+   ```powershell
+   sc.exe config caddy obj= "NT SERVICE\caddy"
+   icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'NT SERVICE\caddy:(OI)(CI)M'
+   ```
 3. Server firewall: allow inbound TCP 80 and 443. Reception's firewall: allow inbound TCP 5170
    from the server's address only (SMS_Bridge's PRODUCTION.md: keep 5170 off the internet).
 4. DNS: an A record `admin.massey-smiles.co.nz` for the practice's public address, the same
@@ -214,10 +219,7 @@ from outside, and the restore drill. Record the release in its table.
 8. **To roll back:** do steps 3 and 4 with the directories swapped back, start, enable, verify.
 
 Caddy is untouched by a release. Installed practice tasks and their schedules live in the data
-directory and survive it.
-
-Caddy's administration endpoint is off (see the Caddyfile), so a changed Caddyfile takes effect
-by restarting the `caddy` service, which drops connections for a few seconds.
+directory and survive it. The Caddyfile says how a change to it takes effect.
 
 ## Back up
 

@@ -4,9 +4,8 @@
   `caddy-service.exe install`. Caddy's own documentation offers this or sc.exe; one wrapper for
   both services means one way to start, stop and read logs.
 
-  Caddy's administration endpoint is off (see the Caddyfile), so a changed Caddyfile takes
-  effect by restarting this service. Set its Log On to Local Service: it needs only its data
-  under C:\ProgramData\Caddy, and it faces the internet.
+  It runs as its own virtual account, NT SERVICE\caddy: see deploy/RELEASE.md, step 8. The
+  Caddyfile says how a change to it takes effect.
 -->
 <service>
   <id>caddy</id>
