@@ -5,6 +5,57 @@ because they need a reboot, a second account, or a deliberate act of destruction
 
 Run `scripts\verify.ps1` first; it must pass before any of this is worth doing.
 
+## Cutover: the server becomes the front door
+
+Before cutover the router sends 80/443 to reception, whose Caddy (service `caddy`,
+`C:\Program Files\Caddy\Caddyfile`, running as LocalSystem) fronts `office.massey-smiles.co.nz`.
+Afterwards the server's Caddy runs [`Caddyfile`](Caddyfile) and fronts both names. Each step
+names the check that proves it.
+
+- [ ] **DNS.** Add an A record `admin.massey-smiles.co.nz`, with the same address as `office`.
+      Check: `Resolve-DnsName admin.massey-smiles.co.nz` returns that address.
+- [ ] **The application on the server.** Install the release, the WinSW service and the task
+      runner as the README describes. Check: `scripts\verify.ps1` passes.
+- [ ] **Caddy on the server.** Install stock Caddy as a service running this repository's
+      `Caddyfile`, and allow inbound 80 and 443 in Windows Firewall. Check:
+      `caddy validate --config <path> --adapter caddyfile`.
+- [ ] **Router.** Forward 80 and 443 to the server instead of reception. Check: from outside the
+      practice, `https://admin.massey-smiles.co.nz` presents a valid certificate and Google
+      sign-in completes.
+- [ ] **Retire reception's Caddy.** On reception: `sc.exe stop caddy`, then
+      `sc.exe config caddy start= disabled`. Leave its Caddyfile and certificates in place for
+      rollback. In PowerShell, type `sc.exe`, not `sc`, which means `Set-Content`. Check:
+      `sc.exe qc caddy` shows `DISABLED` and `sc.exe query caddy` shows `STOPPED`.
+- [ ] **The day sheet.** Install `day_sheet` through `/tasks/manage`, run it for today and print
+      it on a surgery printer.
+
+**Rollback.** Forward 80 and 443 back to reception, then on reception
+`sc.exe config caddy start= auto` and `sc.exe start caddy`.
+
+## Before reactivating SMS
+
+The SMS bridge is dormant, waiting on Principle's API. Reactivating it is a separate change:
+
+- [ ] Deploy SMS_Bridge's API-key fix, which requires the key on every `/smsgateway` route
+      (corrin/SMS_Bridge#3).
+- [ ] Turn debug mode off in `C:\ProgramData\SMS_Bridge\install-settings.json`. While it is on,
+      `/smsgateway/test/test-patient-lookup` returns patient identifiers to anyone, and
+      `/smsgateway/test/check-send-sms` sends a real SMS. Never probe that one to test.
+- [ ] Decide where the bridge runs, and finish that location's arrangement:
+  - **Reception.** Give it a DHCP reservation for 192.168.192.125. Allow 5170 from the server's
+    address only, and disable any program-level allow rule for the bridge, which would otherwise
+    open 5170 to the whole LAN. In `Caddyfile`, replace the `office` site's `respond` line
+    with `reverse_proxy 192.168.192.125:5170`, carrying the same
+    `header_up X-Real-IP {remote_host}` as the `admin` site.
+  - **The server.** Call Centre is a desktop program the SDK drives, so the server needs a
+    signed-in session at boot: automatic sign-in to a dedicated account, Call Centre started at
+    logon, and the phone paired from there. Bind the bridge to `http://127.0.0.1:5170` (a
+    change in SMS_Bridge's `Program.cs`), and in `Caddyfile` replace the `office` site's
+    `respond` line with `reverse_proxy 127.0.0.1:5170`, carrying the same
+    `header_up X-Real-IP {remote_host}` as the `admin` site.
+- [ ] Add an alarm for the bridge's phone status. Texts that stop going out fail silently
+      wherever the bridge runs.
+
 ## Before staff use it
 
 - [ ] **Reboot.** Restart the host. Without logging in, confirm the service came back
