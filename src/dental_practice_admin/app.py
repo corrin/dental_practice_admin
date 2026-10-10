@@ -81,9 +81,13 @@ def create_app(configured: Settings | None = None) -> FastAPI:
         logging.getLogger(__name__).warning(
             "GOOGLE LOGIN DISABLED: anyone reaching this application has developer access"
         )
+    # Imported here because the reconcile pages build on this module's render and storage.
+    from dental_practice_admin.reconcile import router as reconcile_router
+
     app.include_router(auth_router)
     app.include_router(router)
     app.include_router(task_router)
+    app.include_router(reconcile_router)
     return app
 
 

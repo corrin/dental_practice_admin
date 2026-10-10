@@ -56,8 +56,33 @@ CREATE TABLE patients (
     id          TEXT PRIMARY KEY,
     practice_id TEXT NOT NULL REFERENCES practices(id),
     name        TEXT NOT NULL,
+    phone       TEXT,
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL
+);
+CREATE TABLE invoices (
+    id          TEXT PRIMARY KEY,
+    practice_id TEXT NOT NULL REFERENCES practices(id),
+    patient_id  TEXT NOT NULL REFERENCES patients(id),
+    reference   TEXT NOT NULL,
+    status      TEXT NOT NULL,
+    total       REAL NOT NULL,
+    paid        REAL NOT NULL,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+-- One row per invoice a payment pays, sharing the payment's id, as Principle lists them.
+CREATE TABLE transactions (
+    id          TEXT NOT NULL,
+    invoice_id  TEXT NOT NULL REFERENCES invoices(id),
+    practice_id TEXT NOT NULL REFERENCES practices(id),
+    patient_id  TEXT NOT NULL REFERENCES patients(id),
+    amount      REAL NOT NULL,
+    method      TEXT,
+    status      TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (id, invoice_id)
 );
 
 CREATE TABLE appointments (
@@ -215,11 +240,69 @@ class FakeStore:
             {"id": ident, "practice_id": practice_id, "name": name, "at": canonical(at)},
         )
 
-    def add_patient(self, ident: str, practice_id: str, name: str, at: str) -> None:
+    def add_patient(self, ident: str, practice_id: str, name: str, at: str,
+                    phone: str | None = None) -> None:
         self.db.execute(
-            "INSERT INTO patients VALUES (:id, :practice_id, :name, :at, :at)",
-            {"id": ident, "practice_id": practice_id, "name": name, "at": canonical(at)},
+            "INSERT INTO patients VALUES (:id, :practice_id, :name, :phone, :at, :at)",
+            {"id": ident, "practice_id": practice_id, "name": name, "phone": phone,
+             "at": canonical(at)},
         )
+
+    def add_invoice(self, ident: str, patient_id: str, total: float, paid: float,
+                    at: str) -> None:
+        self.db.execute(
+            "INSERT INTO invoices VALUES (:id, :practice, :patient, :reference, :status,"
+            " :total, :paid, :at, :at)",
+            {"id": ident, "practice": FAKE_PRACTICE_ID, "patient": patient_id,
+             "reference": f"INV-{ident}", "status": "paid" if paid >= total else "issued",
+             "total": total, "paid": paid, "at": canonical(at)})
+
+    def add_payment(self, ident: str, invoice_id: str, amount: float, method: str | None,
+                    at: str) -> None:
+        """A complete payment on one invoice; `method` is the practice's transaction type."""
+        patient = self.db.execute("SELECT patient_id FROM invoices WHERE id = ?",
+                                  (invoice_id,)).fetchone()["patient_id"]
+        self.db.execute(
+            "INSERT INTO transactions VALUES (:id, :invoice, :practice, :patient, :amount,"
+            " :method, 'complete', :at, :at)",
+            {"id": ident, "invoice": invoice_id, "practice": FAKE_PRACTICE_ID,
+             "patient": patient, "amount": amount, "method": method, "at": canonical(at)})
+
+    # -- patients, invoices and payments -------------------------------------
+
+    def patient(self, patient_id: str) -> dict[str, object] | None:
+        row = self.db.execute("SELECT * FROM patients WHERE id = ?", (patient_id,)).fetchone()
+        return None if row is None else _render_patient(row)
+
+    def search_patients(self, practice_id: str, name: str) -> list[dict[str, object]]:
+        """Patients whose name contains `name`, ignoring case. Not paginated."""
+        return [_render_patient(row) for row in self.db.execute(
+            "SELECT * FROM patients WHERE practice_id = ? AND name LIKE ? ORDER BY id",
+            (practice_id, f"%{name}%"))]
+
+    def changed(self, table: str, practice_id: str, query: dict[str, str], limit: int,
+                offset_id: str | None) -> Page:
+        """Invoices or transactions in Principle's keyset order, by created or updated time."""
+        where, params = ["practice_id = :practice_id"], {"practice_id": practice_id}
+        for name, column, operator in (("createdFrom", "created_at", ">="),
+                                       ("createdTo", "created_at", "<"),
+                                       ("updatedFrom", "updated_at", ">="),
+                                       ("updatedTo", "updated_at", "<")):
+            if name in query:
+                where.append(f"{column} {operator} :{name}")
+                params[name] = canonical(query[name])
+        cursor = _parse_cursor(offset_id)
+        if cursor is not None:
+            where.append("created_at < :cursor")
+            params["cursor"] = cursor
+        rows = self.db.execute(
+            f"SELECT * FROM {table} WHERE " + " AND ".join(where)
+            + " ORDER BY created_at DESC, id LIMIT :limit", params | {"limit": limit},
+        ).fetchall()
+        render = _render_invoice if table == "invoices" else _render_transaction
+        full = len(rows) == limit
+        return Page(rows=[render(row) for row in rows], total=len(rows),
+                    next_offset_id=rows[-1]["created_at"] if full and rows else None)
 
     def add_appointment(
         self,
@@ -263,6 +346,49 @@ def _render_appointment(row: sqlite3.Row) -> dict[str, object]:
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }
+
+
+def _render_patient(row: sqlite3.Row) -> dict[str, object]:
+    patient: dict[str, object] = {
+        "id": row["id"], "name": row["name"], "gender": "notSpecified",
+        "email": f"{row['id']}@fake.invalid", "address": "1 Fake Street",
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"]}
+    if row["phone"] is not None:
+        patient["contactNumbers"] = [{"label": "mobile", "number": row["phone"]}]
+    return patient
+
+
+def _render_invoice(row: sqlite3.Row) -> dict[str, object]:
+    """An invoice as production sends one: allocated to a practitioner, paid by allocations."""
+    practitioner = {"id": "fake-practitioner-01", "name": "Dr Ada Whitwell"}
+    paid = [{"transactionId": f"paid-{row['id']}", "allocations": [{
+        "allocatedAmount": row["paid"], "allocatedProportion": 1,
+        "target": {"type": "practitioner", "practitioner": practitioner}}]}]
+    return {
+        "id": row["id"], "reference": row["reference"], "status": row["status"],
+        "patientId": row["patient_id"],
+        "practice": {"id": row["practice_id"], "name": "Kowhai Street Dental (FAKE PRINCIPLE)"},
+        "items": [], "subtotal": row["total"], "tax": 0, "total": row["total"],
+        "allocations": [{"allocatedAmount": row["total"],
+                         "target": {"type": "practitioner", "practitioner": practitioner}}],
+        "transactionAllocations": paid if row["paid"] else [],
+        "createdAt": row["created_at"], "issuedAt": row["created_at"],
+        "updatedAt": row["updated_at"]}
+
+
+def _render_transaction(row: sqlite3.Row) -> dict[str, object]:
+    """A desk payment: `provider` is always manual, and the method is a transaction type."""
+    payment: dict[str, object] = {
+        "id": row["id"], "invoiceId": row["invoice_id"], "patientId": row["patient_id"],
+        "practiceId": row["practice_id"], "provider": "manual", "reference": "1",
+        "type": "payment", "status": row["status"], "amount": row["amount"],
+        "description": "Payment", "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"]}
+    if row["method"] is not None:
+        payment["extendedData"] = {"transactionType": {
+            "name": row["method"], "ref": {"id": f"type-{row['method']}"}}}
+    return payment
 
 
 def _iso(moment: datetime) -> str:
@@ -336,5 +462,35 @@ def seed(appointments_per_day: int = 8, days: int = 3) -> FakeStore:
                 status=statuses[index % len(statuses)],
                 at=_iso(created_base - timedelta(minutes=index)),
             )
+    seed_payments(store)
     store.db.commit()
     return store
+
+
+def seed_payments(store: FakeStore) -> None:
+    """Payments and unpaid invoices for the fake bank's deposits, dated relative to today.
+
+    Matches tests/fake_akahu: the $185.00 transfer three days ago is already recorded as a
+    Direct Deposit, and the $1,980.00 card settlement two days ago is the previous day's two
+    Credit Card payments. One patient's phone number has spaces, which breaks Principle's
+    own specification.
+    """
+    today = datetime.combine(date.today(), time(10), tzinfo=PRACTICE_TZ)
+
+    def days_ago(days: int) -> str:
+        return _iso(today - timedelta(days=days))
+
+    for ident, name, phone in (("fake-lily", "Lily Smith", None),
+                               ("fake-tom", "Tom Smith", None),
+                               ("fake-spaced", "Spaced Phone", "021 123 4567"),
+                               ("fake-card-1", "Card One", None),
+                               ("fake-card-2", "Card Two", None)):
+        store.add_patient(ident, FAKE_PRACTICE_ID, name, days_ago(30), phone)
+    store.add_invoice("lily-1", "fake-lily", 185, 185, days_ago(10))
+    store.add_payment("pay-lily", "lily-1", 185, "Direct Deposit", days_ago(3))
+    store.add_invoice("tom-1", "fake-tom", 90, 0, days_ago(9))
+    store.add_invoice("spaced-1", "fake-spaced", 60, 0, days_ago(8))
+    for ident, patient, amount in (("card-1", "fake-card-1", 1200),
+                                   ("card-2", "fake-card-2", 780)):
+        store.add_invoice(ident, patient, amount, amount, days_ago(4))
+        store.add_payment(f"pay-{ident}", ident, amount, "Credit Card", days_ago(3))

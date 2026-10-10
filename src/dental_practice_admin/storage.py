@@ -90,6 +90,12 @@ CREATE TABLE IF NOT EXISTS bank_account (
     id        INTEGER PRIMARY KEY CHECK (id = 1),
     refreshed TEXT NOT NULL
 );
+-- The last Fetch now, and what went wrong in it, so every visitor sees a failed fetch.
+CREATE TABLE IF NOT EXISTS bank_fetch (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),
+    fetched_at TEXT NOT NULL,
+    problems   TEXT NOT NULL
+);
 
 -- What the reconcile page needs from Principle, so showing it makes no calls. `kind` is
 -- invoice (unpaid only), payment (complete only, one row per invoice it pays) or patient.
@@ -315,6 +321,16 @@ class Storage:
                 [asdict(deposit) for deposit in deposits])
             db.execute("INSERT INTO bank_account VALUES (1, ?) ON CONFLICT(id) DO UPDATE"
                        " SET refreshed=excluded.refreshed", (refreshed,))
+
+    def record_fetch(self, problems: list[str]) -> None:
+        with self._write() as db:
+            db.execute("INSERT OR REPLACE INTO bank_fetch VALUES (1, ?, ?)",
+                       (now(), json.dumps(problems)))
+
+    def last_fetch(self) -> tuple[str, list[str]] | None:
+        """When Fetch now last ran and what went wrong; None if it never has."""
+        row = self.db.execute("SELECT fetched_at, problems FROM bank_fetch").fetchone()
+        return None if row is None else (row["fetched_at"], json.loads(row["problems"]))
 
     def bank_refreshed(self) -> str | None:
         """When Akahu last read the account from the bank; None before the first fetch."""

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Find &amp; Match{% endblock %}
+{% block body %}
+<p><a href="/reconcile">&larr; Bank reconciliation</a></p>
+<h1>Find &amp; Match</h1>
+<table>
+  <tr><th>Date</th><th>Amount</th><th>From the bank</th></tr>
+  <tr data-automation-id="deposit">
+    <td class="mono">{{ deposit.date }}</td>
+    <td class="mono">${{ '{:,.2f}'.format(deposit.amount_cents / 100) }}</td>
+    <td>{{ deposit.description }}
+      <div class="quiet">{% for label, value in [("Particulars", deposit.particulars), ("Code", deposit.code), ("Ref", deposit.reference)] if value %}{{ label }}: {{ value }}&nbsp;&nbsp;{% endfor %}</div>
+    </td>
+  </tr>
+</table>
+<form method="get" class="d-flex gap-2 mb-3">
+  <input class="form-control" name="q" value="{{ q }}" placeholder="Search by name, invoice number, method or amount" data-automation-id="search">
+  <button class="btn btn-outline-primary">Search</button>
+</form>
+
+<h2 class="h5">Payments already in Principle</h2>
+<p class="quiet">{% if q %}Matching your search.{% else %}Recorded within a week of the deposit, same amount first.{% endif %}</p>
+{% if not payments %}<p class="quiet" data-automation-id="no-payments">None.</p>{% else %}
+<table data-automation-id="payment-list">
+  <tr><th></th><th>Patient</th><th>Method</th><th>Recorded</th><th>Amount</th></tr>
+  {% for p in payments %}
+  <tr>
+    <td><input type="checkbox" class="form-check-input" data-payment="{{ p.key }}" data-cents="{{ p.cents }}" aria-label="Match {{ p.patient }}"></td>
+    <td>{{ p.patient }}</td><td>{{ p.method }}</td><td class="mono">{{ p.day }}</td>
+    <td class="mono">${{ '{:,.2f}'.format(p.cents / 100) }}</td>
+  </tr>
+  {% endfor %}
+</table>{% endif %}
+
+<h2 class="h5">Unpaid invoices</h2>
+<p class="quiet">For a payment nobody has keyed in Principle yet. Change the amount to split it for a part payment.</p>
+{% if not invoices %}<p class="quiet" data-automation-id="no-invoices">None.</p>{% else %}
+<table data-automation-id="invoice-list">
+  <tr><th></th><th>Patient</th><th>Invoice</th><th>Date</th><th>Owed</th><th>Pay</th></tr>
+  {% for i in invoices %}
+  <tr>
+    <td><input type="checkbox" class="form-check-input" data-invoice="{{ i.key }}" aria-label="Match invoice {{ i.reference }}"></td>
+    <td>{{ i.patient }}</td><td class="mono">{{ i.reference }}</td><td class="mono">{{ i.day }}</td>
+    <td class="mono">${{ '{:,.2f}'.format(i.cents / 100) }}</td>
+    <td><input class="form-control form-control-sm mono" style="width:8em" data-split="{{ i.key }}" value="{{ '%.2f'|format(i.cents / 100) }}" aria-label="Amount paid on invoice {{ i.reference }}"></td>
+  </tr>
+  {% endfor %}
+</table>{% endif %}
+
+<p data-automation-id="running-total">Ticked <span class="mono" id="ticked">$0.00</span> of
+  <span class="mono">${{ '{:,.2f}'.format(deposit.amount_cents / 100) }}</span>:
+  <strong id="difference" class="mono"></strong></p>
+<button class="btn btn-primary" id="ok" disabled data-automation-id="match-ok">OK</button>
+<p class="text-danger" id="status" role="alert"></p>
+<script>
+const target = {{ deposit.amount_cents }};
+const el = id => document.getElementById(id);
+const cents = text => Math.round(parseFloat(text) * 100);
+function ticked() {
+  const items = [];
+  document.querySelectorAll('[data-payment]:checked').forEach(box =>
+    items.push({payment: box.dataset.payment, cents: Number(box.dataset.cents)}));
+  document.querySelectorAll('[data-invoice]:checked').forEach(box =>
+    items.push({invoice: box.dataset.invoice,
+                cents: cents(document.querySelector(`[data-split="${box.dataset.invoice}"]`).value)}));
+  return items;
+}
+function total() {
+  const items = ticked();
+  const sum = items.reduce((s, i) => s + (Number.isFinite(i.cents) ? i.cents : NaN), 0);
+  const left = target - sum;
+  el('ticked').textContent = Number.isFinite(sum) ? '$' + (sum / 100).toFixed(2) : 'not a number';
+  el('difference').textContent = left === 0 ? 'matches exactly'
+    : Number.isFinite(left) ? `$${(Math.abs(left) / 100).toFixed(2)} ${left > 0 ? 'still to find' : 'too much'}` : '';
+  el('ok').disabled = !(items.length && left === 0);
+}
+document.querySelectorAll('input').forEach(input => input.addEventListener('input', total));
+total();
+el('ok').onclick = async () => {
+  el('ok').disabled = true;
+  const response = await fetch('/reconcile/{{ deposit.akahu_id }}/match', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body:JSON.stringify({items: ticked()})});
+  const result = await response.json();
+  if (response.ok) { location.href = result.url; return; }
+  el('status').textContent = typeof result.detail === 'string' ? result.detail : 'That did not work. Reload the page and try again.';
+  total();
+};
+</script>
+{% endblock %}
