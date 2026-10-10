@@ -41,8 +41,8 @@ def configuration(args: argparse.Namespace) -> Settings:
     if args.sign_in is not None:
         overrides["sign_in"] = args.sign_in
     if args.preset is Environment.FAKE:
-        # The preset is the fakes and a local address, whatever .env names, so the servers it
-        # starts are the ones it uses. Imported here so that a real run never loads test code.
+        # The preset is the fake bank, the fake AI and a local address, whatever .env names; the
+        # fake Principle is .env's _FAKE settings. Imported here so a real run never loads tests.
         from tests.fake_akahu import FAKE_AKAHU_SETTINGS
         overrides |= {"akahu_base_url": FAKE_BANK_URL, "public_base_url": "http://localhost:8080",
                       **FAKE_AKAHU_SETTINGS}
