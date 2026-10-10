@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 from pydantic import SecretStr, ValidationError
 
+from dental_practice_admin import config
 from dental_practice_admin.config import (
     FAKE_API_URL,
     PRODUCTION_API_URL,
@@ -381,3 +382,16 @@ def test_automation_against_principle_needs_the_maps_key(tmp_path: Path) -> None
     without = complete.model_copy(update={"google_maps_api_key": SecretStr("")})
     with pytest.raises(ConfigurationError):
         without.require_automation_configured()
+
+
+def test_automation_refuses_to_start_without_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    playwright = tmp_path / "cli.js"
+    playwright.write_text("")
+    settings = configured(tmp_path, Environment.STAGING).model_copy(
+        update={"playwright_mcp_path": playwright})
+    real_which = config.which
+    monkeypatch.setattr(config, "which", lambda name: None if name == "git" else real_which(name))
+    with pytest.raises(ConfigurationError, match="Git"):
+        settings.require_automation_configured()
