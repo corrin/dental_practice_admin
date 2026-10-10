@@ -50,7 +50,7 @@ def credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "ADMIN_STAFF_EMAILS": "staff@fake.invalid",
         "ADMIN_CHATKIT_DOMAIN_KEY": "fake-registered-domain",
         "PRINCIPLE_ENVIRONMENT": "staging",
-        "PRINCIPLE_API_BASE_URL_FAKE": run.FAKE_SERVER_URL,
+        "PRINCIPLE_API_BASE_URL_FAKE": "http://127.0.0.1:8898",
         "PRINCIPLE_API_BASE_URL_STAGING": STAGING_API_URL,
         "PRINCIPLE_API_BASE_URL_PROD": API_URLS[Environment.PRODUCTION],
         "PRINCIPLE_API_KEY_FAKE": FAKE_API_KEY,

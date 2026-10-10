@@ -128,9 +128,8 @@ credentials are not used.
 the real model), `OPENAI_API_KEY`, and `ADMIN_AGENT_MODEL` configure AI. Use only the
 `OPENAI_*` spellings for its key and endpoint. `ADMIN_PUBLIC_BASE_URL` is the access address;
 set it empty to take the address from each request. The fake preset sets the fake bank, the
-fake AI and `http://localhost:8080` itself, and choosing the fake Principle on the command line
-points at the fake server the launcher starts. The `_FAKE` settings in `.env` apply when `.env`
-itself selects the fake. Presets are shortcuts,
+fake AI and `http://localhost:8080` itself. The fake Principle is whatever the `_FAKE` settings
+in `.env` name, and the launcher serves it on the port `PRINCIPLE_API_BASE_URL_FAKE` gives. Presets are shortcuts,
 not restrictions on mixing providers. Developer identity is prominently announced and has no
 sign-out button because it does not establish a Google session.
 

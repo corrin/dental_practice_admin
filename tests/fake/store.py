@@ -480,11 +480,11 @@ def seed_payments(store: FakeStore) -> None:
     def days_ago(days: int) -> str:
         return _iso(today - timedelta(days=days))
 
-    for ident, name, phone in (("fake-lily", "Lily Smith", None),
-                               ("fake-tom", "Tom Smith", None),
-                               ("fake-spaced", "Spaced Phone", "021 123 4567"),
-                               ("fake-card-1", "Card One", None),
-                               ("fake-card-2", "Card Two", None)):
+    for ident, name, phone in (("fake-lily", "Lily Fake", None),
+                               ("fake-tom", "Tom Fake", None),
+                               ("fake-spaced", "Spaced Fake", "021 123 4567"),
+                               ("fake-card-1", "Card Fake-One", None),
+                               ("fake-card-2", "Card Fake-Two", None)):
         store.add_patient(ident, FAKE_PRACTICE_ID, name, days_ago(30), phone)
     store.add_invoice("lily-1", "fake-lily", 185, 185, days_ago(10))
     store.add_payment("pay-lily", "lily-1", 185, "Direct Deposit", days_ago(3))

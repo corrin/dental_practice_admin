@@ -18,8 +18,6 @@ from pydantic import SecretStr
 
 from dental_practice_admin.config import (
     ENVIRONMENT_FIELDS,
-    FAKE_API_KEY,
-    FAKE_PRACTICE_ID,
     Environment,
     Settings,
     SignIn,
@@ -27,7 +25,6 @@ from dental_practice_admin.config import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-FAKE_SERVER_URL = "http://127.0.0.1:8898"
 FAKE_BANK_URL = "http://127.0.0.1:8897/v1"
 
 
@@ -52,9 +49,6 @@ def configuration(args: argparse.Namespace) -> Settings:
         from tests.fake_akahu import FAKE_AKAHU_SETTINGS
         overrides |= {"akahu_base_url": FAKE_BANK_URL, "public_base_url": "http://localhost:8080",
                       **FAKE_AKAHU_SETTINGS}
-    if principle is Environment.FAKE:
-        overrides |= {"api_base_url": FAKE_SERVER_URL, "api_key": FAKE_API_KEY,
-                      "practice_id": FAKE_PRACTICE_ID}
     settings = Settings(**overrides)
     settings.require_web_configured()
     if (
@@ -103,8 +97,12 @@ def run(settings: Settings) -> None:
     if tunnel and (origin.scheme != "https" or not shutil.which("ngrok")):
         raise ValueError("The public HTTPS address requires ngrok on PATH")
     services: list[tuple[str, int, str, set[int]]] = []
-    if settings.api_base_url == FAKE_SERVER_URL:
-        services.append(("tests.fake.server:app", 8898, "/v1/practices", {401, 403}))
+    if settings.environment is Environment.FAKE:
+        # The fake Principle is served where PRINCIPLE_API_BASE_URL_FAKE says it is.
+        port = urlsplit(settings.api_base_url).port
+        if port is None:
+            raise ValueError("PRINCIPLE_API_BASE_URL_FAKE needs the port to serve the fake on")
+        services.append(("tests.fake.server:app", port, "/v1/practices", {401, 403}))
     if settings.openai_base_url == "http://127.0.0.1:8899/v1":
         services.append(("tests.fake_ai.server:app", 8899, "/health", {200}))
     if settings.akahu_base_url == FAKE_BANK_URL:
