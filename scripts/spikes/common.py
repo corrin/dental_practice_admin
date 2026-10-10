@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx2 as httpx
 import jsonref
@@ -18,6 +19,7 @@ from dental_practice_admin.config import STAGING_API_URL, Environment, Settings
 from dental_practice_admin.principle import SPEC
 
 PLAIN_SPEC = jsonref.replace_refs(SPEC, proxies=False, lazy_load=False)
+NZ = ZoneInfo("Pacific/Auckland")
 
 
 def settings(env_file: Path, environment: Environment) -> Settings:
@@ -124,3 +126,25 @@ def amount_paid(invoice: dict[str, Any]) -> float:
     """What has been allocated to an invoice so far, in dollars (Phase 1)."""
     return round(sum(float(a["allocatedAmount"]) for t in invoice.get("transactionAllocations", [])
                      for a in t["allocations"]), 2)
+
+
+def day(stamp: str) -> str:
+    """The NZ calendar day of a UTC timestamp (Phase 1).
+
+    Principle and Akahu both send UTC. Akahu's `date` is NZ midnight, e.g.
+    `2026-09-01T12:00:00.000Z` is 2 September; cutting the string at "T" is a day early.
+    """
+    return datetime.fromisoformat(stamp).astimezone(NZ).date().isoformat()
+
+
+def nz_midnight(day: str) -> str:
+    """The start of an NZ calendar day, with the offset in force that day (+12 or +13)."""
+    return datetime.fromisoformat(day).replace(tzinfo=NZ).isoformat()
+
+
+def latest(settings: Settings, name: str) -> Any:
+    """The most recent saved output of one spike, e.g. "methods" or "akahu-deposits"."""
+    files = sorted((settings.data_dir / "spikes").glob(f"*-{name}.json"))
+    if not files:
+        raise SystemExit(f"No saved {name}; run that spike first")
+    return json.loads(files[-1].read_text(encoding="utf-8"))

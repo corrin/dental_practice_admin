@@ -91,8 +91,7 @@ Only credits are stored.
 SQLite tables in `storage.py`:
 
 **`bank_deposits`**
-- Columns: `akahu_id` (primary key), `date`, `amount_cents`, `payer_name`, `payer_account`,
-  `particulars`, `code`, `reference`, `kind` (`batch`/`individual`), `status`, `method`,
+- Columns: `akahu_id` (primary key), `date`, `amount_cents`, `payer_name`, `particulars`, `code`, `reference`, `kind` (`batch`/`individual`), `status`, `method`,
   `decided_by`, `decided_at`, `note`.
 - `status` is one of `open`, `recording`, `matched`, `check` or `excluded`.
 - `method` is one of `rule`, `sum`, `remembered`, `suggested` or `manual`.
@@ -105,27 +104,30 @@ SQLite tables in `storage.py`:
   (`created_here` = true).
 
 **`payer_links`**
-- Columns: `payer_account`, `patient_id`, `created_by`, `created_at`.
-- This is the memory: which bank account pays for which patients.
+- Columns: `payer_name`, `patient_id`, `created_by`, `created_at`.
+- This is the memory: which payer pays for which patients. Akahu gives no payer account
+  number (Phase 0), so it keys on the payer name in the description.
 - A row is written when staff confirm a match. It is listed on a **Remembered payers** view
   where any link can be deleted.
 - The memory is plain rows that staff can see and edit, as in Actual Budget, not a hidden model.
-  One bank account can link to several patients (a parent paying for a family).
+  One payer can link to several patients (a parent paying for a family).
 
 ### Fetching from Akahu
 - An Akahu "personal app" on the practice's own account. `AKAHU_APP_TOKEN`, `AKAHU_USER_TOKEN`
   and `AKAHU_ACCOUNT_ID` are validated in `Settings` at startup (ADR 0002).
-- `GET /v1/accounts/{id}/transactions?start=…`, paged by cursor. NZ transfers carry
-  `meta.particulars`, `meta.code`, `meta.reference` and `meta.other_account`.
+- `GET /v1/accounts/{id}/transactions?start=…`, paged by `cursor.next`. Deposits carry
+  `description` and, on most, `meta.particulars`, `meta.code` and `meta.reference`; never
+  `meta.other_account`. `date` is NZ midnight in UTC, so its NZ day is the next UTC date.
 - The page header shows **"Bank data as of <time>"** from the account's `refreshed` field. It is
   red when the data is over two days old, so an expired bank connection is noticed the same day.
   Akahu errors are shown on the page.
 
 ### Recognising batch deposits: rules
 A short list of rules in `Settings` classifies a deposit as a batch and names the Principle
-payment method it settles. Each rule is a payer name or particulars "starts with" pattern
-(Xero's rule shape). For example, `SMARTPAY` → card payments, `SOUTHERN CROSS` → Southern Cross
-payments. The exact Principle method names are verified in Phase 2. Everything else is
+payment method it settles. Each rule is a pattern in the deposit's description (Xero matches
+on payee and reference the same way); the channel name is not always in particulars, for example
+Smartpay's is in `code`. Phase 0 found `SmartpaySett` → Credit Card, `PAYMARK` → EFTPOS,
+`SouthernCros` → Southern Cross and `ACC Claims` → ACC Payment and `acc`. Everything else is
 individual. A rule-classified deposit is labelled **Rule**.
 
 ### Batch deposits: deposit slip against a clearing queue
@@ -149,11 +151,13 @@ wrong method. The red threshold is ours; the products above show the balance onl
 
 **The deposit slip.** Opening a batch deposit shows that channel's queue as a list with
 tick boxes and a running total against the deposit, as on Open Dental's deposit slip.
-- Card deposits: the takings day named on the line (`Shift4 5842 09/10`) is pre-ticked; with
-  no date on the line, the oldest unclaimed day is pre-ticked. If the ticked total equals the
+- Card deposits: the takings day the channel settles is pre-ticked: the day before for
+  Smartpay, the same day for Paymark (Phase 0). Pre-ticking the oldest unclaimed day instead
+  would pick a day that never settled. If the ticked total equals the
   deposit, the row shows ✓ in the list and one OK confirms it, labelled **Sum**.
-- Insurer deposits: if Principle stores the insurer's batch number on the payments (Phase 2),
-  those payments are pre-ticked. Otherwise nothing is pre-ticked and staff tick.
+- Insurer deposits: Principle stores no batch number (Phase 0). Southern Cross pays the
+  previous day's payments, so those are pre-ticked. ACC payments are often recorded after the
+  money arrives, so nothing is pre-ticked and the deposit waits until they are.
 - Nothing is written to Principle when a batch deposit is confirmed; it only writes the
   `bank_matches` rows.
 
@@ -176,14 +180,14 @@ OK is only enabled when the difference is $0.00 or accepted.
 1. **Narrow the candidates in code.** The page loads patients with an outstanding balance and
    their unpaid invoices (the calls are chosen and timed in Phase 0). It keeps about 10 for each
    deposit, using:
-   - patients linked to the payer's account in `payer_links` (Odoo learns the payer's account
-     number the same way);
+   - patients linked to the payer's name in `payer_links` (Odoo learns the payer's account
+     number the same way; Akahu gives no account number);
    - an invoice number or patient name token in particulars, code or reference;
    - a surname matching the payer name;
    - an amount equal to an invoice or patient balance.
-2. **A remembered payer short-circuits the LLM.** If `payer_links` gives exactly one patient,
-   that patient is the suggestion, labelled **Remembered**. This is how the weekly automatic
-   payments become one click.
+2. **A remembered payer is a reason, not a match.** Names are shared, so a `payer_links` row
+   is shown to the LLM and to staff as a reason, and never short-circuits as **Remembered**
+   (Phase 0, risk 4).
 3. **The LLM ranks the rest.** This is the equivalent of Xero's and QuickBooks' learned
    suggestions; their ranking isn't published, so there is no ranking to copy. A fast model gets the deposit and the short list. It returns a
    ranked list, each item with a one-line reason and a tier (`likely`/`possible`). It never
@@ -196,14 +200,14 @@ OK is only enabled when the difference is $0.00 or accepted.
 Illustrative data only:
 
 ```
-12 Oct  $185.00   J & M SMITH   12-3456-0789012-00
+12 Oct  $185.00   J & M SMITH
         Particulars: SMITH   Code: DENTAL   Ref: LILY
 ──────────────────────────────────────────────────────────────────────
 Lily Smith (9)                owes $185.00              [Remembered]
   "Reference says LILY; this account has paid Lily's invoices before."
   Invoice 28 Sep · Dr A · Exam, 2 fillings · $185.00
   Family: Jane Smith ($0), Tom Smith (12, owes $90)
-  This account has paid for: Lily ×2, Tom ×1
+  This payer has paid for: Lily ×2, Tom ×1
                                                             [OK]
 2 other possible matches ▾
                          [Find & Match]  [Exclude…]
@@ -213,10 +217,10 @@ For each candidate:
 - name and age, to tell people with the same name apart;
 - each unpaid invoice with its date, practitioner, a short treatment summary and the amount;
 - family members and what they owe, if Principle exposes family links (Phase 2);
-- who this bank account has paid for before;
+- who this payer has paid for before;
 - the reason and the method label.
 
-The deposit is shown exactly as the bank sent it, including the account number.
+The deposit is shown exactly as the bank sent it.
 
 **Find & Match** searches patients by name or invoice number. It lists a patient's unpaid
 invoices of any age, oldest first, with tick boxes and amounts pre-filled. Staff can add other
@@ -260,7 +264,7 @@ The steps are:
 **Remove & redo** reverses only payments with `created_here` set. It uses `updateTransaction`
 to void them; Phase 3 verifies on staging that this is possible and what Principle shows
 afterwards. If it cannot, Phase 0's fallback for risk 1 applies. The deposit returns to `open`. If the match was labelled **Remembered**, the
-confirmation asks "Forget that this account pays for <patient>?" so a wrong link is dealt with
+confirmation asks "Forget that this payer pays for <patient>?" so a wrong link is dealt with
 at the moment it is found.
 
 **Unreconcile** deletes only the page's own `bank_matches` rows, and never touches Principle.
@@ -299,21 +303,25 @@ into the repo. Findings go in `docs/principle/`, and gaps in `api-gaps.md`. Rank
 **Milestone 0:** each risk has a recorded answer, and the design is adjusted where one failed.
 
 #### Phase 0 findings (2026-10-10)
-Details are in [`api-gaps.md`](../principle/api-gaps.md). Risks 2 and 4 wait on the Akahu app.
+Details are in [`api-gaps.md`](../principle/api-gaps.md). Deposits are 1 September to 9 October
+2026 from the practice's DAY TO DAY account; the scripts are `card_days.py` and `transfers.py`.
 
 | # | Answer so far |
 |---|---|
 | 1 | **Partly answered; create works, with limits.** One staging create succeeded. The API cannot set the payment method (only `provider` `manual`) or the date (`createdAt` is ignored), and straight afterwards the invoice was still `issued` with nothing allocated. Voiding was not tested: after that write, staging work stopped at the owner's direction (production reads only). The test payment is still on staging, reference `spike-2aabbd98-…`. |
-| 2 | **Principle half answered.** Card payments are two methods, Credit Card and EFTPOS, so two queues are possible. Which acquirer settles which, and whether net of fees, needs the deposits. |
+| 2 | **Card days add up.** Smartpay settles Principle's Credit Card payments the next day; Paymark settles EFTPOS the same day; both gross, with no fees taken. 25 of 30 Smartpay and 22 of 31 Paymark deposits equal one day's total exactly, and every unexplained one is on or before 19 September. One difference is exactly a payment recorded under the other card method. Two queues. |
 | 3 | **Fallback applies.** Listing all invoices takes 99 s, while only 32 are unpaid (29 patients). Refreshing by `updatedFrom` takes 1.5 s for a day, 3.7 s for a week, so the unpaid list is cached and refreshed on Fetch now. Reading one patient's unpaid invoices takes about 1.4 s. The client refuses invoices and some patients (see api-gaps), so Phase 1 starts by fixing `principle.py`. |
-| 4 | **Waiting on the Akahu personal app.** `scripts/spikes/akahu_deposits.py` copies the requests of a working Akahu sync (github.com/corrin/akahu_to_budget). That code finds the account through `GET /v1/accounts`, so `AKAHU_ACCOUNT_ID` may not be needed. It never reads `meta` or the account's `refreshed` field, so both are still unverified. |
-| 5 | **Entered per patient: yes.** Southern Cross and ACC payments are individual rows per patient, but carry no batch number, so insurer slips start with nothing ticked. Whether they are entered before the deposit needs the deposit dates. Principle's `acc` provider also has `pending` and `failed` rows; only `complete` ones join a queue. |
+| 4 | **Failed: no payer account number.** No deposit has `meta.other_account`. `particulars` is on 65 of 72 transfers, `reference` 48, `code` 37. The fallback applies: memory keys on payer name and never short-circuits. 57 of 72 transfers come from 16 payers who paid more than once. The account's `refreshed` field exists, with separate balance, meta and transactions times. |
+| 5 | **Southern Cross yes; ACC after.** Southern Cross payments are per patient and recorded before the deposit: all 24 deposits equal the previous day's payments. ACC payments are often recorded after the deposit: 5 of 8 deposits are explained once later payments are counted, 3 are not. Neither carries a batch number. Principle's `acc` provider also has `pending` and `failed` rows; only `complete` ones join a queue. |
 
 Design questions raised, not yet decided:
-- **Reception already records most transfers.** There were 65 Direct Deposit payments in 40
-  days, against an expected ~70 individual deposits. If most individual deposits are already in
-  Principle, they match like a batch of one, against a Direct Deposit queue, and creating payments
-  is needed only for the ones nobody keyed.
+- **Reception already records almost every transfer.** Of 56 transfers old enough to judge, 53
+  have a Principle payment of the same amount within a week (46 Direct Deposit, 4 WINZ,
+  2 account credit, 1 EFTPOS); 3 have none. Most are recorded the same day, but 17 fall exactly a
+  week away, likely weekly plan payments of the same amount, so amount and date alone can pick
+  the wrong week. If this holds, individual deposits mostly match an existing payment, as a batch
+  of one, and creating payments is needed only for the few nobody keyed. That would shrink
+  Phase 3 and the LLM's role.
 - **Payments the page creates have no method or bank date.** Add missing payment cannot record a
   card payment as EFTPOS or Credit Card through the API.
 

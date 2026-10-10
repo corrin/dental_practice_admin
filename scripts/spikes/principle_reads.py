@@ -14,14 +14,15 @@ import argparse
 import asyncio
 import collections
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from scripts.spikes.common import (
     accept_invoices,
     amount_paid,
+    day,
+    nz_midnight,
     payment_method,
     raw_rows,
     save,
@@ -31,18 +32,6 @@ from scripts.spikes.common import (
 
 from dental_practice_admin.config import Environment
 from dental_practice_admin.principle import CallError, PrincipleClient, PrincipleError
-
-NZ = ZoneInfo("Pacific/Auckland")
-
-
-def day(stamp: str) -> str:
-    """The NZ calendar day of a Principle UTC timestamp."""
-    return datetime.fromisoformat(stamp).astimezone(NZ).date().isoformat()
-
-
-def nz_midnight(day: str) -> str:
-    """The start of an NZ calendar day, with the offset in force that day (+12 or +13)."""
-    return datetime.fromisoformat(day).replace(tzinfo=NZ).isoformat()
 
 
 async def methods(config: Any, start: str, end: str) -> None:
