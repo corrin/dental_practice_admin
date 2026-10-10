@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -11,7 +12,6 @@ from typing import Any
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from dental_practice_admin import config
 from dental_practice_admin.config import (
     FAKE_API_URL,
     PRODUCTION_API_URL,
@@ -391,7 +391,7 @@ def test_automation_refuses_to_start_without_git(
     playwright.write_text("")
     settings = configured(tmp_path, Environment.STAGING).model_copy(
         update={"playwright_mcp_path": playwright})
-    real_which = config.which
-    monkeypatch.setattr(config, "which", lambda name: None if name == "git" else real_which(name))
+    monkeypatch.setattr("dental_practice_admin.config.which",
+                        lambda name: None if name == "git" else shutil.which(name))
     with pytest.raises(ConfigurationError, match="Git"):
         settings.require_automation_configured()

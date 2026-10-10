@@ -157,7 +157,7 @@ async def test_access_and_service_failures_do_not_claim_an_interface_change(
 
 
 async def test_a_documented_not_found_does_not_claim_an_interface_change(tmp_path: Path) -> None:
-    """getPatient documents 404 for an unknown patient; a mistyped ID is not a changed API."""
+    """An unknown patient is a 404 getPatient documents, not a changed API."""
     settings = _production(tmp_path)
     async with PrincipleClient(
         settings,

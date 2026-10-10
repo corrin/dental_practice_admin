@@ -135,3 +135,19 @@ async def test_incomplete_result_cannot_be_saved(tmp_path: Path) -> None:
     assert not saved_scripts.tested(configured, identifier, script)
     with pytest.raises(ValueError):
         saved_scripts.save(configured, identifier, FAKE_STAFF, "Incomplete script")
+
+
+def test_a_saved_script_titled_with_a_macron_loads(tmp_path: Path) -> None:
+    """Saved files are UTF-8; the server's default code page cannot read a macron."""
+    configured = settings(tmp_path)
+    definition = DEFINITION.model_copy(update={"title": "Māori health Fake recall"})
+    revision = "b" * 64
+    folder = configured.data_dir / "saved" / definition.name / revision
+    folder.mkdir(parents=True)
+    (folder / "task.json").write_text(definition.model_dump_json(), encoding="utf-8")
+    (folder / "source.txt").write_text(SOURCE, encoding="utf-8")
+
+    loaded = saved_scripts.load(configured, definition.name, revision,
+                                {"marker": "fake-marker"}, FAKE_STAFF)
+
+    assert loaded.source == SOURCE
