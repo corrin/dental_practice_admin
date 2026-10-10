@@ -100,8 +100,8 @@ SQLite tables in `storage.py`:
 - Columns: `akahu_id`, `principle_transaction_id`, `patient_id`, `invoice_id`,
   `amount_cents`, `created_here`.
 - A batch deposit has one row for each existing payment it covers.
-- An individual deposit has one row for the existing payment it matched, or one row for
-  each payment the page created (`created_here` = true).
+- An individual deposit has one row for each existing payment it matched and each payment the
+  page created (`created_here` = true).
 
 **`payer_links`**
 - Columns: `payer_name`, `patient_id`, `created_by`, `created_at`.
@@ -263,7 +263,8 @@ Principle"** until someone ticks it done. This gap is also listed in
 - the amount;
 - `reference` set to the Akahu id, so every payment can be traced back to its deposit and its
   bank date. Xero dates the payment by the statement line; Principle's API cannot, as it ignores
-  `createdAt` and dates the payment when the call is made (Phase 0).
+  `createdAt` and dates the payment when the call is made (Phase 0; requested in
+  `docs/principle/api-gaps.md`).
 
 The steps are:
 1. Set the deposit to `recording` and write the `bank_matches` rows **before** calling the API.
