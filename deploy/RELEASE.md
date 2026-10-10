@@ -28,6 +28,19 @@ The commands below use `massey-admin` for the service account; substitute your c
 
 ## First release
 
+### Now: stop reception's bridge
+
+Reception's Caddy sends the public `office` name to `localhost:5170`, where reception's old
+bridge can listen. That build has no API key and may have debug mode on, which makes
+`/smsgateway/test/test-patient-lookup` return patient identifiers to anyone. It carries no
+traffic, so stop it and disable its startup task now, on reception: find the task with
+`Get-ScheduledTask | Where-Object { $_.Actions.Execute -match 'SMS_Bridge' }`, then
+`Stop-ScheduledTask` and `Disable-ScheduledTask` it, and end any `SMS_Bridge.exe` still running.
+
+**Check:** on reception, `Get-NetTCPConnection -LocalPort 5170 -State Listen` finds nothing.
+From outside the practice network,
+`https://office.massey-smiles.co.nz/smsgateway/debug-status` answers 502.
+
 ### 1. Decide and gather
 
 - **Service account.** One local account for the service and the launcher, with a long
@@ -239,8 +252,9 @@ check passes PRODUCTION.md's acceptance check for it. On reception, `sc.exe qc c
 `Get-NetTCPConnection -LocalPort 5170 -State Listen` finds nothing.
 
 **To undo:** point the router back at reception, then set reception's Caddy service back to
-Automatic (a disabled service can't be started) and start it. Reception's bridge carries no
-traffic, so turn Principle's webhook off until step 8 is done again.
+Automatic (a disabled service can't be started) and start it. SMS is then off until step 8 is
+done again: turn Principle's webhook off, and unregister reception's SMS check, which would
+otherwise stay green against the server's bridge while no texts go out.
 
 ### 9. The launcher
 
@@ -276,9 +290,9 @@ Caddy from reception. They hold the TLS keys for `office`, and reception's
 `install-settings.json` may hold Principle credentials, none of which reception needs. After this,
 step 8 can't be undone.
 
-1. Find the old bridge's startup task with
-   `Get-ScheduledTask | Where-Object { $_.Actions.Execute -match 'SMS_Bridge' }`, delete it with
-   `Unregister-ScheduledTask`, then delete the installation directory its action names.
+1. Delete the old bridge's startup task, disabled at the start, with `Unregister-ScheduledTask`
+   (`Get-ScheduledTask | Where-Object { $_.Actions.Execute -match 'SMS_Bridge' }` finds it),
+   then delete the installation directory its action names.
 2. Stop Call Centre starting at logon, in Settings > Apps > Startup or as a logon task in Task
    Scheduler, unless reception uses it for calls.
 3. `sc.exe delete caddy`, then delete `C:\Program Files\Caddy` and Caddy's data directory, which
