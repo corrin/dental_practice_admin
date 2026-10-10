@@ -85,7 +85,7 @@ it **Log on as a service** and **Log on as a batch job**.
 ### 4. The code on the server
 
 Once, in an elevated PowerShell on the server: install Chocolatey, then Git, then clone. The
-install script keeps Git at its pinned version afterwards.
+install script keeps Git up to date afterwards.
 
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force; Invoke-RestMethod https://community.chocolatey.org/install.ps1 | Invoke-Expression
