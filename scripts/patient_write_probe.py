@@ -3,7 +3,7 @@
     uv run python -m scripts.patient_write_probe PATIENT_ID '[{"address": "1 Example St"}]'
 
 Applies each change in turn to one staging patient, prints every API field that changed, then
-restores the patient's contact numbers, address and email. Use a dummy patient: the PATCH is
+restores every field it changed. Use a dummy patient: the PATCH is
 real. docs/principle/patient-writes.md records what it showed.
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ REQUIRED = ("name", "dateOfBirth", "gender", "email")
 
 
 async def probe(patient: str, changes: list[dict[str, Any]]) -> None:
-    """Apply each change, print what changed, then restore the patient's contact details."""
+    """Apply each change, print what changed, then restore every field it touched."""
     settings = Settings(environment=Environment.STAGING)
     path = f"/v1/patients/{patient}"
     async with httpx.AsyncClient(base_url=settings.api_base_url, timeout=60, headers={
@@ -48,10 +48,12 @@ async def probe(patient: str, changes: list[dict[str, Any]]) -> None:
 
         print("messages before (sms, email):", await messages())
         original = await read()
-        for change in changes:
-            await patch(change)
-        await patch({k: original[k] for k in ("contactNumbers", "address", "email")
-                     if k in original})
+        touched = {key for change in changes for key in change}
+        try:
+            for change in changes:
+                await patch(change)
+        finally:
+            await patch({key: original.get(key, "") for key in touched})
         print("messages after (sms, email):", await messages())
 
 
