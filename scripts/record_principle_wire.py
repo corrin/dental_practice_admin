@@ -314,7 +314,7 @@ def covers(recorded: Any, fake: Any, where: str = "") -> list[str]:
     return []
 
 
-def write_shape_from(name: str, documents: list[dict[str, Any]], source: str) -> Path:
+def write_shape(name: str, source: str, documents: list[dict[str, Any]]) -> Path:
     """Save the joined shape of some Firestore documents' fields: names and types only."""
     if not documents:
         raise SystemExit(f"{name}: no documents to take a shape from; pick another day")
@@ -394,24 +394,20 @@ async def record_firestore(settings: Settings, appointment: dict[str, Any]) -> l
 
         category = appointment.get("treatmentCategory", {}).get("id")
         source = f"firestore ({settings.environment.value})"
-
-        def write_shape(name: str, documents: list[dict[str, Any]]) -> Path:
-            return write_shape_from(name, documents, source)
-
         return [
-            write_shape("patient", [await firestore.read(f"patients/{patient}")]),
-            write_shape("appointment", [await firestore.read(
+            write_shape("patient", source, [await firestore.read(f"patients/{patient}")]),
+            write_shape("appointment", source, [await firestore.read(
                 f"patients/{patient}/appointments/{ident}")]),
-            write_shape("treatment_step", [await firestore.read(step)]),
-            write_shape("treatment_category", found(await firestore.read(
+            write_shape("treatment_step", source, [await firestore.read(step)]),
+            write_shape("treatment_category", source, found(await firestore.read(
                 "", query("treatmentCategories"))) if category is None else
                 [await firestore.read(f"treatmentCategories/{category}")]),
-            write_shape("schedule_summaries", found(await firestore.read(
+            write_shape("schedule_summaries", source, found(await firestore.read(
                 f"practices/{settings.practice_id}",
                 query("scheduleSummaries", ("day", "EQUAL", {"stringValue": day.isoformat()}))))),
-            write_shape("roster_schedules", found(await firestore.read(
+            write_shape("roster_schedules", source, found(await firestore.read(
                 f"staff/{appointment['practitionerId']}", query("rosterSchedules")))),
-            write_shape("calendar_events", found(await firestore.read("", query(
+            write_shape("calendar_events", source, found(await firestore.read("", query(
                 "calendarEvents", ("event.from", "GREATER_THAN_OR_EQUAL", stamp(start)),
                 ("event.from", "LESS_THAN", stamp(start + timedelta(days=7))))))),
         ]
@@ -541,14 +537,15 @@ async def main() -> None:
                                         appointment, "--create-patient" in sys.argv)
     names.unrecognised |= patient_names.unrecognised
     written += await record_refusals(settings, names)
+    firestore_settings = settings
     if "--firestore-from-production" in sys.argv:
         # Reads only: one booked appointment and its documents. Shapes carry no values, and
         # the refusals' document path is replaced before anything is written.
-        settings = Settings(environment=Environment.PRODUCTION)
-        async with PrincipleClient(settings) as client:
-            appointment = await first_appointment(client, settings.practice_id)
-    written += await record_firestore(settings, appointment)
-    written += await record_firestore_refusals(settings)
+        firestore_settings = Settings(environment=Environment.PRODUCTION)
+        async with PrincipleClient(firestore_settings) as client:
+            appointment = await first_appointment(client, firestore_settings.practice_id)
+    written += await record_firestore(firestore_settings, appointment)
+    written += await record_firestore_refusals(firestore_settings)
     for path in written:
         print(f"  wrote {path.relative_to(Path.cwd())}")
     if names.unrecognised:
