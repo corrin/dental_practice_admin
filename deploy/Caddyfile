@@ -107,8 +107,8 @@ office.massey-smiles.co.nz {
 	}
 
 	# 192.168.192.125 is reception, where the bridge runs. RELEASE.md's "SMS go-live" secures the
-	# bridge before this file is ever live, and step 8 has it listen on this address and admit
-	# only this server through reception's firewall.
+	# bridge before this file is ever live, and its "Caddy, DNS and the router" step has it listen
+	# on this address and admit only this server through reception's firewall.
 	reverse_proxy 192.168.192.125:5170 {
 		header_up X-Real-IP {remote_host}
 	}

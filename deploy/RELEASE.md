@@ -35,11 +35,13 @@ Secure it before Principle switches SMS on, and before step 8 moves `office` to 
    phone and `/smsgateway/test/test-patient-lookup` returns patient identifiers. Principle's
    webhook signs with `WEBHOOK_SECRET`, so the new key changes nothing for Principle.
 3. Point Principle's webhook at `https://office.massey-smiles.co.nz/smsgateway/webhooks/principle`.
+4. Arrange an alarm for the bridge's phone status. Nothing provides one yet, and texts that stop
+   going out fail silently: until one exists, someone checks Call Centre's connection daily.
 
 **Check, without sending an SMS:** from outside the practice network,
 `https://office.massey-smiles.co.nz/smsgateway/debug-status` answers 401 without the key, and 200
 with `isDebugMode` false given `X-API-Key: <the new key>`. A 502 means Caddy can't reach the
-bridge: read reception's Caddy log. Never probe `/smsgateway/test/check-send-sms`; it sends a real
+bridge: read the log of whichever Caddy fronts `office`. Never probe `/smsgateway/test/check-send-sms`; it sends a real
 SMS. A real test message is the owner's call.
 
 ## First release
@@ -183,7 +185,8 @@ retry.
    icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'NT SERVICE\caddy:(OI)(CI)M'
    ```
 3. Server firewall: allow inbound TCP 80 and 443. Reception's firewall: allow inbound TCP 5170
-   from the server's address only.
+   from the server's address only, and disable any program-level allow rule for the bridge,
+   which would otherwise open 5170 to the whole LAN.
 4. DNS: an A record `admin.massey-smiles.co.nz` for the practice's public address, the same
    address `office.massey-smiles.co.nz` already uses.
 5. Together, with nothing in between: stop and disable Caddy on reception
