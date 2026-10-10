@@ -13,6 +13,11 @@
 param([string]$ReleaseRoot = 'C:\Program Files\DentalPracticeAdmin')
 $ErrorActionPreference = 'Stop'
 
+$python = Join-Path $ReleaseRoot '.venv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $python)) {
+    [Console]::Error.WriteLine("Not ready: no interpreter at $python; run uv sync --locked in the release first.")
+    exit 1
+}
 [xml]$service = Get-Content -LiteralPath (Join-Path $ReleaseRoot 'deploy\dental-practice-admin.xml')
 $previous = @{}
 foreach ($pinned in $service.service.env) {
@@ -21,10 +26,12 @@ foreach ($pinned in $service.service.env) {
 }
 # The check reports on stderr; under Stop, Windows PowerShell would abort on its first line.
 $ErrorActionPreference = 'Continue'
+$code = 1
 Push-Location $ReleaseRoot
 try {
-    & (Join-Path $ReleaseRoot '.venv\Scripts\python.exe') -m dental_practice_admin.config
-    $code = $LASTEXITCODE
+    & $python -m dental_practice_admin.config
+    # A run that never set an exit code is a failure, not a pass.
+    if ($null -ne $LASTEXITCODE) { $code = $LASTEXITCODE }
 } finally {
     Pop-Location
     foreach ($name in $previous.Keys) {
