@@ -119,7 +119,8 @@ the loader selects credentials from the chosen environment's section.
 
 CLI selections override `.env` and the shell. For settings not selected on the command line,
 shell variables override `.env`. No setting has a default in the code: every one is set in
-`.env` or the environment, and a missing one fails startup. `PRINCIPLE_ENVIRONMENT` selects
+`.env` or the environment, and a missing one fails startup. `ADMIN_DATA_ROOT` must be an
+existing folder, so a mistyped one is refused rather than starting an empty database. `PRINCIPLE_ENVIRONMENT` selects
 Principle. Group its endpoint, key and practice ID under matching `_FAKE`, `_STAGING`, and
 `_PROD` settings in `.env`, such as `PRINCIPLE_API_BASE_URL_STAGING`. Shared, unscoped Principle
 credentials are not used.

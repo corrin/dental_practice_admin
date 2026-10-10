@@ -82,6 +82,13 @@ def test_missing_automation_settings_are_named_as_dotenv_names_them() -> None:
         settings.require_automation_configured()
 
 
+def test_a_data_folder_that_is_not_there_is_refused(tmp_path: Path) -> None:
+    missing = _settings().model_copy(update={"data_root": tmp_path / "mistyped"})
+    with pytest.raises(ConfigurationError, match="ADMIN_DATA_ROOT"):
+        missing.require_web_configured()
+    assert not (tmp_path / "mistyped").exists()
+
+
 def test_a_principle_address_must_be_set() -> None:
     with pytest.raises(ConfigurationError, match="PRINCIPLE_API_BASE_URL_STAGING"):
         _settings(environment=Environment.STAGING, api_base_url="")

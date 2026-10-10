@@ -99,9 +99,10 @@ def run(settings: Settings) -> None:
     services: list[tuple[str, int, str, set[int]]] = []
     if settings.environment is Environment.FAKE:
         # The fake Principle is served where PRINCIPLE_API_BASE_URL_FAKE says it is.
-        port = urlsplit(settings.api_base_url).port
-        if port is None:
-            raise ValueError("PRINCIPLE_API_BASE_URL_FAKE needs the port to serve the fake on")
+        address = urlsplit(settings.api_base_url)
+        port = address.port
+        if address.hostname not in {"127.0.0.1", "localhost"} or port is None:
+            raise ValueError("PRINCIPLE_API_BASE_URL_FAKE must be a port on this machine")
         services.append(("tests.fake.server:app", port, "/v1/practices", {401, 403}))
     if settings.openai_base_url == "http://127.0.0.1:8899/v1":
         services.append(("tests.fake_ai.server:app", 8899, "/health", {200}))

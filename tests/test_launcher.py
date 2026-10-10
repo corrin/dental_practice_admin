@@ -139,7 +139,8 @@ def test_children_receive_the_resolved_configuration(credentials: None) -> None:
 def test_launcher_stops_its_children_on_failure_or_interrupt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
 ) -> None:
-    settings = fake_settings(tmp_path, public_base_url="http://localhost:8080")
+    settings = fake_settings(tmp_path, api_base_url="http://127.0.0.1:8898",
+                             public_base_url="http://localhost:8080")
     child = MagicMock()
     child.poll.return_value = None
     monkeypatch.setattr("scripts.run.subprocess.Popen", MagicMock(return_value=child))

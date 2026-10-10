@@ -220,10 +220,13 @@ class Settings(BaseSettings):
     @property
     def data_dir(self) -> Path:
         """Per-environment directory for the database, logs and browser session state."""
-        # A mistyped ADMIN_DATA_ROOT must fail, not quietly start an empty database.
+        self.require_data_root()
+        return self.data_root / self.environment.value
+
+    def require_data_root(self) -> None:
+        """Refuse a data folder that is not there: a mistyped one would start an empty database."""
         if not self.data_root.is_dir():
             raise ConfigurationError(f"ADMIN_DATA_ROOT {self.data_root} is not an existing folder")
-        return self.data_root / self.environment.value
 
     @property
     def database_path(self) -> Path:
@@ -345,6 +348,7 @@ class Settings(BaseSettings):
 
     def require_web_configured(self) -> None:
         """Validate the complete web configuration before accepting requests."""
+        self.require_data_root()
         self.require_sign_in_configured()
         self.require_credentials()
         self.require_automation_configured()
