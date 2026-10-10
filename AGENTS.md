@@ -9,6 +9,17 @@ is done.
 For Principle staging browser experiments, read
 [`skills/principle-staging-browser/SKILL.md`](skills/principle-staging-browser/SKILL.md).
 
+## Keep patient data out of this repository
+
+This repository is public. A patient's details that reach GitHub cannot be taken back, and no scan
+can recognise every patient, so real data has no place here at all.
+
+- Production reads, captures and reports go under `ADMIN_DATA_ROOT`, or into the private practice
+  repository `massey-reception-coder/admin_scripts`. Never into this checkout.
+- Findings from production enter `docs/` as counts and shapes ("19 of 287 patients break the
+  specification"), never as records, names or identifiers.
+- Test data is invented, and every invented person carries the `Fake` marker in their name.
+
 ## Minimise ongoing maintenance
 
 This is an internal application for one six-person dental practice. Scale is not a concern.
