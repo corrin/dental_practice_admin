@@ -5,22 +5,30 @@
 .DESCRIPTION
   Runs the release's own settings check with what the service runs with: the release
   directory's .env, plus the settings the service definition pins. Run it in the new release
-  before stopping the running service; verify.ps1 runs it again after the switch.
+  before stopping the running service; verify.ps1 runs it again after the switch. The pinned
+  variables are set only for the check and restored afterwards, so a caller's later checks see
+  the host as it is.
 #>
 [CmdletBinding()]
 param([string]$ReleaseRoot = 'C:\Program Files\DentalPracticeAdmin')
 $ErrorActionPreference = 'Stop'
 
 [xml]$service = Get-Content -LiteralPath (Join-Path $ReleaseRoot 'deploy\dental-practice-admin.xml')
+$previous = @{}
 foreach ($pinned in $service.service.env) {
-    Set-Item -LiteralPath "env:$($pinned.name)" -Value $pinned.value
+    $previous[$pinned.name] = [Environment]::GetEnvironmentVariable($pinned.name, 'Process')
+    [Environment]::SetEnvironmentVariable($pinned.name, $pinned.value, 'Process')
 }
 # The check reports on stderr; under Stop, Windows PowerShell would abort on its first line.
 $ErrorActionPreference = 'Continue'
 Push-Location $ReleaseRoot
 try {
     & (Join-Path $ReleaseRoot '.venv\Scripts\python.exe') -m dental_practice_admin.config
-    exit $LASTEXITCODE
+    $code = $LASTEXITCODE
 } finally {
     Pop-Location
+    foreach ($name in $previous.Keys) {
+        [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
+    }
 }
+exit $code
