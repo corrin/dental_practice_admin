@@ -52,19 +52,33 @@ def _warnings(settings: Settings) -> list[dict[str, Any]]:
         store.close()
 
 
-async def test_a_patient_breaking_the_specification_is_named_and_recorded(
+async def test_bad_contact_details_name_the_patient_without_claiming_an_interface_change(
     tmp_path: Path,
 ) -> None:
     settings = _production(tmp_path)
-    transport = _principle({"fake-bad": BAD}, ["fake-bad"], [])
+    cases: list[dict[str, Any]] = [BAD, {**GOOD, "email": "No email"}]
+    for broken in cases:
+        transport = _principle({broken["id"]: broken}, [broken["id"]], [])
+        async with PrincipleClient(settings, transport=transport) as client:
+            with pytest.raises(RecordError) as caught:
+                await client.call("getPatient", {"patientId": broken["id"]})
+        assert caught.value.records == [broken["id"]]
+        assert caught.value.body == broken
+    assert not _warnings(settings)
+
+
+@pytest.mark.parametrize("change", [{"gender": "nonsense"}, {"contactNumbers": "not a list"},
+                                    {"contactNumbers": [{"number": "+64210000000"}]}])
+async def test_any_other_break_in_a_patient_is_an_interface_change(
+    tmp_path: Path, change: dict[str, Any],
+) -> None:
+    settings = _production(tmp_path)
+    transport = _principle({"fake-bad": {**BAD, **change}}, ["fake-bad"], [])
     async with PrincipleClient(settings, transport=transport) as client:
-        with pytest.raises(RecordError) as caught:
+        with pytest.raises(PrincipleError) as caught:
             await client.call("getPatient", {"patientId": "fake-bad"})
-    assert caught.value.records == ["fake-bad"]
-    assert caught.value.body == BAD
-    warnings = _warnings(settings)
-    assert {w["operation"] for w in warnings} == {"getPatient", "searchPatients"}
-    assert "ring mum" not in json.dumps(warnings)
+    assert not isinstance(caught.value, RecordError)
+    assert [w["operation"] for w in _warnings(settings)] == ["getPatient"]
 
 
 async def test_a_namesake_breaking_the_specification_does_not_fail_a_good_patient(
@@ -98,21 +112,15 @@ async def test_a_breaking_patient_outside_the_practice_is_still_refused(
     assert all(request.method == "GET" for request in sent)
 
 
-async def test_a_patient_breaking_the_specification_can_be_fixed_and_its_warning_clears(
-    tmp_path: Path,
-) -> None:
-    settings = _production(tmp_path)
+async def test_a_patient_breaking_the_specification_can_be_fixed(tmp_path: Path) -> None:
     sent: list[httpx.Request] = []
     transport = _principle({"fake-bad": dict(BAD)}, ["fake-bad"], sent)
-    async with PrincipleClient(settings, transport=transport) as client:
+    async with PrincipleClient(_production(tmp_path), transport=transport) as client:
         fixed = await client.call("updatePatient", {
             **{k: v for k, v in BAD.items() if k != "id"},
             "patientId": "fake-bad", "contactNumbers": GOOD["contactNumbers"]})
-        assert fixed["contactNumbers"] == GOOD["contactNumbers"]
-        assert [r.method for r in sent].count("PATCH") == 1
-        assert _warnings(settings)
-        await client.call("getPatient", {"patientId": "fake-bad"})
-    assert not _warnings(settings)
+    assert fixed["contactNumbers"] == GOOD["contactNumbers"]
+    assert [r.method for r in sent].count("PATCH") == 1
 
 
 @pytest.mark.parametrize("body", [
@@ -136,4 +144,13 @@ async def test_a_broken_page_envelope_is_not_blamed_on_its_records(tmp_path: Pat
     async with PrincipleClient(_production(tmp_path), transport=transport) as client:
         with pytest.raises(PrincipleError) as caught:
             await client.call("listPatientTags", {})
+    assert not isinstance(caught.value, RecordError)
+
+
+async def test_only_patient_responses_can_be_blamed_on_a_record(tmp_path: Path) -> None:
+    body = {**GOOD, "email": "No email"}
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, json=body))
+    async with PrincipleClient(_production(tmp_path), transport=transport) as client:
+        with pytest.raises(PrincipleError) as caught:
+            await client.call("getPractitioner", {"practitionerId": "fake-practitioner"})
     assert not isinstance(caught.value, RecordError)

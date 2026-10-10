@@ -60,11 +60,14 @@ class PrincipleError(Exception):
 
 
 class RecordError(PrincipleError):
-    """The response is valid apart from the named records, which break the specification.
+    """The response is valid apart from the named patients' phone numbers or email addresses.
 
-    `body` is the response as received, so a caller can still report or repair those records.
-    Unlike other PrincipleErrors it holds patient data: never log it or show it outside the
-    practice. For getPatient it is raised only after the patient's practice scope is confirmed.
+    Principle stores contact details its own specification forbids (docs/principle/api-gaps.md,
+    "Client refusals"), so this is bad data rather than a changed interface, and records no
+    interface warning. `body` is the response as received, so a caller can still report or
+    repair those patients. Unlike other PrincipleErrors it holds patient data: never log it or
+    show it outside the practice. For getPatient it is raised only after the patient's practice
+    scope is confirmed.
     """
 
     body: dict[str, Any]
@@ -138,6 +141,30 @@ def check_web_build(
     return build
 
 
+PATIENT_REF = {"$ref": "#/components/schemas/Patient"}
+PATIENT = Draft202012Validator({**PATIENT_REF, "components": SPEC["components"]},
+                               format_checker=FormatChecker())
+
+
+def _patient_shape(call: Call) -> str | None:
+    """Whether the call returns one patient, a `data` list of them, or neither."""
+    responses = SPEC["paths"][call.path][call.method.lower()]["responses"]
+    schema = responses.get("200", {}).get("content", {}).get("application/json", {}).get(
+        "schema", {})
+    if schema == PATIENT_REF:
+        return "one"
+    if schema.get("properties", {}).get("data", {}).get("items") == PATIENT_REF:
+        return "list"
+    return None
+
+
+def _contact_detail(path: Any) -> bool:
+    """True for the fields Principle accepts against its specification: numbers and email."""
+    parts = list(path)
+    return parts == ["email"] or (len(parts) == 3 and parts[0] == "contactNumbers"
+                                  and parts[2] == "number")
+
+
 class PrincipleClient:
     """Shared scope, validation, errors and pagination around FastMCP's HTTP executor."""
 
@@ -160,46 +187,49 @@ class PrincipleClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    def _incompatible(self, call: Call, reason: str,
-                      interface_id: str = INTERFACE_ID) -> PrincipleError:
+    def _incompatible(self, call: Call, reason: str) -> PrincipleError:
         if self.settings.environment is Environment.PRODUCTION:
             store = Storage(self.settings.database_path)
             try:
-                store.interface_warning(call.name, interface_id, reason)
+                store.interface_warning(call.name, INTERFACE_ID, reason)
             finally:
                 store.close()
         return PrincipleError(502, call.method, call.path, reason)
 
     @staticmethod
-    def _bad_records(req: SimpleNamespace, resp: SimpleNamespace) -> list[str] | None:
-        """Ids of the records that break the specification, if nothing else in `resp` does.
+    def _bad_records(call: Call, req: SimpleNamespace, resp: SimpleNamespace
+                     ) -> list[str] | None:
+        """Ids of the patients whose contact details break the specification, if that is all.
 
-        A body is one record (getPatient) or an envelope whose `data` lists records
-        (searchPatients). Each record is checked alone, by the same validator, in an otherwise
-        unchanged response.
+        None when the call returns no patients, or anything else in the response breaks it:
+        that is an interface incompatibility, not bad data.
         """
-        def valid(body: Any) -> bool:
-            try:
-                VALIDATOR.validate_response(
-                    req, SimpleNamespace(**{**vars(resp), "data": json.dumps(body).encode()}))
-            except Exception:
-                return False
-            return True
-
+        shape = _patient_shape(call)
         try:
             body = json.loads(resp.data)
         except ValueError:
             return None
-        if not isinstance(body, dict):
+        rows = [body] if shape == "one" else body.get("data") if (
+            shape == "list" and isinstance(body, dict)) else None
+        if not isinstance(rows, list) or not all(
+                isinstance(row, dict) and isinstance(row.get("id"), str) for row in rows):
             return None
-        rows = body.get("data")
-        if not isinstance(rows, list):
-            return [body["id"]] if isinstance(body.get("id"), str) else None
-        bad = [row for row in rows if not valid({**body, "data": [row]})]
-        if not all(isinstance(row, dict) and isinstance(row.get("id"), str) for row in bad):
+        bad = []
+        for row in rows:
+            errors = list(PATIENT.iter_errors(row))
+            if not all(_contact_detail(error.absolute_path) for error in errors):
+                return None
+            if errors:
+                bad.append(row)
+        if not bad:
             return None
-        if not valid({**body, "data": [row for row in rows if row not in bad]}):
-            return None
+        if shape == "list":
+            rest = {**body, "data": [row for row in rows if row not in bad]}
+            try:
+                VALIDATOR.validate_response(
+                    req, SimpleNamespace(**{**vars(resp), "data": json.dumps(rest).encode()}))
+            except Exception:
+                return None
         return [row["id"] for row in bad]
 
     async def _response(self, response: httpx.Response) -> None:
@@ -224,12 +254,9 @@ class PrincipleClient:
         try:
             VALIDATOR.validate_response(req, resp)
         except Exception:
-            records = self._bad_records(req, resp)
+            records = self._bad_records(call, req, resp)
             if records is None:
                 raise self._incompatible(call, "response_schema") from None
-            # Recorded under its own id, so the next compatible response clears it. It says
-            # a record broke recently, not which.
-            self._incompatible(call, "record_schema", "record")
             raise RecordError(call, records, json.loads(response.content)) from None
         if self.settings.environment is Environment.PRODUCTION:
             store = Storage(self.settings.database_path)

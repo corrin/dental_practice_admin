@@ -126,8 +126,7 @@ class Settings(BaseSettings):
     task_repository: str = ""
     github_token: SecretStr = SecretStr("")
     # Looks up patient addresses with Google's Geocoding API, which the key needs enabled, for the
-    # contact-details clean-up. Only the address string is sent; the owner approved sending it
-    # to Google on 2026-10-10.
+    # contact-details clean-up. Only the address string is sent to Google.
     google_maps_api_key: SecretStr = SecretStr("")
 
     # Staff sign-in. Google holds the credentials; this application holds only the list of

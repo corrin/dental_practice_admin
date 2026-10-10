@@ -103,9 +103,8 @@ Taken by the owner on 2026-10-10, from a read of every production patient.
 - A response that breaks the specification only inside named patient records raises an error
   naming them, instead of rejecting the whole response. The scope check and the pre-read
   before a write both tolerate it, so the cleaner can fix exactly the records that break.
-  The break is still recorded as an interface warning. A write replaces only the target field
-  of the record as read, and only if that field still holds the value the change was computed
-  from.
+  Only a patient's phone numbers and email can break the specification this way; a break
+  anywhere else is still an interface warning.
 - A task result can carry a list for staff. The run page shows it as a table, and every page
   shows a banner while the latest run of a scheduled task has such a list, failed, or is
   overdue. The failed and overdue cases are requirement 6; they apply to every scheduled task
@@ -118,6 +117,8 @@ Taken by the owner on 2026-10-10, from a read of every production patient.
 - The day sheet names the patient whose record could not be read.
 - A `clean_contact_details` task reads every patient from Firestore, applies the rules, and
   either lists the changes (dry run) or writes each through `updatePatient` and reads it back.
+  A write replaces only the changed fields of the record as read, and only if they still hold
+  the values the change was computed from.
   A read-back that doesn't match, or a write that fails, is listed and makes the run partial,
   which the banner shows. It is not counted as done.
 

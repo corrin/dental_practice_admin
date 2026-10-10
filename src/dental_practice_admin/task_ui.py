@@ -23,10 +23,8 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
     from dental_practice_admin.app import TEMPLATES
     settings = request.app.state.settings
     task_files.cleanup(settings)
-    heartbeat = settings.data_dir / "audits" / "launcher.jsonl"
-    checked = datetime.fromtimestamp(heartbeat.stat().st_mtime, UTC) if heartbeat.exists() else None
-    launcher_recent = checked and (
-        datetime.now(UTC) - checked).total_seconds() <= 2 * schedules.POLL_SECONDS
+    checked = schedules.launcher_checked(settings)
+    launcher_recent = schedules.launcher_recent(settings)
     installed = []
     for path in (settings.data_dir / "installed").glob("*/*/task.json"):
         definition, _ = task_files.installed(settings, path.parent.parent.name, path.parent.name)

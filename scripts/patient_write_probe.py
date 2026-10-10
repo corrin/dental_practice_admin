@@ -35,7 +35,7 @@ async def probe(patient: str, changes: list[dict[str, Any]]) -> None:
             mail = (await api.get(path + "/emails")).raise_for_status().json()
             return len(sms["data"]), len(mail["data"])
 
-        async def patch(change: dict[str, Any]) -> None:
+        async def patch(change: dict[str, Any]) -> bool:
             before = await read()
             body = {key: before[key] for key in REQUIRED if key in before}
             body.update(practiceId=settings.practice_id, **change)
@@ -45,6 +45,7 @@ async def probe(patient: str, changes: list[dict[str, Any]]) -> None:
                              if before.get(k) != after.get(k))
             print(f"PATCH {sorted(change)}: {response.status_code} {response.text[:200]}"
                   if response.is_error else f"PATCH {sorted(change)}: changed {changed}")
+            return not response.is_error
 
         print("messages before (sms, email):", await messages())
         original = await read()
@@ -53,7 +54,9 @@ async def probe(patient: str, changes: list[dict[str, Any]]) -> None:
             for change in changes:
                 await patch(change)
         finally:
-            await patch({key: original.get(key, "") for key in touched})
+            empty = {"contactNumbers": [], "address": ""}
+            if not await patch({key: original.get(key, empty.get(key)) for key in touched}):
+                raise SystemExit("Restore failed: the patient still holds the probe's changes")
         print("messages after (sms, email):", await messages())
 
 

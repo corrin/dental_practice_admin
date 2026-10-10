@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -11,12 +12,10 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-from dental_practice_admin import schedules
 from dental_practice_admin.app import create_app
 from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 from tests.fake_akahu import FAKE_AKAHU_SETTINGS
-from tests.test_task_lifecycle import REVISION, install_fake
 
 
 @pytest.fixture
@@ -225,20 +224,18 @@ FOR_STAFF = [{"patient": "Fake Dummy", "field": "phone", "value": "ring mum",
               "problem": "not a number", "href": "https://principle.invalid/patients/fake"}]
 
 
-def _scheduled(pages: Pages, overdue: bool = False) -> None:
+def _launcher_checked(pages: Pages, ago: timedelta) -> None:
     configured = pages.client.app.state.settings  # type: ignore[attr-defined]
-    install_fake(configured.data_root)
-    schedule = schedules.Schedule(name="fake_report", revision=REVISION,
-                                  inputs={"numbers": [7]})
-    schedules.save(configured, schedule, "fake-staff")
-    if overdue:
-        with schedules.open_schedules(configured) as scheduler:
-            scheduler.get_job(schedule.id).modify(
-                next_run_time=datetime.now(UTC) - timedelta(hours=1))
+    heartbeat = configured.data_dir / "audits" / "launcher.jsonl"
+    heartbeat.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat.write_text("{}\n", encoding="utf-8")
+    when = (datetime.now(UTC) - ago).timestamp()
+    os.utime(heartbeat, (when, when))
 
 
-def _ran(pages: Pages, outcome: str, coverage: str, detail: dict[str, object]) -> str:
-    run_id = pages.store.start_run("fake_report", "scheduler", "fake")
+def _ran(pages: Pages, outcome: str, coverage: str, detail: dict[str, object],
+         initiator: str = "scheduler") -> str:
+    run_id = pages.store.start_run("fake_report", initiator, "fake")
     if outcome != "running":
         pages.store.finish_run(run_id, Outcome(outcome), Coverage(coverage), "Synthetic",
                                detail)
@@ -246,7 +243,6 @@ def _ran(pages: Pages, outcome: str, coverage: str, detail: dict[str, object]) -
 
 
 def test_a_list_for_staff_is_announced_and_shown(pages: Pages) -> None:
-    _scheduled(pages)
     run_id = _ran(pages, "succeeded", "complete", {"for_staff": FOR_STAFF})
     body = pages.client.get("/chat").text
     assert ATTENTION in body
@@ -258,13 +254,13 @@ def test_a_list_for_staff_is_announced_and_shown(pages: Pages) -> None:
 
 
 def test_stopped_automatic_runs_are_announced(pages: Pages) -> None:
-    _scheduled(pages, overdue=True)
-    _ran(pages, "succeeded", "complete", {})
+    _launcher_checked(pages, timedelta(minutes=1))
+    assert ATTENTION not in pages.client.get("/").text
+    _launcher_checked(pages, timedelta(hours=1))
     assert ATTENTION in pages.client.get("/").text
 
 
 def test_an_incomplete_last_run_is_announced(pages: Pages) -> None:
-    _scheduled(pages)
     run_id = _ran(pages, "uncertain", "partial", {})
     body = pages.client.get("/").text
     assert ATTENTION in body
@@ -272,13 +268,12 @@ def test_an_incomplete_last_run_is_announced(pages: Pages) -> None:
 
 
 def test_a_healthy_or_running_task_is_not_announced(pages: Pages) -> None:
-    _scheduled(pages)
     _ran(pages, "succeeded", "complete", {"for_staff": []})
     assert ATTENTION not in pages.client.get("/").text
     _ran(pages, "running", "partial", {})
     assert ATTENTION not in pages.client.get("/").text
 
 
-def test_an_unscheduled_task_is_not_announced(pages: Pages) -> None:
-    _ran(pages, "uncertain", "partial", {"for_staff": FOR_STAFF})
+def test_a_run_started_by_a_person_is_not_announced(pages: Pages) -> None:
+    _ran(pages, "uncertain", "partial", {"for_staff": FOR_STAFF}, initiator="fake-staff")
     assert ATTENTION not in pages.client.get("/").text

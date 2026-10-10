@@ -99,9 +99,10 @@ block an otherwise good read; the client works around the first and third:
    validates without the discriminator (`principle._validator`).
 2. **Patients whose record breaks the specification.** `ContactNumber.number` must match
    `^\+?\d{6,15}$`, so numbers like `021 123 4567` fail, and `email` must be a valid address.
-   The client raises `RecordError` naming such a patient, with the response as received. Its
-   pre-read before other patient-scoped calls tolerates that error, so the patient's invoices
-   can still be read; only `getPatient` itself raises. On 2026-10-10, 19 of the 287
+   The client raises `RecordError` naming such patients, with the response as received, from
+   any call that returns patients (`getPatient`, `searchPatients`, `updatePatient`). Its
+   pre-read before other patient-scoped calls tolerates it, so the patient's invoices can
+   still be read. On 2026-10-10, 19 of the 287
    production patients with an unpaid invoice or a recent payment failed: 18 on a phone number,
    1 on an email address. On staging, 5 in 60. The reconcile page shows such a patient as
    unreadable and carries on.

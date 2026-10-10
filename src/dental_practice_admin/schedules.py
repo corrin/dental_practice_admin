@@ -54,28 +54,39 @@ def open_schedules(settings: Settings) -> Iterator[Any]:
             scheduler.shutdown()
 
 
-def attention(settings: Settings, store: Storage) -> list[dict[str, str]]:
-    """What staff must act on for scheduled tasks, each with the page that explains it.
+def launcher_checked(settings: Settings) -> datetime | None:
+    """When the five-minute launcher last finished checking for due work, if it ever has."""
+    heartbeat = settings.data_dir / "audits" / "launcher.jsonl"
+    return datetime.fromtimestamp(heartbeat.stat().st_mtime, UTC) if heartbeat.exists() else None
 
-    A task's latest run may list records for staff (`detail["for_staff"]`). A schedule still
-    due well after the launcher should have claimed it means automatic runs have stopped.
+
+def launcher_recent(settings: Settings) -> bool:
+    """False once the launcher has missed two checks."""
+    checked = launcher_checked(settings)
+    return checked is not None and (
+        datetime.now(UTC) - checked).total_seconds() <= 2 * POLL_SECONDS
+
+
+def attention(settings: Settings, store: Storage) -> list[dict[str, str]]:
+    """What staff must act on for automatic runs, each with the page that explains it.
+
+    Read from what the launcher has recorded, never the job store, so a page never waits on
+    the schedules lock. A task's latest run counts when the launcher started it; it may list
+    records for staff (`detail["for_staff"]`).
     """
-    latest = {run.task: run for run in store.latest_runs_by_task()}
-    now = datetime.now(UTC)
     notes = []
-    with open_schedules(settings) as scheduler:
-        for job in scheduler.get_jobs():
-            title = job.name.replace("_", " ").capitalize()
-            run = latest.get(job.name)
-            if job.next_run_time and (now - job.next_run_time).total_seconds() > 2 * POLL_SECONDS:
-                notes.append({"text": f"{title}: automatic runs have stopped",
-                              "href": "/tasks/manage"})
-            elif run and run.outcome is not Outcome.RUNNING and not run.is_trustworthy:
-                notes.append({"text": f"{title}: the last run did not complete",
-                              "href": f"/runs/{run.run_id}"})
-            if run and run.detail and run.detail.get("for_staff"):
-                notes.append({"text": f"{title}: {len(run.detail['for_staff'])} for staff to fix",
-                              "href": f"/runs/{run.run_id}"})
+    if launcher_checked(settings) is not None and not launcher_recent(settings):
+        notes.append({"text": "Automatic runs have stopped", "href": "/tasks/manage"})
+    for run in store.latest_runs_by_task():
+        if run.initiator != "scheduler":
+            continue
+        title = run.task.replace("_", " ").capitalize()
+        if run.outcome is not Outcome.RUNNING and not run.is_trustworthy:
+            notes.append({"text": f"{title}: the last automatic run did not complete",
+                          "href": f"/runs/{run.run_id}"})
+        if run.detail and run.detail.get("for_staff"):
+            notes.append({"text": f"{title}: {len(run.detail['for_staff'])} for staff to fix",
+                          "href": f"/runs/{run.run_id}"})
     return notes
 
 
