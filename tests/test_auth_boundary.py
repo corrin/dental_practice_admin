@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import SecretStr, ValidationError
+from pydantic import SecretStr
 from starlette.responses import RedirectResponse
 
 from dental_practice_admin.app import create_app
@@ -115,12 +115,6 @@ def test_settings_do_not_change_until_restart(
         monkeypatch.setenv("ADMIN_SIGN_IN", "developer")
         assert client.get("/").status_code == 401
 
-
-def test_sign_in_has_no_default(tmp_path: Path) -> None:
-    complete = fake_settings(tmp_path).model_dump()
-    complete.pop("sign_in")
-    with pytest.raises(ValidationError):
-        Settings(**complete)
 
 
 @pytest.mark.parametrize(

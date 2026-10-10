@@ -18,6 +18,7 @@ from dental_practice_admin.config import (
     Environment,
     Settings,
     SignIn,
+    load_settings,
 )
 from tests.fake_ai import FAKE_AI_KEY
 from tests.fake_akahu import FAKE_AKAHU_SETTINGS
@@ -49,7 +50,7 @@ FAKE_SETTINGS: dict[str, Any] = {
 
 def fake_settings(data_root: Path, **overrides: Any) -> Settings:
     """The fake environment's settings, with runtime data under `data_root`."""
-    return Settings(**(FAKE_SETTINGS | {"data_root": data_root} | overrides))
+    return load_settings(**(FAKE_SETTINGS | {"data_root": data_root} | overrides))
 
 
 def fake_environment(data_root: Path, **overrides: Any) -> dict[str, str]:

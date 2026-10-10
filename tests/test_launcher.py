@@ -99,7 +99,7 @@ def test_explicit_developer_login_cannot_reach_production(credentials: None) -> 
         run.configuration(arguments(principle=Environment.PRODUCTION, sign_in=SignIn.DEVELOPER))
 
 
-def test_fake_preset_still_requires_explicit_authentication_opt_out(credentials: None) -> None:
+def test_the_fake_preset_never_turns_sign_in_off_by_itself(credentials: None) -> None:
     assert run.configuration(arguments(preset=Environment.FAKE)).sign_in is SignIn.GOOGLE
     settings = run.configuration(arguments(preset=Environment.FAKE, sign_in=SignIn.DEVELOPER))
     assert settings.sign_in is SignIn.DEVELOPER

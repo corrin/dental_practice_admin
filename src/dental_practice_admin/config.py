@@ -346,6 +346,8 @@ class Settings(BaseSettings):
         self.require_automation_configured()
         if not self.openai_api_key.get_secret_value() or not self.openai_base_url:
             raise ConfigurationError("Chat needs OPENAI_API_KEY and OPENAI_BASE_URL")
+        # Task review is part of the staff pages, so its settings are checked here with the
+        # rest rather than when someone first asks for a review (ADR 0002).
         if not self.task_repository or not self.github_token.get_secret_value():
             raise ConfigurationError("Task review needs ADMIN_TASK_REPOSITORY and"
                                      " ADMIN_GITHUB_TOKEN")
@@ -382,8 +384,8 @@ class Settings(BaseSettings):
 def load_settings(**overrides: Any) -> Settings:
     """Settings from .env and the environment, with the caller's overrides on top.
 
-    The one way code outside tests builds Settings. Its required fields come from the
-    environment, which a bare `Settings()` call cannot show the type checker.
+    The one way to build Settings. Its required fields come from the environment, which a
+    bare `Settings()` call cannot show the type checker.
     """
     return Settings(**overrides)
 

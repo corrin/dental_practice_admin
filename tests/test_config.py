@@ -62,7 +62,7 @@ def test_a_setting_without_a_value_is_refused(
     complete = _settings().model_dump()
     complete.pop(name)
     with pytest.raises(ValidationError):
-        Settings(**complete)
+        load_settings(**complete)
 
 
 def test_no_setting_has_a_value_written_in_the_code() -> None:
@@ -80,7 +80,7 @@ def test_missing_automation_settings_are_named_as_dotenv_names_them() -> None:
                          ui_email="fake@fake.invalid", ui_password=SecretStr("fake-password"),
                          firebase_key="fake-key", firebase_project="principle-staging",
                          firestore_root="organisations/fake/brands/fake", workspace_slug="fake")
-    with pytest.raises(ConfigurationError, match="PRINCIPLE_WORKSPACE_STAGING$"):
+    with pytest.raises(ConfigurationError, match=r"PRINCIPLE_WORKSPACE_STAGING$"):
         settings.require_automation_configured()
 
 
