@@ -82,6 +82,10 @@ CREATE TABLE IF NOT EXISTS bank_matches (
     created_here             INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS bank_matches_by_deposit ON bank_matches(akahu_id);
+-- A Principle payment row covers at most one deposit.
+CREATE UNIQUE INDEX IF NOT EXISTS bank_matches_one_deposit_per_payment
+    ON bank_matches(principle_transaction_id, invoice_id)
+    WHERE principle_transaction_id IS NOT NULL;
 CREATE TABLE IF NOT EXISTS bank_account (
     id        INTEGER PRIMARY KEY CHECK (id = 1),
     refreshed TEXT NOT NULL
@@ -294,7 +298,11 @@ class Storage:
     # -- bank reconciliation -------------------------------------------------
 
     def record_deposits(self, deposits: Iterable[Deposit], refreshed: str) -> None:
-        """Add new deposits as open; for known ones refresh only what the bank sent."""
+        """Add new deposits as open, and refresh what the bank sent for ones still open.
+
+        A deposit already matched or excluded keeps the amount it was decided on, so its
+        matches always add up to it.
+        """
         with self._write() as db:
             db.executemany(
                 "INSERT INTO bank_deposits (akahu_id, date, amount_cents, description,"
@@ -303,7 +311,7 @@ class Storage:
                 " ON CONFLICT(akahu_id) DO UPDATE SET date=excluded.date,"
                 " amount_cents=excluded.amount_cents, description=excluded.description,"
                 " particulars=excluded.particulars, code=excluded.code,"
-                " reference=excluded.reference",
+                " reference=excluded.reference WHERE bank_deposits.status = 'open'",
                 [asdict(deposit) for deposit in deposits])
             db.execute("INSERT INTO bank_account VALUES (1, ?) ON CONFLICT(id) DO UPDATE"
                        " SET refreshed=excluded.refreshed", (refreshed,))
@@ -343,8 +351,8 @@ class Storage:
     def match_deposit(self, akahu_id: str, matches: list[MatchRow], staff: str) -> None:
         """Mark an open deposit matched to rows that add up to it exactly.
 
-        Checked inside the write, so two people matching at once cannot both succeed and no
-        payment can cover two deposits.
+        Checked inside the write, so two people matching at once cannot both succeed. The
+        unique index refuses a payment that already covers a deposit.
         """
         with self._write() as db:
             deposit = db.execute("SELECT amount_cents, status FROM bank_deposits"
@@ -355,14 +363,13 @@ class Storage:
                 raise MatchRefusedError("every matched amount must be positive")
             if sum(m.amount_cents for m in matches) != deposit["amount_cents"]:
                 raise MatchRefusedError("the matched amounts do not add up to the deposit")
-            payments = [(m.principle_transaction_id, m.invoice_id) for m in matches
-                        if m.principle_transaction_id is not None]
-            if len(set(payments)) != len(payments) or set(payments) & self.claimed_payments():
-                raise MatchRefusedError("a payment is already matched to a deposit")
-            db.executemany(
-                "INSERT INTO bank_matches VALUES (:akahu_id, :principle_transaction_id,"
-                " :patient_id, :invoice_id, :amount_cents, 0)",
-                [{"akahu_id": akahu_id, **asdict(m)} for m in matches])
+            try:
+                db.executemany(
+                    "INSERT INTO bank_matches VALUES (:akahu_id, :principle_transaction_id,"
+                    " :patient_id, :invoice_id, :amount_cents, 0)",
+                    [{"akahu_id": akahu_id, **asdict(m)} for m in matches])
+            except sqlite3.IntegrityError:
+                raise MatchRefusedError("a payment is already matched to a deposit") from None
             db.execute("UPDATE bank_deposits SET status = 'matched', decided_by = ?,"
                        " decided_at = ? WHERE akahu_id = ?", (staff, now(), akahu_id))
 

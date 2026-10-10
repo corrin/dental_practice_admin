@@ -134,3 +134,9 @@ def test_unreconcile_frees_the_payment_and_reopens_the_deposit(store: Storage) -
     assert not store.claimed_payments()
     with pytest.raises(MatchRefusedError):
         store.reopen_deposit("dep-1", "matched")
+
+
+def test_a_decided_deposit_keeps_the_amount_it_was_decided_on(store: Storage) -> None:
+    store.match_deposit("dep-1", [_payment(18500)], "staff@fake.invalid")
+    store.record_deposits([_deposit("dep-1", 99900)], "2026-10-02")
+    assert store.deposit("dep-1")["amount_cents"] == 18500  # type: ignore[index]
