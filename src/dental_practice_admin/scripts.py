@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable
 from importlib.metadata import version
 from typing import Any, Literal
 
+import httpx2 as httpx
 import portalocker
 from pydantic import BaseModel, SecretStr
 
@@ -72,10 +73,11 @@ def load_draft(settings: Settings, identifier: str, owner: str) -> Script:
 class Services:
     """The same integrations for exploratory and released Python scripts."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings,
+                 transport: httpx.AsyncBaseTransport | None = None) -> None:
         self.settings = settings
-        self.api = PrincipleClient(settings)
-        self.firestore = Firestore(settings)
+        self.api = PrincipleClient(settings, transport=transport)
+        self.firestore = Firestore(settings, transport=transport)
 
     async def browser(self, source: str, inputs: dict[str, Any]) -> Any:
         """Run a deterministic Playwright function with exclusive browser ownership."""

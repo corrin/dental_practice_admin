@@ -1,10 +1,6 @@
 {
-  "body": {
-    "error": "Unauthorised",
-    "message": "Please authenticate first",
-    "statusCode": 401
-  },
-  "capturedOn": "2026-09-30",
+  "body": "<unrecognised field; add it to scripts/record_principle_wire.py deliberately>",
+  "capturedOn": "2026-10-10",
   "source": "api.staging.principle.dental",
   "status": 401
 }

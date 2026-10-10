@@ -34,7 +34,7 @@ class Firestore:
                 return self.token
             if self.refresh_token:
                 response = await self.client.post(
-                    "https://securetoken.googleapis.com/v1/token",
+                    self.settings.firebase_url("securetoken") + "/v1/token",
                     params={"key": self.settings.firebase_key},
                     data={"grant_type": "refresh_token", "refresh_token": self.refresh_token})
                 if response.is_success:
@@ -46,7 +46,8 @@ class Firestore:
                     raise RuntimeError("Firebase renewal unavailable")
                 self.refresh_token = ""
             response = await self.client.post(
-                "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
+                self.settings.firebase_url("identitytoolkit")
+                + "/v1/accounts:signInWithPassword",
                 params={"key": self.settings.firebase_key}, json={
                     "email": self.settings.ui_email,
                     "password": self.settings.ui_password.get_secret_value(),
@@ -69,7 +70,8 @@ class Firestore:
         if query is not None and kind not in query:
             raise ValueError("Expected a structured read query")
         token = await self.authenticate()
-        url = "https://firestore.googleapis.com/v1/" + self.root + ("/" + path if path else "")
+        url = (self.settings.firebase_url("firestore") + "/v1/" + self.root
+               + ("/" + path if path else ""))
         if query is not None:
             url += ":runAggregationQuery" if aggregate else ":runQuery"
         response = await self.client.request("POST" if query is not None else "GET", url,

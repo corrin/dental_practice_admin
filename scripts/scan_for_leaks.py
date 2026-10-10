@@ -54,6 +54,12 @@ PUBLIC_SETTINGS = frozenset(
         # Rendered into the chat page by design; public by construction.
         "ADMIN_CHATKIT_DOMAIN_KEY",
         "OPENAI_BASE_URL",
+        # The installed package's path under node_modules, the default in config.py.
+        "ADMIN_PLAYWRIGHT_MCP_PATH",
+        # The address staff browse to, documented in the README and scripts/run.py.
+        "ADMIN_PUBLIC_BASE_URL",
+        # Akahu's public API host, the default in config.py.
+        "AKAHU_BASE_URL",
     }
 )
 
