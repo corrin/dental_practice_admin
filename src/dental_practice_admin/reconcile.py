@@ -7,6 +7,7 @@ staff still key payments into Principle as they do today.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any, Literal
 
@@ -218,8 +219,14 @@ class Match(BaseModel):
     items: list[Ticked]
 
 
+def audit(settings: Settings, event: str, **values: Any) -> None:
+    """Every decision on a deposit, so undoing one never loses who made it."""
+    Audit(settings, "bank-reconciliation").write(event, **values)
+
+
 @router.post("/{akahu_id}/match")
-def match(akahu_id: str, body: Match, staff: CurrentStaff, store: Store) -> dict[str, str]:
+def match(akahu_id: str, body: Match, staff: CurrentStaff, configured: Configured,
+          store: Store) -> dict[str, str]:
     """Record what a deposit was for, checked against the cache rather than the browser."""
     payments, invoices = open_items(store)
     open_payments = {p["key"]: p for p in payments}
@@ -246,6 +253,8 @@ def match(akahu_id: str, body: Match, staff: CurrentStaff, store: Store) -> dict
         store.match_deposit(akahu_id, rows, staff.email)
     except MatchRefusedError as error:
         raise HTTPException(409, str(error)) from None
+    audit(configured, "deposit_matched", akahu_id=akahu_id, staff=staff.email,
+          matches=[asdict(row) for row in rows])
     return {"url": "/reconcile"}
 
 
@@ -258,13 +267,13 @@ class Exclusion(BaseModel):
 @router.post("/{akahu_id}/exclude")
 def exclude(akahu_id: str, body: Exclusion, staff: CurrentStaff, configured: Configured,
             store: Store) -> dict[str, str]:
-    """Not a patient payment, like QuickBooks' Exclude; the reason is required and audited."""
+    """Not a patient payment, like QuickBooks' Exclude; the reason is required."""
     try:
         store.exclude_deposit(akahu_id, body.reason, staff.email)
     except MatchRefusedError as error:
         raise HTTPException(409, str(error)) from None
-    Audit(configured, "bank-reconciliation").write(
-        "deposit_excluded", akahu_id=akahu_id, staff=staff.email, reason=body.reason)
+    audit(configured, "deposit_excluded", akahu_id=akahu_id, staff=staff.email,
+          reason=body.reason)
     return {"url": "/reconcile"}
 
 
@@ -275,11 +284,13 @@ class Reopening(BaseModel):
 
 
 @router.post("/{akahu_id}/reopen")
-def reopen(akahu_id: str, body: Reopening, staff: CurrentStaff,
+def reopen(akahu_id: str, body: Reopening, staff: CurrentStaff, configured: Configured,
            store: Store) -> dict[str, str]:
     """Unreconcile a match or undo an exclusion. Principle is never touched."""
+    undone = next((d for d in store.deposits(body.status) if d["akahu_id"] == akahu_id), None)
     try:
         store.reopen_deposit(akahu_id, body.status)
     except MatchRefusedError as error:
         raise HTTPException(409, str(error)) from None
+    audit(configured, "deposit_reopened", akahu_id=akahu_id, staff=staff.email, undone=undone)
     return {"url": f"/reconcile?tab={body.status}"}

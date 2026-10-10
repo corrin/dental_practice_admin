@@ -1,6 +1,7 @@
 """Bank reconciliation: deposits from Akahu, matched by hand against Principle."""
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -265,3 +266,15 @@ def test_exclude_needs_a_reason_and_undo_restores(web: TestClient) -> None:
     assert web.post("/reconcile/trans_fake_cheque/reopen",
                     json={"status": "excluded"}).status_code == 200
     assert "trans_fake_cheque" in web.get("/reconcile").text
+
+
+def test_undoing_a_match_keeps_who_made_it_in_the_audit(
+    web: TestClient, practice: Settings,
+) -> None:
+    web.post("/reconcile/trans_fake_transfer/match", json={"items": [
+        {"payment": "pay-lily:lily-1", "cents": 18500}]})
+    web.post("/reconcile/trans_fake_transfer/reopen", json={"status": "matched"})
+    events = [json.loads(line) for line in (
+        practice.data_dir / "audits" / "bank-reconciliation.jsonl").read_text().splitlines()]
+    assert [e["event"] for e in events] == ["deposit_matched", "deposit_reopened"]
+    assert events[1]["undone"]["decided_by"] == events[0]["staff"]
