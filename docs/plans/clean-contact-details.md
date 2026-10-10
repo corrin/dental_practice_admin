@@ -9,7 +9,7 @@ design.
 ## Why
 
 On 2026-10-10, one patient's second phone number broke the format in Principle's own API
-specification. The app rejects data that breaks the specification, so that one record
+specification, `^\+?\d{6,15}$`. The app rejects data that breaks the specification, so that one record
 stopped the day sheet for every practitioner.
 
 Bad contact details come from the Open Dental migration, and they can come back whenever
@@ -31,6 +31,8 @@ Open Dental. The owner will say where it is. Its rules are a starting point.
      - two numbers in one field
      - "ring mum" written in a phone field
      - an address that can't be matched to a real one
+   - A cleaned detail keeps its type, for example mobile or home, and its position among the
+     patient's details.
 3. **The standard forms are the owner's decision.** Before building, show the owner worked
    examples, including an edge case, and get approval. Two of the open questions:
    - national "021…" or international "+6421…"
@@ -60,6 +62,8 @@ Open Dental. The owner will say where it is. Its rules are a starting point.
     as a before-and-after list. For the regular check, the owner decides whether
     unambiguous fixes go ahead automatically or wait for approval.
 11. **No patient data in the repository.** It's public, so tests use synthetic data.
+12. **No patient data leaves the practice without the owner's approval.** Checking addresses
+    against an outside service, for example, is the owner's decision.
 
 ## Done
 
@@ -67,7 +71,8 @@ Open Dental. The owner will say where it is. Its rules are a starting point.
 - Production holds no contact detail that breaks the specification or the standard forms.
   The only exceptions are the unclear ones, and those are with staff.
 - The regular check is running, and has reported at least once.
-- A bad contact detail no longer stops the day sheet (`admin_scripts` PR #5) or any other
-  task.
+- The day sheet (`admin_scripts` PR #5) runs for 2026-11-16 against production without a
+  failure.
+- The `getPatient / response_schema` interface warning that this record raised is cleared.
 - `docs/principle/` records what was learned, with no patient data.
 - Merged to `main`, following `AGENTS.md`.
