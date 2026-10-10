@@ -23,12 +23,7 @@ from dental_practice_admin.auth import AccessControl, CurrentStaff, StaffUser, b
 from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
 from dental_practice_admin.chat_store import SqliteChatStore
-from dental_practice_admin.config import (
-    Environment,
-    Settings,
-    SignIn,
-    current_settings,
-)
+from dental_practice_admin.config import Environment, Settings, SignIn, current_settings
 from dental_practice_admin.scripts import load_draft
 from dental_practice_admin.storage import Storage, TaskRun
 from dental_practice_admin.task_ui import router as task_router

@@ -220,6 +220,9 @@ class Settings(BaseSettings):
     @property
     def data_dir(self) -> Path:
         """Per-environment directory for the database, logs and browser session state."""
+        # A mistyped ADMIN_DATA_ROOT must fail, not quietly start an empty database.
+        if not self.data_root.is_dir():
+            raise ConfigurationError(f"ADMIN_DATA_ROOT {self.data_root} is not an existing folder")
         return self.data_root / self.environment.value
 
     @property
@@ -298,13 +301,6 @@ class Settings(BaseSettings):
             missing.append("ADMIN_STAFF_EMAILS or ADMIN_STAFF_DOMAIN")
         if missing:
             raise ConfigurationError(f"sign_in=google needs {', '.join(missing)}")
-
-    @model_validator(mode="after")
-    def _data_root_exists(self) -> Settings:
-        """Refuse a data folder that is not there, rather than start an empty database."""
-        if not self.data_root.is_dir():
-            raise ConfigurationError(f"ADMIN_DATA_ROOT {self.data_root} is not an existing folder")
-        return self
 
     @model_validator(mode="after")
     def _environment_matches_host(self) -> Settings:

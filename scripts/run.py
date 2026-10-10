@@ -18,6 +18,8 @@ from pydantic import SecretStr
 
 from dental_practice_admin.config import (
     ENVIRONMENT_FIELDS,
+    FAKE_API_KEY,
+    FAKE_PRACTICE_ID,
     Environment,
     Settings,
     SignIn,
@@ -45,11 +47,14 @@ def configuration(args: argparse.Namespace) -> Settings:
     if args.sign_in is not None:
         overrides["sign_in"] = args.sign_in
     if args.preset is Environment.FAKE:
-        # The fake preset runs without the tunnel, so it serves on localhost whatever .env
-        # names. Imported here so that a real run never loads test code.
+        # The preset is the fakes and a local address, whatever .env names, so the servers it
+        # starts are the ones it uses. Imported here so that a real run never loads test code.
         from tests.fake_akahu import FAKE_AKAHU_SETTINGS
         overrides |= {"akahu_base_url": FAKE_BANK_URL, "public_base_url": "http://localhost:8080",
                       **FAKE_AKAHU_SETTINGS}
+    if principle is Environment.FAKE:
+        overrides |= {"api_base_url": FAKE_SERVER_URL, "api_key": FAKE_API_KEY,
+                      "practice_id": FAKE_PRACTICE_ID}
     settings = Settings(**overrides)
     settings.require_web_configured()
     if (

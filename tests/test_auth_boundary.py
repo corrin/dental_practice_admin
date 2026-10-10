@@ -116,7 +116,6 @@ def test_settings_do_not_change_until_restart(
         assert client.get("/").status_code == 401
 
 
-
 @pytest.mark.parametrize(
     "email,verified", [("outsider@fake.invalid", True), ("staff@fake.invalid", False)]
 )
