@@ -100,8 +100,8 @@ SQLite tables in `storage.py`:
 - Columns: `akahu_id`, `principle_transaction_id`, `patient_id`, `invoice_id`,
   `amount_cents`, `created_here`.
 - A batch deposit has one row for each existing payment it covers.
-- An individual deposit has one row for each existing payment it matched and each payment the
-  page created (`created_here` = true).
+- An individual deposit has one row for each existing payment it matched
+  (`created_here` = false) and one for each payment the page created (`created_here` = true).
 
 **`payer_links`**
 - Columns: `payer_name`, `patient_id`, `created_by`, `created_at`.
