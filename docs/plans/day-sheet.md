@@ -215,7 +215,8 @@ categories, and with them the new-patient flag, would not show.
 | Notes, reason | Text after the procedures | Same, joined with " / " |
 | Confirmation | Coloured dot | A hollow circle on unconfirmed only, since Principle has two states |
 | Online booking | Blue dot | Globe, as Principle's timeline shows it |
-| Lunch, meetings | Pastel block, label | Grey hatch, label |
+| Lunch, meetings | Pastel block, label | Grey hatch, label. Includes blocks edited for one day, which Principle keeps as calendar events ([firestore.md](../principle/firestore.md)) |
+| Pending online request | — | White card naming the requested treatment, with an hourglass. Principle's timeline shows these; it has no patient until accepted |
 | Free time | White | White |
 
 - **Page.** A4 portrait, 10 mm margins, a 16 mm header, and a 9 mm time column labelled
@@ -231,7 +232,8 @@ categories, and with them the new-patient flag, would not show.
   in "…". Notes are never dropped silently. A card never grows past its end time: a proof
   that let text spill into free time below made a 14:20–15:00 appointment read as 15:10.
 - **Empty day.** One page saying nobody is booked.
-- **Partial coverage.** A red INCOMPLETE line under the header names each gap.
+- **Partial coverage.** Red INCOMPLETE lines under the header name each gap by practitioner
+  and start time. The header grows to fit them and the legend.
 
 **Measured on production (2026-10-10 proofs):** every one of 22 days printed exactly one page
 per practitioner, and no card was clipped. About one card a week is cut with "…". These
