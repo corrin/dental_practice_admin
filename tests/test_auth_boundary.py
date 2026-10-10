@@ -32,6 +32,7 @@ def configured(tmp_path: Path, environment: Environment = Environment.FAKE) -> S
         firestore_root="organisations/fake/brands/fake",
         workspace="Synthetic workspace",
         workspace_slug="fake",
+        google_maps_api_key=SecretStr("fake-maps-key"),
     )
 
 

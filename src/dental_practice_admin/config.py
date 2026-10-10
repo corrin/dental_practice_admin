@@ -125,6 +125,9 @@ class Settings(BaseSettings):
     playwright_mcp_path: Path = Path("node_modules/@playwright/mcp/cli.js")
     task_repository: str = ""
     github_token: SecretStr = SecretStr("")
+    # Geocodes patient addresses for the contact-details clean-up. Only the address string is
+    # sent; the owner approved sending it to Google on 2026-10-10.
+    google_maps_api_key: SecretStr = SecretStr("")
 
     # Staff sign-in. Google holds the credentials; this application holds only the list of
     # people allowed in, so there is no password store to leak or reset.
@@ -346,6 +349,8 @@ class Settings(BaseSettings):
             return
         if any(not getattr(self, name) for name in ENVIRONMENT_FIELDS[3:]):
             raise ConfigurationError("Automation needs scoped credentials and workspace settings")
+        if not self.google_maps_api_key.get_secret_value():
+            raise ConfigurationError("Automation needs ADMIN_GOOGLE_MAPS_API_KEY")
         staging = self.environment is Environment.STAGING
         if (self.firebase_project == "principle-staging") != staging:
             raise ConfigurationError("Firebase project and environment disagree")

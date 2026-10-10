@@ -282,3 +282,15 @@ async def test_fake_server_accepts_its_synthetic_uuid(fake_client: PrincipleClie
 
     assert str(UUID(FAKE_API_KEY)) == FAKE_API_KEY
     assert (await fake_client.get("listPractices"))["data"]
+
+
+def test_automation_against_principle_needs_the_maps_key(tmp_path: Path) -> None:
+    from tests.test_auth_boundary import configured
+    playwright = tmp_path / "cli.js"
+    playwright.write_text("")
+    complete = configured(tmp_path, Environment.STAGING).model_copy(
+        update={"playwright_mcp_path": playwright})
+    complete.require_automation_configured()
+    without = complete.model_copy(update={"google_maps_api_key": SecretStr("")})
+    with pytest.raises(ConfigurationError):
+        without.require_automation_configured()
