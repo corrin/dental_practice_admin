@@ -36,7 +36,8 @@ Secure it before Principle switches SMS on, and before step 8 moves `office` to 
    webhook signs with `WEBHOOK_SECRET`, so the new key changes nothing for Principle.
 3. Point Principle's webhook at `https://office.massey-smiles.co.nz/smsgateway/webhooks/principle`.
 4. Install the SMS warning on reception and pass its acceptance check, both as SMS_Bridge's
-   PRODUCTION.md "SMS warning on reception" describes (corrin/SMS_Bridge#4). Without it,
+   [PRODUCTION.md](https://github.com/corrin/SMS_Bridge/blob/master/PRODUCTION.md) "SMS warning on
+   reception" describes. Without it,
    texts that stop going out fail silently.
 
 **Check, without sending an SMS:** from outside the practice network,
