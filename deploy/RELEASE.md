@@ -212,7 +212,7 @@ retry.
    `Set-Content`); stop the bridge on reception and disable its startup task; pair the phone
    with the server's Call Centre and start the server's bridge; switch the router's forward for
    TCP 80 and 443 to the server; and start the server's `caddy` service. Then re-register
-   reception's SMS check with `-Url http://<server>:5170/smsgateway/phone-status`. Watch `C:\ProgramData\Caddy\logs` until it has obtained both
+   reception's SMS check with `-Url http://192.168.192.30:5170/smsgateway/phone-status`. Watch `C:\ProgramData\Caddy\logs` until it has obtained both
    certificates. Leave reception's Caddyfile and certificates in place for the undo.
 
 **Check:** from outside the practice network (a phone off Wi-Fi),
