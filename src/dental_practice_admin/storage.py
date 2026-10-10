@@ -14,14 +14,17 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
+from dataclasses import asdict
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 from pydantic.dataclasses import dataclass
+
+from dental_practice_admin.akahu import Deposit
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS task_runs (
@@ -51,6 +54,51 @@ CREATE TABLE IF NOT EXISTS interface_warnings (
     reason TEXT NOT NULL,
     first_seen TEXT NOT NULL,
     last_seen TEXT NOT NULL
+);
+
+-- Bank reconciliation (docs/plans/bank-reconciliation.md). A deposit is kept by its Akahu id
+-- with a status, so an unfinished visit to the page never loses one.
+CREATE TABLE IF NOT EXISTS bank_deposits (
+    akahu_id     TEXT PRIMARY KEY,
+    date         TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    description  TEXT NOT NULL,
+    particulars  TEXT,
+    code         TEXT,
+    reference    TEXT,
+    status       TEXT NOT NULL,
+    decided_by   TEXT,
+    decided_at   TEXT,
+    note         TEXT
+);
+-- One row per Principle payment or invoice a deposit was matched to. A Phase 1 match to an
+-- invoice has no transaction: the payment is still keyed in Principle by hand.
+CREATE TABLE IF NOT EXISTS bank_matches (
+    akahu_id                 TEXT NOT NULL REFERENCES bank_deposits(akahu_id),
+    principle_transaction_id TEXT,
+    patient_id               TEXT NOT NULL,
+    invoice_id               TEXT NOT NULL,
+    amount_cents             INTEGER NOT NULL,
+    created_here             INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS bank_matches_by_deposit ON bank_matches(akahu_id);
+CREATE TABLE IF NOT EXISTS bank_account (
+    id        INTEGER PRIMARY KEY CHECK (id = 1),
+    refreshed TEXT NOT NULL
+);
+
+-- What the reconcile page needs from Principle, so showing it makes no calls. `kind` is
+-- invoice (unpaid only), payment (complete only, one row per invoice it pays) or patient.
+CREATE TABLE IF NOT EXISTS principle_cache (
+    kind       TEXT NOT NULL,
+    key        TEXT NOT NULL,
+    patient_id TEXT NOT NULL,
+    body       TEXT NOT NULL,
+    PRIMARY KEY (kind, key)
+);
+CREATE TABLE IF NOT EXISTS principle_cache_marks (
+    kind    TEXT PRIMARY KEY,
+    read_to TEXT NOT NULL
 );
 """
 
@@ -242,6 +290,141 @@ class Storage:
             "PARTITION BY task ORDER BY started_at DESC, rowid DESC) AS position "
             "FROM task_runs) WHERE position = 1) ORDER BY task"
         )]
+
+    # -- bank reconciliation -------------------------------------------------
+
+    def record_deposits(self, deposits: Iterable[Deposit], refreshed: str) -> None:
+        """Add new deposits as open; for known ones refresh only what the bank sent."""
+        with self._write() as db:
+            db.executemany(
+                "INSERT INTO bank_deposits (akahu_id, date, amount_cents, description,"
+                " particulars, code, reference, status) VALUES (:akahu_id, :date,"
+                " :amount_cents, :description, :particulars, :code, :reference, 'open')"
+                " ON CONFLICT(akahu_id) DO UPDATE SET date=excluded.date,"
+                " amount_cents=excluded.amount_cents, description=excluded.description,"
+                " particulars=excluded.particulars, code=excluded.code,"
+                " reference=excluded.reference",
+                [asdict(deposit) for deposit in deposits])
+            db.execute("INSERT INTO bank_account VALUES (1, ?) ON CONFLICT(id) DO UPDATE"
+                       " SET refreshed=excluded.refreshed", (refreshed,))
+
+    def bank_refreshed(self) -> str | None:
+        """When Akahu last read the account from the bank; None before the first fetch."""
+        row = self.db.execute("SELECT refreshed FROM bank_account").fetchone()
+        return None if row is None else str(row["refreshed"])
+
+    def oldest_open_deposit(self) -> str | None:
+        """The date of the oldest deposit nobody has dealt with yet."""
+        row = self.db.execute(
+            "SELECT MIN(date) AS day FROM bank_deposits WHERE status = 'open'").fetchone()
+        return None if row["day"] is None else str(row["day"])
+
+    def deposits(self, status: str) -> list[dict[str, Any]]:
+        """Deposits in one status, newest first, each with the rows it was matched to."""
+        rows = [dict(row) for row in self.db.execute(
+            "SELECT * FROM bank_deposits WHERE status = ? ORDER BY date DESC, akahu_id",
+            (status,))]
+        for row in rows:
+            row["matches"] = [dict(m) for m in self.db.execute(
+                "SELECT * FROM bank_matches WHERE akahu_id = ?", (row["akahu_id"],))]
+        return rows
+
+    def deposit(self, akahu_id: str) -> dict[str, Any] | None:
+        row = self.db.execute(
+            "SELECT * FROM bank_deposits WHERE akahu_id = ?", (akahu_id,)).fetchone()
+        return None if row is None else dict(row)
+
+    def claimed_payments(self) -> set[tuple[str, str]]:
+        """(transaction id, invoice id) of every Principle payment a deposit already covers."""
+        return {(row[0], row[1]) for row in self.db.execute(
+            "SELECT principle_transaction_id, invoice_id FROM bank_matches"
+            " WHERE principle_transaction_id IS NOT NULL")}
+
+    def match_deposit(self, akahu_id: str, matches: list[MatchRow], staff: str) -> None:
+        """Mark an open deposit matched to rows that add up to it exactly.
+
+        Checked inside the write, so two people matching at once cannot both succeed and no
+        payment can cover two deposits.
+        """
+        with self._write() as db:
+            deposit = db.execute("SELECT amount_cents, status FROM bank_deposits"
+                                 " WHERE akahu_id = ?", (akahu_id,)).fetchone()
+            if deposit is None or deposit["status"] != "open":
+                raise MatchRefusedError("the deposit is no longer open")
+            if not matches or any(m.amount_cents <= 0 for m in matches):
+                raise MatchRefusedError("every matched amount must be positive")
+            if sum(m.amount_cents for m in matches) != deposit["amount_cents"]:
+                raise MatchRefusedError("the matched amounts do not add up to the deposit")
+            payments = [(m.principle_transaction_id, m.invoice_id) for m in matches
+                        if m.principle_transaction_id is not None]
+            if len(set(payments)) != len(payments) or set(payments) & self.claimed_payments():
+                raise MatchRefusedError("a payment is already matched to a deposit")
+            db.executemany(
+                "INSERT INTO bank_matches VALUES (:akahu_id, :principle_transaction_id,"
+                " :patient_id, :invoice_id, :amount_cents, 0)",
+                [{"akahu_id": akahu_id, **asdict(m)} for m in matches])
+            db.execute("UPDATE bank_deposits SET status = 'matched', decided_by = ?,"
+                       " decided_at = ? WHERE akahu_id = ?", (staff, now(), akahu_id))
+
+    def exclude_deposit(self, akahu_id: str, reason: str, staff: str) -> None:
+        """Set an open deposit aside as not a patient payment, saying why."""
+        if not reason.strip():
+            raise MatchRefusedError("an exclusion needs a reason")
+        with self._write() as db:
+            changed = db.execute(
+                "UPDATE bank_deposits SET status = 'excluded', note = ?, decided_by = ?,"
+                " decided_at = ? WHERE akahu_id = ? AND status = 'open'",
+                (reason.strip(), staff, now(), akahu_id)).rowcount
+            if changed != 1:
+                raise MatchRefusedError("the deposit is no longer open")
+
+    def reopen_deposit(self, akahu_id: str, status: str) -> None:
+        """Unreconcile a matched deposit or restore an excluded one; Principle is untouched."""
+        with self._write() as db:
+            changed = db.execute(
+                "UPDATE bank_deposits SET status = 'open', note = NULL, decided_by = NULL,"
+                " decided_at = NULL WHERE akahu_id = ? AND status = ?",
+                (akahu_id, status)).rowcount
+            if changed != 1:
+                raise MatchRefusedError(f"the deposit is no longer {status}")
+            db.execute("DELETE FROM bank_matches WHERE akahu_id = ?", (akahu_id,))
+
+    def cache_mark(self, kind: str) -> str | None:
+        """The instant a kind was last read up to; None before its first full read."""
+        row = self.db.execute("SELECT read_to FROM principle_cache_marks WHERE kind = ?",
+                              (kind,)).fetchone()
+        return None if row is None else str(row["read_to"])
+
+    def update_cache(self, kind: str, put: Iterable[tuple[str, str, dict[str, Any]]],
+                     drop: Iterable[str], read_to: str | None) -> None:
+        """Store (key, patient id, body) rows, remove keys, and move the read mark."""
+        with self._write() as db:
+            db.executemany("INSERT OR REPLACE INTO principle_cache VALUES (?, ?, ?, ?)",
+                           [(kind, key, patient, json.dumps(body)) for key, patient, body in put])
+            db.executemany("DELETE FROM principle_cache WHERE kind = ? AND key = ?",
+                           [(kind, key) for key in drop])
+            if read_to is not None:
+                db.execute("INSERT OR REPLACE INTO principle_cache_marks VALUES (?, ?)",
+                           (kind, read_to))
+
+    def cached(self, kind: str) -> dict[str, dict[str, Any]]:
+        """Every cached body of one kind, by key."""
+        return {row["key"]: json.loads(row["body"]) for row in self.db.execute(
+            "SELECT key, body FROM principle_cache WHERE kind = ?", (kind,))}
+
+
+class MatchRefusedError(ValueError):
+    """A match, exclusion or reopening the deposit's current state does not allow."""
+
+
+@dataclass(frozen=True)
+class MatchRow:
+    """One Principle payment or invoice a deposit covers, in cents."""
+
+    patient_id: str
+    invoice_id: str
+    amount_cents: int
+    principle_transaction_id: str | None
 
 
 def _row_to_run(row: sqlite3.Row) -> TaskRun:
