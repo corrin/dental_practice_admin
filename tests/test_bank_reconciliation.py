@@ -189,8 +189,8 @@ async def test_fetch_reads_deposits_payments_unpaid_invoices_and_names(
     payments, invoices = reconcile.open_items(store)
     assert len(store.deposits("open")) == 3
     assert {(p["patient"], p["method"], p["cents"]) for p in payments} == {
-        ("Lily Smith", "Direct Deposit", 18500),
-        ("Card One", "Credit Card", 120000), ("Card Two", "Credit Card", 78000)}
+        ("Lily Fake", "Direct Deposit", 18500),
+        ("Card Fake-One", "Credit Card", 120000), ("Card Fake-Two", "Credit Card", 78000)}
     assert {(i["key"], i["cents"]) for i in invoices} == {("tom-1", 9000), ("spaced-1", 6000)}
     assert next(i for i in invoices if i["key"] == "spaced-1")["patient"].startswith(
         "Unreadable")
@@ -231,7 +231,7 @@ async def web(practice: Settings, principle: FakeStore) -> AsyncIterator[TestCli
 
 def test_find_and_match_offers_the_recorded_payment_first(web: TestClient) -> None:
     page = web.get("/reconcile/trans_fake_transfer").text
-    assert page.index("Lily Smith") < page.index("Card One")
+    assert page.index("Lily Fake") < page.index("Card Fake-One")
 
 
 def test_a_deposit_is_matched_to_a_payment_already_in_principle(web: TestClient) -> None:
@@ -239,7 +239,7 @@ def test_a_deposit_is_matched_to_a_payment_already_in_principle(web: TestClient)
         {"payment": "pay-lily:lily-1", "cents": 18500}]})
     assert response.status_code == 200
     assert "trans_fake_transfer" in web.get("/reconcile?tab=matched").text
-    assert "Lily Smith" not in web.get("/reconcile/trans_fake_card").text
+    assert "Lily Fake" not in web.get("/reconcile/trans_fake_card").text
 
 
 # Each adds up to its deposit, so only the check named is left to refuse it.
