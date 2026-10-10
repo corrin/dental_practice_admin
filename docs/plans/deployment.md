@@ -71,8 +71,9 @@ running release is untouched.
 
    The old release is still serving.
 6. Disable the task runner and wait for any run in progress to finish, so no scheduled task is
-   writing to Principle while its code is switched underneath it. Stop the service. Record where
-   `current` points.
+   writing to Principle while its code is switched underneath it. A run still going after ten
+   minutes ends the deploy here: the task runner is enabled again and the stuck run is named,
+   with the service never stopped. Then stop the service, and record where `current` points.
 7. Point `current` at the new release; enable the task runner; start the service.
 8. Health: `/health` must answer within 60 seconds, then `scripts\verify.ps1` must pass.
 9. If anything fails from step 6 on, including the run being interrupted: point `current`
