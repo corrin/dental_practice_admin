@@ -37,8 +37,7 @@ as down.
 - **The bridge owns the outage.** An outage starts when the link has been down for 2 minutes,
   and ends once it has stayed up for 30 minutes, so flapping stays one outage. The pop-up and
   this application's email both key on `outage.id`. This application never re-derives the rule.
-- **The reception pop-up.** When the link has been down for 2 minutes, which rides out a
-  reconnect, the bridge shows one Windows message box. It uses `MessageBoxW` from `user32` (a
+- **The reception pop-up.** When an outage starts, the bridge shows one Windows message box. It uses `MessageBoxW` from `user32` (a
   P/Invoke, no new program or package), system-modal so it sits on top, on a background thread
   so nothing waits on it. The text: "Patient texts are not being sent. The phone is not connected
   to Call Centre. Check the phone is on and connected, then open Call Centre." Dismissing the box
@@ -78,7 +77,8 @@ as down.
   - An alert email once an outage reported by the bridge has lasted 15 minutes, and an
     all-clear when the bridge reports it ended. Both are keyed on `outage.id`.
   - A bridge that doesn't answer for 3 consecutive checks is the one outage this application
-    records itself, because the bridge can't. It ends at the first good answer.
+    records itself, because the bridge can't. Like the bridge's, it ends only after 30 minutes
+    of good answers.
   - The row records what was sent, so there is never a repeat.
   - Sent with `smtplib` from the standard library.
   - A failed send is retried on the next poll. The banner says the email failed.
@@ -117,8 +117,8 @@ as down.
 - **The phone is connected around the clock.** Any drop at any hour is a fault, so there are no
   quiet hours.
 - **The email comes from a massey-smiles.co.nz Workspace account with an app password**, on
-  `smtp.gmail.com:587`. Setting up that account goes in RELEASE.md's step 5, with the other
-  settings.
+  `smtp.gmail.com:587`. RELEASE.md's "The release directory" step gains the account setup: 2-step
+  verification on the account, and the Workspace admin allowing app passwords.
 - **Reception is told once, not all day.** One outage gives reception one pop-up and the owner
   one alert and one all-clear, however long it lasts and however often it flaps.
 
