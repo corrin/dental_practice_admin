@@ -17,9 +17,6 @@ run/
 screenshots/
 *.png
 
-# Downloads of real production records, for checking the data model against real data.
-prod_data/
-
 .venv/
 node_modules/
 __pycache__/
