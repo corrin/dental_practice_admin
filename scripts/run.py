@@ -30,6 +30,7 @@ from dental_practice_admin.config import (
 ROOT = Path(__file__).resolve().parents[1]
 STAGING_ORIGIN = "https://massey-admin-dev.ngrok-free.app"
 FAKE_SERVER_URL = "http://127.0.0.1:8898"
+FAKE_BANK_URL = "http://127.0.0.1:8897/v1"
 
 
 def configuration(args: argparse.Namespace) -> Settings:
@@ -47,6 +48,10 @@ def configuration(args: argparse.Namespace) -> Settings:
             overrides["openai_api_key"] = "fake-openai-key"
     if args.sign_in is not None:
         overrides["sign_in"] = args.sign_in
+    if args.preset is Environment.FAKE:
+        # Imported here so that a real run never loads test code.
+        from tests.fake_akahu import FAKE_AKAHU_SETTINGS
+        overrides |= {"akahu_base_url": FAKE_BANK_URL, **FAKE_AKAHU_SETTINGS}
     settings = Settings(**overrides)
     if settings.environment is Environment.FAKE:
         if settings.api_base_url == FAKE_API_URL:
@@ -110,6 +115,8 @@ def run(settings: Settings) -> None:
         services.append(("tests.fake.server:app", 8898, "/v1/practices", {401, 403}))
     if settings.openai_base_url == "http://127.0.0.1:8899/v1":
         services.append(("tests.fake_ai.server:app", 8899, "/health", {200}))
+    if settings.akahu_base_url == FAKE_BANK_URL:
+        services.append(("tests.fake_akahu.server:app", 8897, "/v1/me", {401}))
     services.append(("dental_practice_admin.app:create_app", 8080, "/health", {200}))
     # An existing listener must not be mistaken for the child we are starting.
     for _, port, _, _ in services:

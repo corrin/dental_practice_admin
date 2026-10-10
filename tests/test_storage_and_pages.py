@@ -15,6 +15,7 @@ from dental_practice_admin import schedules
 from dental_practice_admin.app import create_app
 from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.storage import Coverage, Outcome, Storage
+from tests.fake_akahu import FAKE_AKAHU_SETTINGS
 from tests.test_task_lifecycle import REVISION, install_fake
 
 
@@ -112,6 +113,7 @@ def pages(tmp_path: Path) -> Iterator[Pages]:
         data_root=tmp_path,
         sign_in=SignIn.DEVELOPER,
         openai_api_key=SecretStr("fake-ai-key"),
+        **FAKE_AKAHU_SETTINGS,
     )
     app = create_app(configured)
     seeding = Storage(configured.database_path)

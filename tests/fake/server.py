@@ -161,6 +161,40 @@ def list_appointments(store: FakeStore, request: Request, _match: re.Match[str])
     return Response(200, _envelope(page, limit))
 
 
+def get_patient(store: FakeStore, request: Request, match: re.Match[str]) -> Response:
+    _only(request, frozenset())
+    patient = store.patient(match.group("patient_id"))
+    if patient is None:
+        return _refusal("patient_not_found")
+    return Response(200, patient)
+
+
+def search_patients(store: FakeStore, request: Request, _match: re.Match[str]) -> Response:
+    """Every match at once, with no `meta`: the endpoint is not paginated."""
+    _only(request, frozenset({"practiceId", "name"}))
+    return Response(200, {"data": store.search_patients(request.query["practiceId"],
+                                                        request.query["name"])})
+
+
+DATE_RANGE = frozenset({"practiceId", "createdFrom", "createdTo", "updatedFrom", "updatedTo",
+                        "limit", "offsetId"})
+
+
+def list_invoices(store: FakeStore, request: Request, _match: re.Match[str]) -> Response:
+    _only(request, DATE_RANGE)
+    limit, offset = _paging(request)
+    page = store.changed("invoices", request.query["practiceId"], request.query, limit, offset)
+    return Response(200, _envelope(page, limit))
+
+
+def list_transactions(store: FakeStore, request: Request, _match: re.Match[str]) -> Response:
+    _only(request, DATE_RANGE)
+    limit, offset = _paging(request)
+    page = store.changed("transactions", request.query["practiceId"], request.query, limit,
+                         offset)
+    return Response(200, _envelope(page, limit))
+
+
 def _route(method: str, pattern: str, handler: Handler) -> tuple[str, re.Pattern[str], Handler]:
     return method, re.compile(f"^{pattern}$"), handler
 
@@ -173,6 +207,10 @@ ROUTES: tuple[tuple[str, re.Pattern[str], Handler], ...] = (
         list_practitioners,
     ),
     _route("GET", r"/v1/appointments", list_appointments),
+    _route("GET", r"/v1/patients", search_patients),
+    _route("GET", r"/v1/patients/(?P<patient_id>[^/]+)", get_patient),
+    _route("GET", r"/v1/invoices", list_invoices),
+    _route("GET", r"/v1/transactions", list_transactions),
 )
 
 

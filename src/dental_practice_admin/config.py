@@ -168,6 +168,15 @@ class Settings(BaseSettings):
     # breaks for staff on the day it is retired, so this is worth keeping current.
     agent_model: str = "gpt-6.1-sol"
 
+    # The practice's bank account, through an Akahu personal app (my.akahu.nz/developers).
+    # There is one bank whichever Principle this checkout talks to, so no environment suffix.
+    # The base URL moves only for the fake bank.
+    akahu_app_token: SecretStr = Field(default=SecretStr(""), validation_alias="AKAHU_APP_TOKEN")
+    akahu_user_token: SecretStr = Field(default=SecretStr(""),
+                                        validation_alias="AKAHU_USER_TOKEN")
+    akahu_base_url: str = Field(default="https://api.akahu.io/v1",
+                                validation_alias="AKAHU_BASE_URL")
+
     # Registered with OpenAI for the domain the chat page is served from, and required by the
     # ChatKit component alongside the endpoint URL. Not a secret: it is rendered into the page.
     chatkit_domain_key: str = "domain_pk_localhost"
@@ -343,6 +352,11 @@ class Settings(BaseSettings):
         self.require_automation_configured()
         if not self.openai_api_key.get_secret_value():
             raise ConfigurationError("Chat needs OPENAI_API_KEY")
+        missing = [name for name, value in (
+            ("AKAHU_APP_TOKEN", self.akahu_app_token.get_secret_value()),
+            ("AKAHU_USER_TOKEN", self.akahu_user_token.get_secret_value())) if not value]
+        if missing:
+            raise ConfigurationError(f"Bank reconciliation needs {', '.join(missing)}")
 
     def require_automation_configured(self) -> None:
         """Validate automation settings once before accepting real work."""

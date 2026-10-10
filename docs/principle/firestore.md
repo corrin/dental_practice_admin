@@ -16,6 +16,14 @@ and token renewal. A missing referrer returns `API_KEY_HTTP_REFERRER_BLOCKED`.
 The token may run structured queries (`:runQuery`) over a whole collection, not only fetch
 documents by name.
 
+## IDs the API and Firestore share
+
+The practice document ID (`practices/{id}`) is the API's practice ID, a staff document ID
+(`staff/{id}`) is the API's `practitionerId`, and an appointment document ID is the API's
+appointment ID. Joins between the two need no mapping.
+**Verified:** all 19 appointments on 2026-11-16. Production, 2026-10-10,
+build `main.8e7a8bfa2c5bf44c.js`.
+
 ## Where a workspace's patients live
 
 **What:** patients are documents in a `patients` collection under an organisation and a
@@ -98,6 +106,7 @@ Query by `day` (`YYYY-MM-DD` string). These are copies Principle maintains for t
 | --- | --- |
 | `day`, `staffer`, `practice` | The local day and the practitioner it covers. |
 | `events[].event` | `from`, `to` (UTC), `type` (`appointment`), participants: the patient and the staffer. |
+| `events[].ref` | The appointment, `patients/{patientId}/appointments/{appointmentId}`, with the API's appointment ID. |
 | `events[].metadata.label` | The patient name the card shows. |
 | `events[].metadata.pinnedNotes[]` | The note lines the card shows: the patient's pinned notes, as plain strings. |
 | `events[].metadata.status` | Appointment status, as the API's `status`. |
@@ -116,9 +125,16 @@ Recurring blocks for one staff member, at `staff/{staffId}/rosterSchedules/{id}`
 | `item.title[].text` | The label the timeline shows, such as "Lunch". |
 | `item.notes` | Rich-text notes. |
 | `item.isBlocking` | Whether appointments can be booked over it. |
-| `pattern` | Weekly repetition: `daysOfWeek`, `startDate`, `endingType`. |
+| `pattern` | Weekly repetition: `daysOfWeek`, `startDate`, `endingType` (`never`, or `on` with `endingDate`). |
 | `scheduleTime.from`, `.to` | Local clock times, `HH:MM`. |
-| `modifiers[]` | Per-date exceptions; `type: delete` removes the listed `dates`. |
+| `modifiers[]` | Per-date exceptions; `type: delete` removes the listed `dates`. Each date is the block's start instant on the removed day, in UTC. |
+
+`endingDate` is the last day an item applies: a practitioner who left on 2026-10-09 has
+items ending on that date. Every pattern seen is `Custom`, `Weekly`, `seperationCount` 1
+(spelt so), except one fortnightly item that is deleted. `item.notes` is empty rich text
+(`{"content": {"type": "doc"}}`) on every roster item in the practice.
+**Verified:** every staff member's roster schedules, and the owner confirmed the leaving
+date. Production, 2026-10-10, build `main.8e7a8bfa2c5bf44c.js`.
 
 ### Calendar events
 
@@ -138,9 +154,14 @@ build `main.8e7a8bfa2c5bf44c.js`.
 | `practitioner`, `practice` | Name and reference. |
 | `status`, `statusHistory` | Current status and its changes. |
 | `tags[]` | Appointment tags (`name`, `ref`). The API's `Appointment` omits them. |
+| `appointmentRequestRef` | Present only when the appointment was booked online, referencing the `calendarEvents` request. The timeline shows a globe for it. |
 | `treatmentPlan` | Plan name and reference, with the step's `name`, `duration` and category. |
 | `eventHistory` | Earlier windows after a reschedule. |
 | `waitListItem` | Wait-list settings, with rich-text `notes`. |
+
+`appointmentRequestRef` was on 7 of the 227 appointments from 2026-10-12 to 2026-11-01. On
+2026-10-12 its two appointments were exactly the timeline's two globes.
+**Verified:** production, 2026-10-10, build `main.8e7a8bfa2c5bf44c.js`.
 
 The appointment document holds no card notes; those are the patient's pinned notes, copied
 into the schedule summary.
@@ -150,10 +171,12 @@ into the schedule summary.
 **What:** `patients/{patientId}/treatmentPlans/{planId}/treatmentSteps/{stepId}` holds each
 treatment's charting. `treatments[].chartedSurfaces[].chartedRef.tooth` has `quadrant` (1–4),
 `quadrantIndex` (1–8) and `surface` (`occlusal`, `mesial`, `distal`, `lingual`, `facial`), so
-quadrant 1, index 8, occlusal is the card's "18 o". `treatments[].config.name` is the treatment
-name, as the API's `description`. The API's `TreatmentInPlan` has no tooth or surface.
-**Verified:** read for every appointment's step on 2026-11-16. Production, 2026-10-10,
-build `main.8e7a8bfa2c5bf44c.js`.
+quadrant 1, index 8, occlusal is the card's "18 o". The label is the surfaces' first letters,
+in charted order, and lingual is "l" on upper teeth too ("24 l"), never "p". `treatments[].config.name` is the treatment
+name, as the API's `description`. The step's `treatments[].uuid` is the API's
+`treatments[].id`, in the same order. The API's `TreatmentInPlan` has no tooth or surface.
+**Verified:** read for every appointment's step on 2026-11-16, and the labels compared with
+the appointment panel for two of them. Production, 2026-10-10, build `main.8e7a8bfa2c5bf44c.js`.
 
 The shared read-only client passed a staging changed-since query and matching count aggregation
 on 2026-10-03, including token renewal. Authentication and rejected-refresh behaviour have
