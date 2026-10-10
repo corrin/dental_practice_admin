@@ -280,9 +280,11 @@ is tested first.
 - **Phase 4** is optional.
 
 ### Phase 0: test the riskiest parts first
-About two days. The scripts are committed to this PR under `scripts/spikes/`, with no patient
-data in them, so a finding can be re-run when it is questioned; they are deleted when Phase 3
-merges. Findings go in `docs/principle/`, and gaps in `api-gaps.md`. Ranked by how likely each is to fail and how much of the design it would change:
+About two days. The scripts are committed under `scripts/spikes/` while Phase 0 runs, and
+removed in the last commit of the Phase 0 PR, so `main` never carries them and git history keeps
+them for re-running a questioned finding. They write their output (real deposits, payer names,
+Principle payments) outside the checkout, to the same data directory as the app's SQLite, never
+into the repo. Findings go in `docs/principle/`, and gaps in `api-gaps.md`. Ranked by how likely each is to fail and how much of the design it would change:
 
 | # | Risk | Why it may fail | How it is tested | If it fails |
 |---|---|---|---|---|
