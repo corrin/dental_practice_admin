@@ -21,25 +21,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: npm
 
       - run: npm ci
-      - run: node node_modules/@playwright/mcp/cli.js install-browser chrome-for-testing
       - run: uv sync --frozen
 
-      - name: Locate Playwright browser cache
-        id: playwright-cache
-        shell: pwsh
-        run: |
-          $playwrightVersion = uv run python -c "from importlib.metadata import version; print(version('playwright'))"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          "version=$playwrightVersion" >> $env:GITHUB_OUTPUT
-          "path=$env:LOCALAPPDATA\ms-playwright" >> $env:GITHUB_OUTPUT
-
+      # Both browsers (the MCP server's chrome-for-testing and Python Playwright's chromium) live
+      # in ms-playwright; the lock files pin both Playwright versions, so they key the cache.
       - name: Cache Playwright browsers
+        id: playwright-cache
         uses: actions/cache@v4
         with:
-          path: ${{ steps.playwright-cache.outputs.path }}
-          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-cache.outputs.version }}
+          path: ~\AppData\Local\ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json', 'uv.lock') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: |
+          node node_modules/@playwright/mcp/cli.js install-browser chrome-for-testing
+          uv run playwright install chromium
 
       - name: Lint
         run: uv run ruff check .
@@ -54,9 +54,7 @@ jobs:
         run: uv run pytest -q
 
       - name: End-to-end (fake Principle, task and web application as separate processes)
-        run: |
-          uv run playwright install --with-deps chromium
-          uv run pytest -m e2e -q
+        run: uv run pytest -m e2e -q
 
       - name: Code size
         run: uv run python -m scripts.code_size
