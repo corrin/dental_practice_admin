@@ -72,13 +72,15 @@ running release is untouched.
    The old release is still serving.
 6. Disable the task runner and wait for any run in progress to finish, so no scheduled task is
    writing to Principle while its code is switched underneath it. A run still going after ten
-   minutes ends the deploy here: the task runner is enabled again and the stuck run is named,
-   with the service never stopped. Then stop the service, and record where `current` points.
+   minutes is a failure like any other in steps 6–8 (step 9): the deploy exits with failure,
+   printing the stuck task's name to the person running it, who is watching. Then stop the
+   service, and record where `current` points.
 7. Point `current` at the new release; enable the task runner; start the service.
 8. Health: `/health` must answer within 60 seconds, then `scripts\verify.ps1` must pass.
-9. If anything fails from step 6 on, including the run being interrupted: point `current`
-   back, enable the task runner, start the service, run `verify.ps1` again, and exit with
-   failure, naming the step. Steps 6–8 run inside one `try`/`finally` that does this.
+9. If anything fails from step 6 on, including the run being interrupted: put back whatever
+   step 6 onwards changed (`current`, the task runner, the service), run `verify.ps1` again,
+   and exit with failure, naming the step to the person running it. Steps 6–8 run inside one
+   `try`/`finally` that does this, so every failure has one path back.
 10. Delete releases other than `current` and the one it replaced.
 
 The first install is the same command after a one-off bootstrap, written as its own checklist
