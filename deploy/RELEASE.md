@@ -210,8 +210,11 @@ from outside, and the restore drill. Record the release in its table.
    repeat `Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner'` until
    its State is not `Running`.
 4. Make sure nobody has a run going from Reports & scripts or chat either: stopping the service
-   ends those mid-write. In the release directory this must print 0:
+   ends those mid-write. The Results page shows any run still in progress; in the release
+   directory this prints how many there are, which must be 0:
    `.venv\Scripts\python.exe -c "from dental_practice_admin.config import Settings; from dental_practice_admin.storage import Storage; print(Storage(Settings().database_path).db.execute('SELECT count(*) FROM task_runs WHERE outcome = ?', ('running',)).fetchone()[0])"`
+   A run can stay marked in progress after a crash. If Task Manager shows no `python.exe`
+   running as the service account other than the service itself, nothing is really running.
 5. Stop the `dental-practice-admin` service. Delete `DentalPracticeAdmin-previous` if it exists
    (one kept release is enough, and each holds a copy of `.env`), rename the release directory to
    `DentalPracticeAdmin-previous`, and extract the new release in its place as in step 5.1.
@@ -233,7 +236,8 @@ from outside, and the restore drill. Record the release in its table.
    (`Enable-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner'`). Wait five
    minutes, then run `scripts\verify.ps1`.
 10. **To roll back:** do steps 3 to 5 with `DentalPracticeAdmin-previous` renamed back into
-    place (keeping the failed release aside), start, enable, verify.
+    place (keeping the failed release aside). If steps 6 or 8 applied changed `deploy\` files,
+    apply the previous release's versions the same way. Start, enable, verify.
 
 Installed practice tasks and their schedules live in the data directory and survive a release.
 
