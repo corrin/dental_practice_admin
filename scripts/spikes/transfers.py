@@ -44,8 +44,9 @@ def main() -> None:
           "paying more than once", sum(n > 1 for n in payers.values()),
           "deposits from repeat payers", sum(n for n in payers.values() if n > 1))
 
-    direct: list[dict[str, Any]] = [{"day": day(p["createdAt"]), "cents": cents(p["amount"]), "method": payment_method(p),
-               "used": False} for p in payments]
+    direct: list[dict[str, Any]] = [
+        {"day": day(p["createdAt"]), "cents": cents(p["amount"]), "method": payment_method(p),
+         "used": False} for p in payments]
     outcomes: collections.Counter[str] = collections.Counter()
     lags: collections.Counter[int] = collections.Counter()
     for d in sorted(deposits, key=lambda d: d["date"]):
