@@ -273,8 +273,9 @@ in the background. The warning survives restarts and successful responses from t
 interface. A successful response for the affected operation after release of a changed interface
 clears it. Investigation and interface updates belong to the development/release workflow.
 
-Firestore contract checks belong alongside live integration tests when a verified Firestore
-operation is added. Sampling documents is not treated as an authoritative schema.
+Firestore reads are checked like the API: the fake renders each collection it serves, and
+[`tests/integration/test_fake_conformance.py`](tests/integration/test_fake_conformance.py)
+compares its shapes with recordings from staging.
 
 ## Why the fake is built the way it is
 
@@ -282,6 +283,20 @@ The fake computes every answer from its own state. It never replays a stored res
 a stored answer stops being true the moment state changes. It refuses rather than guesses in
 three places: a route it does not serve, a query parameter it does not apply, and an error body
 nobody has recorded.
+
+It covers what the application's tasks read, and grows a route at a time:
+
+- **API:** practices, practitioners, appointments, patients (`getPatient`, `searchPatients`,
+  `createPatient`), invoices and transactions.
+- **Firestore**, at the paths Google serves it on: patients, appointment documents, treatment
+  steps, treatment categories, schedule summaries, roster schedules and calendar events, with
+  Firebase sign-in and token refresh. Queries apply `EQUAL`, the range operators and `AND`;
+  anything else raises.
+
+API and Firestore answer from one SQLite store, so a patient created through
+`POST /v1/patients` is the document `patients/{id}` returns. The fake is DocketWorks' fake Xero
+(`corrin/docketworks`, ADR 0060) applied to Principle: recordings are the oracle, never the
+mechanism.
 
 This is not theoretical. Building the fake from the published specification produced a fake that
 was wrong in five ways, each found by pointing the recorder at a real staging tenant:
@@ -314,6 +329,10 @@ Run [`scripts/record_principle_wire.py`](scripts/record_principle_wire.py) again
 staging tenant to get your own. The anonymiser denies by default — an unrecognised field is
 replaced and reported rather than passed through — and it is still not a basis for publishing
 patient-derived data.
+
+They stay on the machine that made them. DocketWorks commits its recordings so a failed disk
+cannot lose them; here the risk runs the other way. A lost recording costs one run of the
+recorder against staging, while a published one would put patient-derived data on GitHub.
 
 Committed: [`tests/recordings/refusals/`](tests/recordings/refusals/), which are error bodies.
 Those are Principle's own wording and carry no patient data, and the fake needs them so it can

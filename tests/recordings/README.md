@@ -5,7 +5,8 @@ what proves the fake's computed answers carry the shapes Principle actually send
 
 ## Success bodies are not in this repository
 
-`practices.json`, `practitioners.json` and `appointments.json` are gitignored. They are derived
+The success bodies (`practices.json`, `patient.json`, `create_patient.json` and the rest) and
+`firestore/` are gitignored. They are derived
 from real patient records in a staging tenant that holds a migrated copy of a live practice,
 and no key-based anonymiser deserves the confidence needed to publish its output as health
 information.
@@ -31,11 +32,21 @@ They land here, stay here, and are yours.
 API. A refusal it authored itself would be a belief about Principle that every test then
 asserted.
 
-## Nothing in the automated suite depends on the success bodies
+## They are the oracle for the fake
 
-Shape is verified where it can be verified honestly: `tests/integration/` asserts it against
-the live staging API. Comparing against a stored file would only prove the file had not
-changed. The recordings' remaining job is to be read by a person adding a route to the fake.
+`tests/integration/test_fake_conformance.py` checks that every answer the fake gives has a
+shape Principle was recorded giving: no field and no type the recording never showed. It is in
+the integration tier because it needs these files, and it fails rather than skips when one is
+missing.
+
+Firestore documents are recorded as shapes only (`firestore/*.json`): field names and value
+types, joined over several documents, with no values at all.
+
+## Why they stay local
+
+DocketWorks commits its recordings so that a failed disk cannot lose them. Here the risk runs
+the other way: losing these costs one run of the recorder against staging, while publishing
+them would put patient-derived data on GitHub.
 
 ## What the anonymiser preserves, and what it does not
 

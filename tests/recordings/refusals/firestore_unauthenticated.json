@@ -1,0 +1,22 @@
+{
+  "body": {
+    "error": {
+      "code": 401,
+      "details": [
+        {
+          "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+          "metadata": {
+            "method": "google.firestore.v1.Firestore.GetOrListDocuments",
+            "service": "firestore.googleapis.com"
+          },
+          "reason": "CREDENTIALS_MISSING"
+        }
+      ],
+      "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.",
+      "status": "UNAUTHENTICATED"
+    }
+  },
+  "capturedOn": "2026-10-10",
+  "source": "firestore (production)",
+  "status": 401
+}

@@ -15,6 +15,8 @@ from pydantic import SecretStr
 from dental_practice_admin.config import (
     FAKE_API_KEY,
     FAKE_API_URL,
+    FAKE_FIREBASE_PROJECT,
+    FAKE_FIRESTORE_ROOT,
     FAKE_PRACTICE_ID,
     PRODUCTION_API_URL,
     STAGING_API_URL,
@@ -36,6 +38,8 @@ FAKE_SETTINGS: dict[str, Any] = {
     "api_base_url": FAKE_API_URL,
     "api_key": SecretStr(FAKE_API_KEY),
     "practice_id": FAKE_PRACTICE_ID,
+    "firebase_project": FAKE_FIREBASE_PROJECT,
+    "firestore_root": FAKE_FIRESTORE_ROOT,
     "playwright_mcp_path": Path("node_modules/@playwright/mcp/cli.js"),
     "task_repository": "fake-owner/fake-tasks",
     "github_token": SecretStr("fake-github-token"),

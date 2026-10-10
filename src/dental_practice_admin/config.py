@@ -36,6 +36,16 @@ STAGING_API_URL = "https://api.staging.principle.dental"
 FAKE_API_URL = "https://fake.principle.invalid"
 FAKE_API_KEY = "00000000-0000-4000-8000-000000000001"
 FAKE_PRACTICE_ID = "fake-practice-0001"
+# The fake's Firestore database, under the same organisation/brand layout as Principle's.
+FAKE_FIREBASE_PROJECT = "fake-principle"
+FAKE_FIRESTORE_ROOT = "organisations/fake-organisation/brands/fake-brand"
+
+# Firebase's hosts. The fake serves these paths itself, at the API's base URL.
+FIREBASE_HOSTS = {
+    "firestore": "https://firestore.googleapis.com",
+    "securetoken": "https://securetoken.googleapis.com",
+    "identitytoolkit": "https://identitytoolkit.googleapis.com",
+}
 
 
 class Environment(StrEnum):
@@ -216,6 +226,12 @@ class Settings(BaseSettings):
             return values
 
         return (resolved,)
+
+    def firebase_url(self, service: str) -> str:
+        """Where one Firebase service is reached: Google's host, or the fake's."""
+        if self.environment is Environment.FAKE:
+            return self.api_base_url.rstrip("/")
+        return FIREBASE_HOSTS[service]
 
     @property
     def data_dir(self) -> Path:
