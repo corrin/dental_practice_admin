@@ -265,8 +265,10 @@ def test_stopped_automatic_runs_are_announced(pages: Pages) -> None:
 
 
 def test_a_launcher_busy_with_a_long_run_is_not_called_stopped(pages: Pages) -> None:
-    _launcher_checked(pages, timedelta(minutes=20))
-    _ran(pages, "running", "partial", {})
+    _launcher_checked(pages, timedelta(minutes=40))
+    run_id = _ran(pages, "running", "partial", {})
+    started = (datetime.now(UTC) - timedelta(minutes=32)).isoformat()
+    pages.store.db.execute("UPDATE task_runs SET started_at=? WHERE run_id=?", (started, run_id))
     assert ATTENTION not in pages.client.get("/").text
 
 
@@ -290,11 +292,13 @@ def test_a_run_started_by_a_person_is_not_announced(pages: Pages) -> None:
     assert ATTENTION not in pages.client.get("/").text
 
 
-def test_a_run_by_a_person_does_not_hide_the_automatic_one(pages: Pages) -> None:
+def test_a_person_re_running_a_scheduled_task_replaces_its_result(pages: Pages) -> None:
     _launcher_checked(pages, timedelta(minutes=1))
-    _ran(pages, "succeeded", "complete", {"for_staff": FOR_STAFF})
-    _ran(pages, "succeeded", "complete", {}, initiator="fake-staff")
+    _ran(pages, "uncertain", "partial", {})
+    _ran(pages, "succeeded", "complete", {"for_staff": FOR_STAFF}, initiator="fake-staff")
     assert ATTENTION in pages.client.get("/").text
+    _ran(pages, "succeeded", "complete", {}, initiator="fake-staff")
+    assert ATTENTION not in pages.client.get("/").text
 
 
 def test_the_tasks_page_shows_the_banner(pages: Pages) -> None:
@@ -303,7 +307,8 @@ def test_the_tasks_page_shows_the_banner(pages: Pages) -> None:
     assert ATTENTION in pages.client.get("/tasks/manage").text
 
 
-@pytest.mark.parametrize("for_staff", [3, [{"patient": 3}], [{"href": "javascript:alert(1)"}]])
+@pytest.mark.parametrize("for_staff", [3, [{"patient": 3}], [{"href": "javascript:alert(1)"}],
+                                       [{"patient": "Fake A"}, {"problem": "Fake"}]])
 def test_a_malformed_list_for_staff_is_refused_when_a_task_returns(for_staff: object) -> None:
     with pytest.raises(ValidationError):
         scripts.Result.model_validate({"summary": "Synthetic", "coverage": "complete",

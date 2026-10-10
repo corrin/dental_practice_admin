@@ -149,13 +149,14 @@ async def test_a_broken_page_envelope_is_not_blamed_on_its_records(tmp_path: Pat
     assert not isinstance(caught.value, RecordError)
 
 
-async def test_a_new_patient_with_bad_contact_details_is_named(tmp_path: Path) -> None:
+async def test_a_write_that_saves_a_patient_with_bad_contact_details_succeeds(
+    tmp_path: Path,
+) -> None:
     transport = httpx.MockTransport(lambda _: httpx.Response(201, json=BAD))
     async with PrincipleClient(_production(tmp_path), transport=transport) as client:
-        with pytest.raises(RecordError) as caught:
-            await client.call("createPatient", {
-                k: v for k, v in GOOD.items() if k not in ("id", "address")})
-    assert caught.value.records == [BAD["id"]]
+        created = await client.call("createPatient", {
+            k: v for k, v in GOOD.items() if k not in ("id", "address")})
+    assert created == BAD
 
 
 async def test_a_bad_record_does_not_hide_another_break_in_the_response(tmp_path: Path) -> None:

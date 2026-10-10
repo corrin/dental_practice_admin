@@ -77,17 +77,22 @@ def attention(settings: Settings, store: Storage) -> list[dict[str, str]]:
     """What staff must act on for automatic runs, each with the page that explains it.
 
     Read from what the launcher has recorded, never the job store, so a page never waits on
-    the schedules lock. Each task's latest automatic run counts; it may list records for staff
-    (`detail["for_staff"]`). The launcher records its check only after the work it found, so
-    a run still within the launcher's time limit means it is busy, not stopped.
+    the schedules lock. For each task the launcher has run, its latest run by anyone counts,
+    so a person's re-run can clear it; it may list records for staff (`detail["for_staff"]`).
+    The launcher records its check only after the work it found, so a run still within the
+    launcher's time limit, or the next poll after it, means it is busy, not stopped.
     """
-    runs = store.latest_runs_by_task(initiator="scheduler")
+    automatic = store.latest_runs_by_task(initiator="scheduler")
     busy = any(run.outcome is Outcome.RUNNING and datetime.now(UTC)
-               - datetime.fromisoformat(run.started_at) < RUN_LIMIT for run in runs)
+               - datetime.fromisoformat(run.started_at) < RUN_LIMIT + timedelta(
+                   seconds=POLL_SECONDS) for run in automatic)
     notes = []
-    if runs and not busy and not launcher_recent(launcher_checked(settings)):
+    if automatic and not busy and not launcher_recent(launcher_checked(settings)):
         notes.append({"text": "Automatic runs have stopped", "href": "/tasks/manage"})
-    for run in runs:
+    scheduled = {run.task for run in automatic}
+    for run in store.latest_runs_by_task():
+        if run.task not in scheduled:
+            continue
         title = run.task.replace("_", " ").capitalize()
         if run.outcome is not Outcome.RUNNING and not run.is_trustworthy:
             notes.append({"text": f"{title}: the last automatic run did not complete",

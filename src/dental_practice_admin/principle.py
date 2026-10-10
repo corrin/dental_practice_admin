@@ -314,6 +314,8 @@ class PrincipleClient:
             while cause is not None:
                 if isinstance(cause, RecordError) and name == "getPatient":
                     await self._in_practice(values["patientId"], cause.body.get("name"))
+                if isinstance(cause, RecordError) and call.method != "GET":
+                    return cause.body  # Saved; the patient still holds details to fix.
                 if isinstance(cause, (PrincipleError, httpx.HTTPError)):
                     raise cause from None
                 cause = cause.__cause__ or cause.__context__

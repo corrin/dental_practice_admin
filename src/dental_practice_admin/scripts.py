@@ -52,6 +52,8 @@ class Result(BaseModel):
                 isinstance(row, dict) and all(isinstance(v, str) for v in row.values())
                 for row in rows):
             raise ValueError("detail.for_staff must be a list of objects with string values")
+        if any(row.keys() != rows[0].keys() for row in rows):
+            raise ValueError("detail.for_staff rows must all have the same keys")
         if not all(re.match(r"https?://|/", row.get("href", "/")) for row in rows):
             raise ValueError("detail.for_staff links must be http(s) or relative")
         return detail
