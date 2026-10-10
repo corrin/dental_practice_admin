@@ -15,15 +15,17 @@ tags that are not sent are kept. Only the field changed and `updatedAt` differ a
 **Messages:** no SMS or email appears in the patient's `listSMSMessages` or `listEmails`
 after changing their numbers or address.
 **Verified:** [`scripts/patient_write_probe.py`](../../scripts/patient_write_probe.py) on staging
-dummy patients, 2026-10-10, comparing every field `getPatient` returns. A comparison of the
-whole Firestore document, which holds fields the API does not return, is still to do: the
-staging automation login was rejected (`EMAIL_NOT_FOUND`) that day.
+dummy patients, 2026-10-10, comparing the whole Firestore document, which holds fields the API
+does not return.
 
 ## The address the website saves
 
 **What:** the website's verified-address picker saves NZ Post order with the country:
-`street, suburb, city postcode, New Zealand`.
+`street, suburb, city postcode, New Zealand`. Its suggestions come from Google Places
+Autocomplete, so an address the contact-details clean-up builds from Google's geocoding has
+the same form.
 **Verified:** production, read only, 2026-10-10. Addresses of that shape appear at about one a
 month until September 2026, then 28 in September and 7 in early October, while new addresses
-of the Open Dental migration's shape (`street, suburb, city, postcode`) fall away. Saving one
-through the picker on staging is still to do, for the same login reason.
+of the Open Dental migration's shape (`street, suburb, city, postcode`) fall away. Saved
+through the picker by [`scripts/address_picker_probe.py`](../../scripts/address_picker_probe.py)
+on a staging dummy patient, 2026-10-10.
