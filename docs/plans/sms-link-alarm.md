@@ -41,7 +41,7 @@ as down.
   open at a time, and it shows again after the next drop.
   - **This only works in a signed-in session.** Call Centre needs one anyway, so the bridge
     already runs there (SMS_Bridge `PRODUCTION.md`: Task Scheduler at logon). Verify that on
-    reception before relying on it.
+    reception before relying on it. That check goes in RELEASE.md's SMS go-live section.
 
 ### dental_practice_admin (this repository)
 
@@ -58,7 +58,10 @@ as down.
   records **down**, with that as the detail.
 - **The banner.** `schedules.attention()` adds "Patient texts are not being sent since <time>:
   <detail>" when the latest check is down. It shows "SMS link not checked since <time>" when no
-  check is recent, because a stopped launcher would otherwise hide a dead link.
+  check is recent, because a stopped launcher would otherwise hide a dead link. "Since" is the
+  bridge's own `since` when it answers, and the first failed check when it doesn't.
+  - The banner shows on the first down check, unlike the email: a staff member is looking, and
+    a blip is cheap to read past.
 - **The email.**
   - One email when the link has been down for 3 consecutive checks (about 15 minutes), and one
     when it comes back.
@@ -90,7 +93,18 @@ as down.
    running, so there's no pop-up. The next check can't reach the bridge, so the banner shows
    that, and 15 minutes later the owner gets an email.
 
+## Open question
+
+- **Is the phone, with Call Centre, connected around the clock?** If it's switched off or
+  disconnected overnight or at weekends on purpose, every night would raise an email and a
+  morning banner. Quiet hours would then be needed, and a scheduled message sent during them
+  would still fail silently.
+
 ## Not in this change
+
+- **An email when the launcher itself stops.** The launcher is what sends the email, so a
+  stopped launcher shows only as the "not checked" banner. An outside check for that is a
+  separate change.
 
 - Alerting by SMS. It goes through the same phone that is down.
 - Watching delivery failures of individual messages. The bridge already logs `SendFailure`.
