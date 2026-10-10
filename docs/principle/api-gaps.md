@@ -95,6 +95,14 @@ stricter than the data in two places. Each refusal blocks an otherwise good read
    `^\+?\d{6,15}$`; numbers like `021 123 4567` fail. The client reads `getPatient` before every
    patient-scoped call, so none of that patient's invoices can be read. 1 in 15 production
    patients who owe money, 5 in 60 staging patients.
+   - It also stopped the day sheet for every practitioner: 1 of the 15 patients booked on
+     2026-11-16. The day sheet takes that patient's name from the timeline card instead and
+     marks the sheet partial. Remove that fallback, the `getPatient` handler in admin_scripts'
+     `tasks/day_sheet/source.txt`, once Principle fixes this.
+   - The practice's own data is being cleaned: see
+     [the contact details plan](../plans/clean-contact-details.md).
+   - *Request to Principle:* reject contact numbers on entry that the specification doesn't
+     allow, in the website and the API, or correct the specification to match what is stored.
 3. **`listTransactionsByDateRange` over a split payment.** `PrincipleClient.rows` treats the
    repeated `id` as a restarted walk. Seen on staging's migrated payments (115 of 1,899 rows);
    none in 890 production rows from 2026-09-01 to 2026-10-09.
