@@ -166,8 +166,11 @@ Met on 2026-10-10, with `day_sheet` merged in admin_scripts (PR #5).
   - every card unconfirmed
   - the tooth labels
 - **Open Dental.** 14 of the 15 appointments in its snapshot match on practitioner, start,
-  length and patient. Every other difference is a change made in Principle after the
-  migration.
+  length and patient. Each difference is a change made in Principle after the migration, as
+  the Firestore `eventHistory` shows:
+  - Andrea's 14:00 was rebooked on 08/10.
+  - Her 15:00 and 16:00 were moved to 16/11, from other days.
+  - Her 08:50 and 11:20 were booked on 20/09 and 05/10.
 - **15/09 became a format reference only.** Open Dental's copy is the plan from before the
   migration, while Principle's is the day as it was run. Every element of `OD.png` has a field,
   except two that Principle doesn't hold:
@@ -178,8 +181,8 @@ Met on 2026-10-10, with `day_sheet` merged in admin_scripts (PR #5).
 - **Until patient contact details are cleaned,** a patient whose record fails the API
   specification takes the timeline card's name, and the sheet is marked partial. 16/11 has
   one. See [the contact details plan](clean-contact-details.md).
-- **Not installed in the application yet.** Install it with `install_existing` before running
-  it from `/tasks/manage`.
+- **Phase 2 starts by installing it** in the application with `install_existing`, so that it
+  runs from `/tasks/manage`. It isn't installed yet.
 
 ## Phase 2: lay it out on A4
 
