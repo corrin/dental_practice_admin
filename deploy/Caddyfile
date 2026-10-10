@@ -79,14 +79,11 @@ admin.massey-smiles.co.nz {
 }
 
 # ---------------------------------------------------------------------------
-# SMS_Bridge -- unchanged addresses, now proxied from the server to reception.
+# SMS_Bridge -- the address Principle's webhook is registered against.
 #
-# The webhook already registered with Principle points at
-# https://office.massey-smiles.co.nz/smsgateway/webhooks/principle and keeps working: only the
-# machine terminating TLS changes, not the URL.
-#
-# Consequence worth stating: SMS ingress now depends on the server being up. Reception used to own
-# its own inbound path.
+# The webhook points at https://office.massey-smiles.co.nz/smsgateway/webhooks/principle. Serving
+# the name here keeps that URL and its certificate alive wherever the bridge itself runs, and SMS
+# ingress depends on this server being up.
 # ---------------------------------------------------------------------------
 office.massey-smiles.co.nz {
 	encode zstd gzip
@@ -105,12 +102,8 @@ office.massey-smiles.co.nz {
 		-Server
 	}
 
-	# 192.168.192.125 is reception. The bridge is dormant until Principle's API gains the features
-	# it waits for, so this answers 502 until then. Before reactivating it, work through "Before
-	# reactivating SMS" in ACCEPTANCE.md: reception needs a DHCP reservation, because a webhook
-	# that stops arriving when a machine renumbers is a silent failure Principle reports to nobody.
-	# A bridge moved onto this server is 127.0.0.1:5170 instead.
-	reverse_proxy 192.168.192.125:5170 {
-		header_up X-Real-IP {remote_host}
-	}
+	# The SMS bridge is dormant, waiting on Principle's API. While its debug routes are on they
+	# return patient identifiers to anyone, so nothing reaches it until "Before reactivating SMS"
+	# in ACCEPTANCE.md is done; that checklist replaces this line with the bridge's upstream.
+	respond "SMS gateway inactive" 503
 }
