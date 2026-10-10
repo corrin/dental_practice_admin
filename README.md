@@ -106,11 +106,12 @@ To run one practice task by hand and see what it produced:
 
 ```powershell
 uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet date=2026-09-28
-uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet --environment staging
+uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet --environment staging --real
 ```
 
-It runs against the fake Principle unless told otherwise, saves the result, and prints a
-task that can print to an A4 PDF. `--help` says the rest.
+It runs against the fake Principle, whose seeded day is 2026-09-28, saves the result, and
+prints a task that can print to an A4 PDF. Staging and production need `--real`, because a
+task may write and staging holds a copy of real patients. `--help` says the rest.
 
 ### Presets and configuration
 

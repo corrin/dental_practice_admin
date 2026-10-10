@@ -1,7 +1,7 @@
 """Run one practice task by hand and look at what it produced.
 
     uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet date=2026-09-28
-    uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet --environment staging
+    uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet --environment staging --real
 
 Loads and runs the task's `source.txt` with the application's own loader and `Services`,
 against the fake Principle by default. Shared modules come from the practice repository's
@@ -11,8 +11,8 @@ coverage and saves the result. When the
 task defines `printable(detail, printed)`, it also prints the page to an A4 PDF and opens it,
 the same check a person does at the surgery printer.
 
-Staging and production run against the real Principle. Staging is a test copy, so a task
-writing there is acceptable; production needs `--production` as well, because a task may write.
+Staging and production are real Principles: staging holds a migrated copy of the practice's
+patients. A task may write, so either needs `--real` as well.
 """
 
 from __future__ import annotations
@@ -45,8 +45,8 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("task", type=Path, help="a task directory holding source.txt")
     parser.add_argument("inputs", nargs="*", metavar="NAME=VALUE", help="task inputs")
     parser.add_argument("--environment", type=Environment, default=Environment.FAKE)
-    parser.add_argument("--production", action="store_true",
-                        help="confirm a run against production")
+    parser.add_argument("--real", action="store_true",
+                        help="confirm a run against staging or production")
     parser.add_argument("--no-open", action="store_true", help="write the PDF but don't open it")
     return parser.parse_args()
 
@@ -68,7 +68,8 @@ async def run(task: Path, inputs: dict[str, str],
               environment: Environment) -> tuple[Result, Any]:
     """The task's result, and its `printable` function when it has one."""
     sys.path.insert(0, str(task.resolve().parents[1] / "shared"))
-    namespace = load_source((task / "source.txt").read_text(encoding="utf-8"))
+    source = task / "source.txt"
+    namespace = load_source(source.read_text(encoding="utf-8"), str(source))
     integrations = services(environment)
     try:
         return await run_loaded(namespace, integrations, inputs), namespace.get("printable")
@@ -95,8 +96,9 @@ def print_pdf(html: str, target: Path) -> int:
 def main() -> None:
     """Run, report, save, and print when the task can."""
     args = arguments()
-    if args.environment is Environment.PRODUCTION and not args.production:
-        raise SystemExit("a task may write: add --production to run it against production")
+    if args.environment is not Environment.FAKE and not args.real:
+        raise SystemExit(f"a task may write: add --real to run it against "
+                         f"{args.environment.value}")
     malformed = [item for item in args.inputs if "=" not in item]
     if malformed:
         raise SystemExit(f"inputs are NAME=VALUE: {', '.join(malformed)}")

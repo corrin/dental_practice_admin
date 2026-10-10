@@ -89,10 +89,13 @@ class Services:
         await self.firestore.aclose()
 
 
-def load_source(source: str) -> dict[str, Any]:
-    """A Python task's source, executed into a fresh namespace holding its `run`."""
+def load_source(source: str, filename: str = "<workflow>") -> dict[str, Any]:
+    """A Python task's source, executed into a fresh namespace holding its `run`.
+
+    `filename` is what tracebacks name: a file path when the source came from one.
+    """
     namespace: dict[str, Any] = {}
-    exec(compile(source, "<workflow>", "exec"), namespace)
+    exec(compile(source, filename, "exec"), namespace)
     return namespace
 
 
