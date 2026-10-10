@@ -37,8 +37,14 @@ as down.
   reconnect, the bridge shows one Windows message box. It uses `MessageBoxW` from `user32` (a
   P/Invoke, no new program or package), system-modal so it sits on top, on a background thread
   so nothing waits on it. The text: "Patient texts are not being sent. The phone is not connected
-  to Call Centre. Check the phone is on and connected, then open Call Centre." At most one box is
-  open at a time, and it shows again after the next drop.
+  to Call Centre. Check the phone is on and connected, then open Call Centre." Dismissing the box
+  acknowledges the outage, so there's one pop-up per outage. An outage ends only once the link
+  has stayed up for 30 minutes, so a link that flaps all morning is one outage, not a pop-up
+  every few minutes.
+  - **When the bridge can't show it.** The bridge knows whether it's interactive
+    (`Environment.UserInteractive` in `Program.cs`). `phone-status` reports `"popup": false`
+    when it isn't, and the staff banner then adds "Reception can't show SMS warnings", so a
+    missing pop-up is never silent.
   - **This only works in a signed-in session.** Call Centre needs one anyway, so the bridge
     already runs there (SMS_Bridge `PRODUCTION.md`: Task Scheduler at logon). Verify that on
     reception before relying on it. That check goes in RELEASE.md's SMS go-live section.
@@ -46,7 +52,9 @@ as down.
 ### dental_practice_admin (this repository)
 
 - **Settings**, explicit as everywhere else:
-  - `SMS_BRIDGE_URL`, e.g. `https://office.massey-smiles.co.nz`
+  - `SMS_BRIDGE_URL`: `http://192.168.192.125:5170`, the bridge on the LAN. The public
+    `office` name would need the router to hairpin, which is unverified. After cutover the
+    bridge listens on that address and admits only the server.
   - `SMS_BRIDGE_API_KEY`
   - `ADMIN_ALERT_EMAIL`
   - `ADMIN_SMTP_HOST`, `ADMIN_SMTP_PORT`, `ADMIN_SMTP_USER`, `ADMIN_SMTP_PASSWORD`. A Google
@@ -64,7 +72,8 @@ as down.
     a blip is cheap to read past.
 - **The email.**
   - One email when the link has been down for 3 consecutive checks (about 15 minutes), and one
-    when it comes back.
+    when the outage ends. The outage uses the same 30-minute rule as the pop-up, so flapping
+    sends no more mail.
   - The row records what was sent, so there is never a repeat.
   - Sent with `smtplib` from the standard library.
   - A failed send is retried on the next poll. The banner says the email failed.
@@ -89,16 +98,28 @@ as down.
    "texts are going out again" email arrives.
 2. Wi-Fi blips for 40 seconds and Call Centre reconnects. There's no pop-up (under 2 minutes) and
    no email (under 3 checks). The banner may show for one check if a poll lands inside the blip.
-3. **Edge case:** reception is restarted for updates and nobody signs in. The bridge isn't
+3. The phone drops at 10:02 and the owner can't deal with it until that night. Reception gets
+   one pop-up at 10:04 and dismisses it, and nothing more interrupts them. The banner sits
+   quietly on staff pages all day, and the owner has one email from about 10:15. If the link
+   flaps back and forth during the day, that is still the same outage until it has stayed up
+   for 30 minutes.
+4. **Edge case:** reception is restarted for updates and nobody signs in. The bridge isn't
    running, so there's no pop-up. The next check can't reach the bridge, so the banner shows
    that, and 15 minutes later the owner gets an email.
 
-## Open question
+## Answered (the owner, 2026-10-11)
 
-- **Is the phone, with Call Centre, connected around the clock?** If it's switched off or
-  disconnected overnight or at weekends on purpose, every night would raise an email and a
-  morning banner. Quiet hours would then be needed, and a scheduled message sent during them
-  would still fail silently.
+- **The phone is connected around the clock.** Any drop at any hour is a fault, so there are no
+  quiet hours.
+- **The email comes from a massey-smiles.co.nz Workspace account with an app password**, on
+  `smtp.gmail.com:587`. The account needs 2-step verification, and the Workspace admin must
+  allow app passwords.
+- **Reception is told once, not all day.** One outage gives one pop-up and one email, however
+  long it lasts and however often it flaps.
+
+## Notes
+
+- A restarted bridge starts its record over, so its `since` is the restart time.
 
 ## Not in this change
 
