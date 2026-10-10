@@ -4,17 +4,22 @@ Patient privacy is a high-consequence failure mode, and the defences before this
 .gitignore and remembering. That is how a patient identifier reached tests/recordings/ and sat
 there until someone thought to look.
 
-Three checks, each chosen to almost never fire wrongly. A scanner that cries wolf gets bypassed
+Four checks, each chosen to almost never fire wrongly. A scanner that cries wolf gets bypassed
 with --no-verify, which is worse than no scanner.
 
 1. **No value from .env appears in tracked content.** The strongest check and the least clever: it
    knows the real API key, the real Google secret and the real staff addresses because .env holds
    them, and .env is gitignored. No pattern to guess and no secret written down here.
 
-2. **Shapes that are never legitimate in source.** Provider key prefixes, private key blocks, and
+2. **No production patient's name or id appears in tracked content.** The same idea for patients:
+   the production database under ADMIN_DATA_ROOT caches the names and Principle ids of real
+   patients, so the scanner looks for those exact values rather than guessing what a name looks
+   like. A machine without that database checks nothing here, and says so.
+
+3. **Shapes that are never legitimate in source.** Provider key prefixes, private key blocks, and
    NZ NHI numbers -- the health identifier, which has no business in a repository.
 
-3. **Files that should never be tracked.** Anything under tests/recordings/ that is not a refusal
+4. **Files that should never be tracked.** Anything under tests/recordings/ that is not a refusal
    body, since that directory is where real wire data lands.
 
 Run on staged content by the pre-commit hook, and over the whole tree by
@@ -27,7 +32,9 @@ tests/test_no_leaked_data.py so that CI catches whatever a local commit skipped.
 from __future__ import annotations
 
 import argparse
+import json
 import re
+import sqlite3
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -54,6 +61,10 @@ PUBLIC_SETTINGS = frozenset(
         # Rendered into the chat page by design; public by construction.
         "ADMIN_CHATKIT_DOMAIN_KEY",
         "OPENAI_BASE_URL",
+        "AKAHU_BASE_URL",
+        "ADMIN_PUBLIC_BASE_URL",
+        "ADMIN_TASK_REPOSITORY",
+        "ADMIN_PLAYWRIGHT_MCP_PATH",
     }
 )
 
@@ -102,22 +113,37 @@ class Finding:
         return f"  {self.path}: {self.reason}"
 
 
-def secrets_from_env() -> dict[str, str]:
-    """The real values to look for, read from the gitignored .env.
+def read_env() -> dict[str, str]:
+    """Every setting in the main checkout's gitignored .env.
 
-    Reading them rather than hard-coding them is the point: the scanner knows the practice's actual
-    key and addresses without any of them being written into a tracked file.
+    The main checkout, not ROOT: a worktree has no .env of its own, and reading ROOT there would
+    silently check nothing.
     """
-    env = ROOT / ".env"
+    common = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        capture_output=True, text=True, cwd=ROOT, check=True,
+    ).stdout.strip()
+    env = Path(common).parent / ".env"
     if not env.exists():
         return {}
-    found: dict[str, str] = {}
+    settings: dict[str, str] = {}
     for line in env.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         name, _, value = line.partition("=")
-        name, value = name.strip(), value.strip()
+        settings[name.strip()] = value.strip()
+    return settings
+
+
+def secrets_from_env(env: dict[str, str]) -> dict[str, str]:
+    """The real values to look for, read from the gitignored .env.
+
+    Reading them rather than hard-coding them is the point: the scanner knows the practice's actual
+    key and addresses without any of them being written into a tracked file.
+    """
+    found: dict[str, str] = {}
+    for name, value in env.items():
         if name in PUBLIC_SETTINGS or len(value) < MIN_SECRET_LENGTH:
             continue
         if FAKE_MARKER.search(value):
@@ -128,6 +154,42 @@ def secrets_from_env() -> dict[str, str]:
             if len(part) >= MIN_SECRET_LENGTH:
                 found[part] = name
     return found
+
+
+def patients_from_database(database: Path) -> dict[str, str]:
+    """Each real patient's name and Principle id, mapped to what it is.
+
+    Opened read-only: a write here would touch the live production database. Every cached name
+    is two words or more and at least eight characters, so matching them whole does not fire on
+    ordinary prose.
+    """
+    if not database.exists():
+        return {}
+    db = sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)
+    try:
+        found = {
+            patient: "a production patient's Principle id"
+            for (patient,) in db.execute("SELECT DISTINCT patient_id FROM principle_cache")
+        }
+        for (body,) in db.execute("SELECT body FROM principle_cache WHERE kind = 'patient'"):
+            found[json.loads(body)["name"]] = "a production patient's name"
+    finally:
+        db.close()
+    return found
+
+
+def production_database(env: dict[str, str]) -> Path | None:
+    """Where the production database lives on this machine, if .env says."""
+    root = env.get("ADMIN_DATA_ROOT")
+    return Path(root) / "production" / "dental_practice_admin.db" if root else None
+
+
+def whole_values(values: dict[str, str]) -> re.Pattern[str] | None:
+    """One pattern matching any of the values as a whole word, ignoring case."""
+    if not values:
+        return None
+    alternatives = "|".join(re.escape(value) for value in sorted(values, key=len, reverse=True))
+    return re.compile(rf"(?<!\w)(?:{alternatives})(?!\w)", re.IGNORECASE)
 
 
 def tracked_files(staged: bool) -> list[str]:
@@ -161,9 +223,22 @@ def content_of(path: str, staged: bool) -> str | None:
         return None
 
 
+def known_values() -> tuple[dict[str, str], dict[str, str]]:
+    """The secrets in .env, and the patients in this machine's production database."""
+    env = read_env()
+    database = production_database(env)
+    return secrets_from_env(env), patients_from_database(database) if database else {}
+
+
 def scan(staged: bool = False) -> list[Finding]:
     """Every reason the given content must not be committed."""
-    secrets = secrets_from_env()
+    return scan_for(staged, *known_values())
+
+
+def scan_for(staged: bool, secrets: dict[str, str], patients: dict[str, str]) -> list[Finding]:
+    """Every reason the given content must not be committed, given what to look for."""
+    by_folded = {value.casefold(): what for value, what in patients.items()}
+    patient_pattern = whole_values(patients)
     findings: list[Finding] = []
 
     for path in tracked_files(staged):
@@ -185,6 +260,11 @@ def scan(staged: bool = False) -> list[Finding]:
         for value, name in secrets.items():
             if value in text:
                 findings.append(Finding(path, f"contains the value of {name} from .env"))
+        if patient_pattern:
+            # The value itself is never printed: the terminal and CI logs are not private.
+            for what in sorted({by_folded[m.group().casefold()]
+                                for m in patient_pattern.finditer(text)}):
+                findings.append(Finding(path, f"contains {what}"))
         for description, pattern in SHAPES:
             match = pattern.search(text)
             if match:
@@ -203,10 +283,13 @@ def main() -> int:
     )
     arguments = parser.parse_args()
 
-    findings = scan(staged=arguments.staged)
+    secrets, patients = known_values()
+    findings = scan_for(arguments.staged, secrets, patients)
     if not findings:
         where = "staged changes" if arguments.staged else "tracked files"
         print(f"No patient data, staff identities or credentials found in {where}.")
+        print(f"Checked {len(secrets)} values from .env and "
+              f"{len(patients)} production patient names and ids.")
         return 0
 
     print(f"Refusing: {len(findings)} problem(s)\n", file=sys.stderr)
