@@ -6,7 +6,7 @@ test time -- a stored answer stops being true the moment the state changes.
 
 Run against staging only:
 
-    uv run python scripts/record_principle_wire.py [--create-patient]
+    uv run python scripts/record_principle_wire.py [--create-patient] [--firestore-from-production]
 
 Two rules this enforces:
 
@@ -30,6 +30,10 @@ gets verified cannot diverge.
 Firestore documents are recorded as shapes only: each field's name and value type, joined over
 several documents, with no value at all. The shape is all tests/test_fake_conformance.py
 compares, and a value that is never written cannot leak.
+
+Staging's Firestore can be read only with a working staging UI login. Without one,
+--firestore-from-production records the Firestore shapes and refusals from production instead:
+reads only, and nothing but field names, types and Firestore's own error wording is written.
 
 Creating a patient is the one write, and only with --create-patient: a `[TEST]` patient on
 staging, which the API cannot delete, so the fake's `POST /v1/patients` is checked against what
@@ -310,7 +314,7 @@ def covers(recorded: Any, fake: Any, where: str = "") -> list[str]:
     return []
 
 
-def write_shape(name: str, documents: list[dict[str, Any]]) -> Path:
+def write_shape_from(name: str, documents: list[dict[str, Any]], source: str) -> Path:
     """Save the joined shape of some Firestore documents' fields: names and types only."""
     if not documents:
         raise SystemExit(f"{name}: no documents to take a shape from; pick another day")
@@ -319,7 +323,7 @@ def write_shape(name: str, documents: list[dict[str, Any]]) -> Path:
     shape = joined([shape_of(d.get("fields", {})) for d in documents])[0]
     target.write_text(json.dumps({
         "capturedOn": datetime.now(tz=UTC).date().isoformat(),
-        "source": "firestore (staging)", "documents": len(documents), "shape": shape,
+        "source": source, "documents": len(documents), "shape": shape,
     }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return target
 
@@ -389,6 +393,11 @@ async def record_firestore(settings: Settings, appointment: dict[str, Any]) -> l
             return {"timestampValue": moment.astimezone(UTC).isoformat().replace("+00:00", "Z")}
 
         category = appointment.get("treatmentCategory", {}).get("id")
+        source = f"firestore ({settings.environment.value})"
+
+        def write_shape(name: str, documents: list[dict[str, Any]]) -> Path:
+            return write_shape_from(name, documents, source)
+
         return [
             write_shape("patient", [await firestore.read(f"patients/{patient}")]),
             write_shape("appointment", [await firestore.read(
@@ -430,7 +439,8 @@ async def record_firestore_refusals(settings: Settings) -> list[Path]:
             target = RECORDINGS / "refusals" / f"{name}.json"
             target.write_text(json.dumps({
                 "capturedOn": datetime.now(tz=UTC).date().isoformat(),
-                "source": "firestore (staging)", "status": response.status_code,
+                "source": f"firestore ({settings.environment.value})",
+                "status": response.status_code,
                 "body": json.loads(text)}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
             written.append(target)
         return written
@@ -531,6 +541,12 @@ async def main() -> None:
                                         appointment, "--create-patient" in sys.argv)
     names.unrecognised |= patient_names.unrecognised
     written += await record_refusals(settings, names)
+    if "--firestore-from-production" in sys.argv:
+        # Reads only: one booked appointment and its documents. Shapes carry no values, and
+        # the refusals' document path is replaced before anything is written.
+        settings = Settings(environment=Environment.PRODUCTION)
+        async with PrincipleClient(settings) as client:
+            appointment = await first_appointment(client, settings.practice_id)
     written += await record_firestore(settings, appointment)
     written += await record_firestore_refusals(settings)
     for path in written:

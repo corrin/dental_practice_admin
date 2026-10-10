@@ -1,0 +1,12 @@
+{
+  "body": {
+    "error": {
+      "code": 404,
+      "message": "Document \"{document}\" not found.",
+      "status": "NOT_FOUND"
+    }
+  },
+  "capturedOn": "2026-10-10",
+  "source": "firestore (production)",
+  "status": 404
+}
