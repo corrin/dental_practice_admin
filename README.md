@@ -61,10 +61,9 @@ The ordinary setup is Principle staging, Google login, real OpenAI, and ngrok at
 Stop it with Ctrl+C; the launcher stops its child processes. Only one local run can hold port
 8080: the launcher refuses to start while something else already has it.
 
-Keep credentials in the gitignored `.env`: `PRINCIPLE_API_KEY_STAGING`,
-`PRINCIPLE_PRACTICE_ID_STAGING`, `OPENAI_API_KEY`, `ADMIN_GOOGLE_CLIENT_ID`,
-`ADMIN_GOOGLE_CLIENT_SECRET`, `ADMIN_SESSION_SECRET`, and `ADMIN_STAFF_EMAILS` and/or
-`ADMIN_STAFF_DOMAIN`. Register the Google callback
+Keep every setting in the gitignored `.env`. The fields of `Settings` in
+[`config.py`](src/dental_practice_admin/config.py) are the complete list, and startup names any
+that is missing; nothing falls back to a value in the code. Register the Google callback
 `https://massey-admin-dev.ngrok-free.app/auth/callback` and configure
 `ADMIN_CHATKIT_DOMAIN_KEY` for that hostname. Install ngrok and authenticate it through its own
 configuration. Fake Principle credentials are accepted only by the simulation, not staging.
@@ -128,8 +127,9 @@ Shared, unscoped Principle credentials are not used.
 `ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL` (`https://api.openai.com/v1` for
 the real model), `OPENAI_API_KEY`, and `ADMIN_AGENT_MODEL` configure AI. Use only the
 `OPENAI_*` spellings for its key and endpoint. `ADMIN_PUBLIC_BASE_URL` is the access address;
-set it empty to take the address from each request. The fake preset sets the fake addresses
-and `http://localhost:8080` itself. Presets are shortcuts,
+set it empty to take the address from each request. The fake preset sets the fake bank, the
+fake AI and `http://localhost:8080` itself; the fake Principle's address, key and practice ID
+are the `_FAKE` settings in `.env`. Presets are shortcuts,
 not restrictions on mixing providers. Developer identity is prominently announced and has no
 sign-out button because it does not establish a Google session.
 
