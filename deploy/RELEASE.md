@@ -277,14 +277,15 @@ can't be undone.
 1. Find the old bridge's startup task with
    `Get-ScheduledTask | Where-Object { $_.Actions.Execute -match 'SMS_Bridge' }`, delete it with
    `Unregister-ScheduledTask`, then delete the installation directory its action names.
-2. Stop Call Centre starting at logon (Settings > Apps > Startup, or its own logon task),
-   unless reception uses it for calls.
+2. Stop Call Centre starting at logon (Settings > Apps > Startup), unless reception uses it for
+   calls.
 3. `sc.exe delete caddy`, then delete `C:\Program Files\Caddy` and Caddy's data directory, which
    holds the certificates.
-4. Copy reception's `C:\ProgramData\SMS_Bridge` to the server's
-   `C:\ProgramData\SMS_Bridgeeception`, which keeps that folder's permissions, so the message
-   history before the move survives. Then, on reception, delete everything in it except
-   `check-sms.ps1`, which reception's SMS check runs.
+4. Keep the message history from before the move. On reception, as an administrator:
+   `robocopy C:\ProgramData\SMS_Bridge \\192.168.192.30\C$\ProgramData\SMS_Bridge\reception /E`.
+   Without `/COPY:S` the copies take the server folder's restricted permissions. Then delete
+   everything in reception's `C:\ProgramData\SMS_Bridge` except `check-sms.ps1`, which
+   reception's SMS check runs.
 5. Remove any firewall rule on reception that admits port 5170, 80 or 443.
 
 **Check:** on reception, `sc.exe query caddy` reports that the service does not exist,
