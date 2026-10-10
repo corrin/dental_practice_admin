@@ -25,7 +25,7 @@ from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import Environment, Settings, SignIn, current_settings
-from dental_practice_admin.scripts import load_draft
+from dental_practice_admin.scripts import load_draft, printable_path
 from dental_practice_admin.storage import Storage, TaskRun
 from dental_practice_admin.task_ui import router as task_router
 
@@ -198,6 +198,14 @@ async def _closing(result: StreamingResult, store: SqliteChatStore) -> AsyncIter
         store.close()
 
 
+def visible_run(store: Storage, run_id: str, staff: StaffUser) -> TaskRun:
+    """A run this staff member may see: any task's, but only their own drafts."""
+    run: TaskRun | None = store.run(run_id)
+    if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
+        raise HTTPException(status_code=404, detail=f"no run {run_id}")
+    return run
+
+
 @router.get("/runs/{run_id}", response_class=HTMLResponse)
 def run_detail(
     request: Request,
@@ -207,11 +215,29 @@ def run_detail(
     store: Annotated[Storage, Depends(storage)],
 ) -> HTMLResponse:
     """One run's result, with its coverage stated rather than implied."""
-    run: TaskRun | None = store.run(run_id)
-    if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
-        raise HTTPException(status_code=404, detail=f"no run {run_id}")
+    run = visible_run(store, run_id, staff)
     return render(request, "run.html", staff, configured, store, run=run,
-                  has_audit=(configured.data_dir / "audits" / f"{run_id}.jsonl").is_file())
+                  has_audit=(configured.data_dir / "audits" / f"{run_id}.jsonl").is_file(),
+                  has_printable=printable_path(configured, run_id).is_file())
+
+
+# The printable page is the task's own HTML, so it runs nothing: inline styles and inline
+# images only, never a script, a fetch or a frame.
+PRINT_POLICY = ("default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
+                "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+
+
+@router.get("/runs/{run_id}/print", response_class=HTMLResponse)
+def run_print(run_id: str, staff: CurrentStaff,
+              configured: Annotated[Settings, Depends(settings)],
+              store: Annotated[Storage, Depends(storage)]) -> HTMLResponse:
+    """A run's printable page, under the same staff ownership boundary as its result."""
+    visible_run(store, run_id, staff)
+    path = printable_path(configured, run_id)
+    if not path.is_file():
+        raise HTTPException(404)
+    return HTMLResponse(path.read_text(encoding="utf-8"), headers={
+        "Content-Security-Policy": PRINT_POLICY, "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/runs/{run_id}/audit")
@@ -219,10 +245,8 @@ def run_audit(run_id: str, staff: CurrentStaff,
               configured: Annotated[Settings, Depends(settings)],
               store: Annotated[Storage, Depends(storage)]) -> FileResponse:
     """Execution evidence has the same staff ownership boundary as its result."""
-    run = store.run(run_id)
+    visible_run(store, run_id, staff)
     path = configured.data_dir / "audits" / f"{run_id}.jsonl"
-    if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
-        raise HTTPException(404)
     if not path.is_file():
         raise HTTPException(404)
     return FileResponse(path, media_type="application/x-ndjson", filename=f"{run_id}.jsonl")
