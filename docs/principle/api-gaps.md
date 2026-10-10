@@ -102,9 +102,8 @@ block an otherwise good read; the client works around the first and third:
    The client raises `RecordError` naming such a patient, with the response as received. Its
    pre-read before other patient-scoped calls tolerates that error, so the patient's invoices
    can still be read; only `getPatient` itself raises. On 2026-10-10, 19 of the 287
-   production patients with an unpaid
-   invoice or a recent payment failed: 18 on a phone number, 1 on an email address. On staging,
-   5 in 60. The reconcile page shows such a patient as unreadable and carries on.
+   production patients with an unpaid invoice or a recent payment failed: 18 on a phone number,
+   1 on an email address. On staging, 5 in 60. The reconcile page shows such a patient as unreadable and carries on.
    - It also stopped the day sheet for every practitioner: 1 of the 15 patients booked on
      2026-11-16. The day sheet takes that patient's name from the timeline card instead and
      marks the sheet partial. Remove that fallback, the `getPatient` handler in admin_scripts'
