@@ -7,17 +7,18 @@ $account = 'practice-app'
 if (-not (Test-Path .env)) { throw '.env is missing: create it from the template in deploy\RELEASE.md, then run this again' }
 $password = Read-Host "$account password (from 1Password)"
 
-# Tools, at the versions the release gate runs with. Change a version here and re-run to upgrade.
-# 1641 and 3010: installed, restart needed.
-function Package($name, $version) { choco upgrade $name --version $version --allow-downgrade -y --no-progress; if ($LASTEXITCODE -notin 0, 1641, 3010) { throw "choco $name failed (exit $LASTEXITCODE)" } }
+# Tools, each at its latest version. Pinning one fails whenever a newer one is already installed:
+# installers refuse to downgrade. 1641 and 3010: installed, restart needed.
+function Package($name) { choco upgrade $name -y --no-progress; if ($LASTEXITCODE -notin 0, 1641, 3010) { throw "choco $name failed (exit $LASTEXITCODE)" } }
 if (-not (Get-Command choco -ErrorAction SilentlyContinue)) { Invoke-RestMethod https://community.chocolatey.org/install.ps1 | Invoke-Expression; $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') }
-Package git 2.55.0.5
-Package uv 0.12.5
-Package nodejs-lts 24.19.0
-# A running caddy.exe can't be replaced; Caddy comes back even if the upgrade fails.
+Package git
+Package uv
+Package nodejs-lts
+# A running caddy.exe can't be replaced, so Caddy stops only when there is a newer one, and comes
+# back even if the upgrade fails.
 $caddyRunning = (Get-Service caddy -ErrorAction SilentlyContinue).Status -eq 'Running'
-if ($caddyRunning) { Stop-Service caddy }
-try { Package caddy 2.11.7 } finally { if ($caddyRunning) { Start-Service caddy } }
+if ($caddyRunning -and (choco outdated -r | Select-String '^caddy\|')) { Stop-Service caddy; try { Package caddy } finally { Start-Service caddy } }
+elseif (-not $caddyRunning) { Package caddy }
 Invoke-WebRequest https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe -OutFile $env:TEMP\winsw.exe
 [Environment]::SetEnvironmentVariable('UV_PYTHON_PREFERENCE', 'only-managed', 'Machine')
 [Environment]::SetEnvironmentVariable('UV_PYTHON_INSTALL_DIR', 'C:\ProgramData\uv\python', 'Machine')
@@ -72,6 +73,7 @@ try {
 }
 
 # Caddy (installed here, first started at the switch), firewall, launcher
+$caddyfileChanged = -not (Test-Path C:\ProgramData\Caddy\Caddyfile) -or (Get-FileHash deploy\Caddyfile).Hash -ne (Get-FileHash C:\ProgramData\Caddy\Caddyfile).Hash
 Copy-Item deploy\Caddyfile C:\ProgramData\Caddy\Caddyfile
 Run caddy validate --config C:\ProgramData\Caddy\Caddyfile --adapter caddyfile
 New-Item -ItemType Directory -Force 'C:\Program Files\Caddy' | Out-Null
@@ -82,7 +84,7 @@ if (-not (Get-Service caddy -ErrorAction SilentlyContinue)) {
     Run sc.exe config caddy obj= 'NT SERVICE\caddy'
 }
 Run icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'NT SERVICE\caddy:(OI)(CI)M'
-if ((Get-Service caddy).Status -eq 'Running') { Restart-Service caddy }
+if ($caddyfileChanged -and (Get-Service caddy).Status -eq 'Running') { Restart-Service caddy }
 if (-not (Get-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -Direction Inbound -Protocol TCP -LocalPort 80, 443 -Action Allow -Profile Any | Out-Null }
 if (-not (Get-NetFirewallRule -DisplayName 'SMS bridge from reception' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName 'SMS bridge from reception' -Direction Inbound -Protocol TCP -LocalPort 5170 -RemoteAddress 192.168.192.125 -Action Allow -Profile Any | Out-Null }
 Run schtasks /Create /F /XML deploy\task-runner.xml /TN '\Massey Smiles Admin\Task runner' /RU $account /RP $password
