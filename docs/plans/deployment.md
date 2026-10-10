@@ -48,7 +48,9 @@ C:\ProgramData\DentalPracticeAdmin\
   directory is replaced on every deploy and the service definition must not be. That makes two
   copies of each definition, the installed one and the release's `deploy\` copy, chosen
   because WinSW and Task Scheduler hold their own. Every deploy compares them (step 5) and
-  refuses on a difference, so they cannot drift apart unnoticed.
+  refuses on a difference, so they cannot drift apart unnoticed. An edit to the installed copy
+  between deploys is found at the next deploy, or by `verify.ps1`, which already compares the
+  registered task runner's action with what it expects.
 - `.env` lives once, in `shared\`, as Capistrano's linked files: one copy, so releases cannot
   disagree about settings.
 
@@ -57,9 +59,10 @@ C:\ProgramData\DentalPracticeAdmin\
 Run elevated, on the host, by a person. Each step stops the run on failure; until step 6 the
 running release is untouched.
 
-1. Refuse unless `<commit>` is on `origin/main` (`git merge-base --is-ancestor`). `main`
-   accepts only pull requests whose `hermetic` check passed, so this is also the CI check, and
-   the host needs `git` but no GitHub credentials.
+1. Refuse unless `<commit>` is a commit of `main` itself (`git rev-list --first-parent
+   origin/main`), not one from inside a merged branch, and its own `hermetic` run on `main`
+   succeeded. CI runs on every push to `main`, and the repository is public, so GitHub's
+   check-runs API answers without credentials: the host needs `git` and nothing signed in.
 2. Clone that commit into `releases\<commit>`, unless that directory already holds it: going
    back to the previous release is the same command with its commit, and reuses its directory.
 3. `uv sync --locked`, `npm ci`, and the locked Playwright browser, in the release.
@@ -82,14 +85,17 @@ running release is untouched.
    task that writes to Principle.
 9. If anything fails from step 6 on, including the run being interrupted: put back what had
    changed by then, and exit with failure, naming the step to the person running it. Steps 6–8
-   run inside one `try`/`finally` that does this, so every failure has one path back:
-   - the task runner, if disabled, is enabled again;
+   run inside one `try`/`finally` that does this, so every failure has one path back, in this
+   order:
    - `current`, if repointed, points back at the recorded release;
-   - the service, if stopped, is started, and `verify.ps1` is run again.
+   - the service, if stopped, is started, and `verify.ps1` is run again;
+   - the task runner, if disabled, is enabled again, but only once that `verify.ps1` passes.
 
    A stuck run fails before the service is stopped, so it only re-enables the task runner. If
-   `verify.ps1` fails after the rollback too, the message says first that the practice now has
-   no working release, then which step failed in each.
+   `verify.ps1` fails after the rollback too, the task runner stays disabled, the service is
+   left stopped, and the message says first that the practice now has no working release, then
+   which step failed in each. The person running the deploy is the one who tells the practice,
+   and staff see the sign-in page fail to load until a release is reinstated.
 10. Delete releases other than `current` and the one it replaced.
 
 The first install is the same command after a one-off bootstrap, written as its own checklist
