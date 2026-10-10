@@ -112,7 +112,7 @@ def test_the_runs_page_loads_clean(
 ) -> None:
     """The page staff land on must render with nothing broken in the console."""
     page.goto(spine["APP_URL"], wait_until="load")
-    expect(page.get_by_test_id("no-runs")).to_be_visible()
+    expect(page.get_by_role("heading", name="Recent runs")).to_be_visible()
     expect(page.get_by_test_id("fake-banner")).to_be_visible()
     expect(page.get_by_test_id("staff-identity")).to_be_visible()
     watched.assert_clean("the runs page")
