@@ -196,6 +196,14 @@ async def _closing(result: StreamingResult, store: SqliteChatStore) -> AsyncIter
         store.close()
 
 
+def visible_run(store: Storage, run_id: str, staff: StaffUser) -> TaskRun:
+    """A run this staff member may see: any task's, but only their own drafts."""
+    run: TaskRun | None = store.run(run_id)
+    if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
+        raise HTTPException(status_code=404, detail=f"no run {run_id}")
+    return run
+
+
 @router.get("/runs/{run_id}", response_class=HTMLResponse)
 def run_detail(
     request: Request,
@@ -205,9 +213,7 @@ def run_detail(
     store: Annotated[Storage, Depends(storage)],
 ) -> HTMLResponse:
     """One run's result, with its coverage stated rather than implied."""
-    run: TaskRun | None = store.run(run_id)
-    if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
-        raise HTTPException(status_code=404, detail=f"no run {run_id}")
+    run = visible_run(store, run_id, staff)
     return render(request, "run.html", staff, configured, store, run=run,
                   has_audit=(configured.data_dir / "audits" / f"{run_id}.jsonl").is_file(),
                   has_printable=printable_path(configured, run_id).is_file())
@@ -224,10 +230,8 @@ def run_print(run_id: str, staff: CurrentStaff,
               configured: Annotated[Settings, Depends(settings)],
               store: Annotated[Storage, Depends(storage)]) -> HTMLResponse:
     """A run's printable page, under the same staff ownership boundary as its result."""
-    run = store.run(run_id)
+    visible_run(store, run_id, staff)
     path = printable_path(configured, run_id)
-    if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
-        raise HTTPException(404)
     if not path.is_file():
         raise HTTPException(404)
     return HTMLResponse(path.read_text(encoding="utf-8"), headers={
@@ -239,10 +243,8 @@ def run_audit(run_id: str, staff: CurrentStaff,
               configured: Annotated[Settings, Depends(settings)],
               store: Annotated[Storage, Depends(storage)]) -> FileResponse:
     """Execution evidence has the same staff ownership boundary as its result."""
-    run = store.run(run_id)
+    visible_run(store, run_id, staff)
     path = configured.data_dir / "audits" / f"{run_id}.jsonl"
-    if run is None or (run.task.startswith("draft:") and run.initiator != staff.email):
-        raise HTTPException(404)
     if not path.is_file():
         raise HTTPException(404)
     return FileResponse(path, media_type="application/x-ndjson", filename=f"{run_id}.jsonl")

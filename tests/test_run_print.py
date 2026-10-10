@@ -12,6 +12,7 @@ from pydantic import SecretStr
 
 from dental_practice_admin import scripts
 from dental_practice_admin.app import create_app
+from dental_practice_admin.auth import FAKE_STAFF
 from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 from tests.fake_akahu import FAKE_AKAHU_SETTINGS
@@ -82,7 +83,9 @@ def test_the_page_is_served_with_no_scripts_allowed(
     assert "default-src 'none'" in policy and "script-src" not in policy
 
 
-def test_another_staff_members_draft_cannot_be_printed(
+def test_a_draft_prints_for_its_owner_only(
         configured: Settings, client: TestClient) -> None:
+    own = finished(configured, task="draft:synthetic", initiator=FAKE_STAFF)
     foreign = finished(configured, task="draft:synthetic", initiator="other@fake.invalid")
+    assert client.get(f"/runs/{own}/print").status_code == 200
     assert client.get(f"/runs/{foreign}/print").status_code == 404

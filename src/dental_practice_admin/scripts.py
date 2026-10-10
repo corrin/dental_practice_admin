@@ -158,11 +158,11 @@ async def recorded(settings: Settings, script: Script, task: str,
                     application=version("dental-practice-admin"), environment=settings.environment)
         with recording(audit):
             result = await operation(run_id)
-        audit.write("finished", result=result.model_dump(exclude={"printable"}))
         if result.printable is not None:
             page = printable_path(settings, run_id)
             page.parent.mkdir(parents=True, exist_ok=True)
             page.write_text(result.printable, encoding="utf-8")
+        audit.write("finished", result=result.model_dump(exclude={"printable"}))
         storage.finish_run(run_id, Outcome.SUCCEEDED, result.coverage, result.summary,
                            {**result.detail, "inputs": script.inputs, "revision": script.revision})
         return run_id
