@@ -49,6 +49,13 @@ Patient privacy and unintended patient-facing actions are high-consequence failu
 existing access controls, and be especially careful with changes that send messages or modify the
 patient-management system.
 
+## One file of production install steps
+
+[`deploy/RELEASE.md`](deploy/RELEASE.md) is the only place production install and release steps
+live, for every workstream. Work that needs something done on the production host (a setting, a
+service, a scheduled task, a one-off step) adds it there in the same pull request. Plans and
+READMEs link to it rather than repeat its steps.
+
 ## Keep work in a pull request
 
 Work that exists only on one machine gets lost. Get it into a GitHub pull request as early as
