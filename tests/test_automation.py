@@ -94,12 +94,12 @@ async def test_expired_firestore_token_is_renewed_without_a_browser(tmp_path: Pa
     tokens: list[str] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
-        if request.url.host == "identitytoolkit.googleapis.com":
+        if request.url.path == "/v1/accounts:signInWithPassword":
             return httpx.Response(
                 200,
                 json={"idToken": "fake-first", "refreshToken": "fake-refresh", "expiresIn": "3600"},
             )
-        if request.url.host == "securetoken.googleapis.com":
+        if request.url.path == "/v1/token":
             return httpx.Response(
                 200,
                 json={
@@ -128,7 +128,7 @@ async def test_rejected_refresh_gets_one_signin_and_invalid_credentials_fail(
     calls: list[str] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
-        calls.append(request.url.host)
+        calls.append(request.url.path)
         return httpx.Response(400, json={"error": {"message": "INVALID_LOGIN_CREDENTIALS"}})
 
     client = Firestore(settings(tmp_path), httpx.MockTransport(respond))
@@ -138,7 +138,7 @@ async def test_rejected_refresh_gets_one_signin_and_invalid_credentials_fail(
             await client.read("patients/fake")
     finally:
         await client.aclose()
-    assert calls == ["securetoken.googleapis.com", "identitytoolkit.googleapis.com"]
+    assert calls == ["/v1/token", "/v1/accounts:signInWithPassword"]
 
 
 @pytest.mark.parametrize(

@@ -21,7 +21,8 @@ def _concrete_path(call: Call) -> str:
 
 @pytest.mark.parametrize("call", [call for call in CATALOGUE if call.name in {
     "listPractices", "listPractitioners", "listAppointmentsByDateRange",
-    "getPatient", "searchPatients", "listInvoicesByDateRange", "listTransactionsByDateRange",
+    "getPatient", "searchPatients", "createPatient", "listInvoicesByDateRange",
+    "listTransactionsByDateRange",
 }], ids=lambda call: call.name)
 def test_every_catalogue_call_is_routed(call: Call) -> None:
     """Every operation used by the diary must reach an independently verified fake route."""
