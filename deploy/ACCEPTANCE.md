@@ -3,7 +3,8 @@
 Automated checks cover what a machine can check. These are the ones a person signs off,
 because they need a reboot, a second account, or a deliberate act of destruction.
 
-Run `scripts\verify.ps1` first; it must pass before any of this is worth doing.
+Release with [RELEASE.md](RELEASE.md), then run `scripts\verify.ps1`; it must pass before any
+of this is worth doing.
 
 ## Cutover: the server becomes the front door
 
@@ -85,9 +86,9 @@ The SMS bridge is dormant, waiting on Principle's API. Reactivating it is a sepa
       run is back. A backup nobody has restored is a hypothesis.
 - [ ] **Restore task files.** Restore installed revisions, local draft repositories, immutable
       source snapshots and audit files alongside the database. Verify a restored schedule runs.
-- [ ] **Reinstate the previous release.** Stop the service, swap the release directory back,
-      start, run `verify.ps1`. Confirm runtime data under `C:\ProgramData\DentalPracticeAdmin`
-      survived the swap untouched.
+- [ ] **Reinstate the previous release.** Roll back as [RELEASE.md](RELEASE.md)'s later
+      releases describe, then run `verify.ps1`. Confirm runtime data under
+      `C:\ProgramData\DentalPracticeAdmin` survived the swap untouched.
 
 ## Repeat quarterly
 
