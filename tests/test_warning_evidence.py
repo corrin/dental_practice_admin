@@ -10,7 +10,7 @@ from agents.tool_context import ToolContext
 from pydantic import BaseModel
 
 from dental_practice_admin.chat import INSTRUCTIONS, model_for
-from dental_practice_admin.config import Settings
+from dental_practice_admin.config import Settings, load_settings
 from dental_practice_admin.principle import PrincipleClient, PrincipleError, api_tools
 from tests.fake import FakeStore, seed, transport
 
@@ -130,7 +130,7 @@ async def test_real_model_warns_only_about_affected_claims(
         if scenario == "missing_names_breakdown":
             question += " Break them down by practitioner name."
             expected_warnings = {"practitioner_names"}
-    settings = Settings()
+    settings = load_settings()
     assert settings.openai_api_key.get_secret_value()
     agent = Agent(name="Synthetic warning acceptance", instructions=INSTRUCTIONS,
                   model=model_for(settings), output_type=Answer)

@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import httpx2 as httpx
 import pytest
 from pydantic import SecretStr
 
-from dental_practice_admin.config import Environment, Settings
 from dental_practice_admin.principle import CallError, PrincipleClient, PrincipleError
 from tests.fake import FAKE_PRACTICE_ID, FakeStore, dispatch
 from tests.fake.server import FakeUnhandledParameterError, Request
 from tests.fake.store import FAKE_API_KEY
+from tests.settings import fake_settings
 
 # Wide enough to cover the whole seeded diary, whose slots are NZ business hours.
 WINDOW = {"from": "2026-09-27T00:00:00Z", "to": "2026-10-02T00:00:00Z"}
@@ -70,7 +72,7 @@ async def test_pagination_returns_every_row_once(
     assert set(ids) == expected
 
 
-async def test_pagination_stops_when_the_cursor_repeats() -> None:
+async def test_pagination_stops_when_the_cursor_repeats(tmp_path: Path) -> None:
     """A server that returns the same nextOffsetId forever must not hang the client.
 
     The spec's own PaginationMeta example has nextOffsetId equal to offsetId, and od_data met
@@ -82,7 +84,7 @@ async def test_pagination_stops_when_the_cursor_repeats() -> None:
     def stuck_cursor(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=_page(next(pages), "stuck"))
 
-    settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"), practice_id="p")
+    settings = fake_settings(tmp_path, api_key=SecretStr("k"), practice_id="p")
     async with PrincipleClient(settings, transport=httpx.MockTransport(stuck_cursor)) as client:
         with pytest.raises(PrincipleError):
             _ = [
@@ -93,7 +95,7 @@ async def test_pagination_stops_when_the_cursor_repeats() -> None:
             ]
 
 
-async def test_pagination_refuses_when_the_cursor_restarts() -> None:
+async def test_pagination_refuses_when_the_cursor_restarts(tmp_path: Path) -> None:
     """A restarted walk must fail rather than double-count.
 
     `nextOffsetId` is a createdAt, and Principle ignores a cursor it cannot place instead of
@@ -111,7 +113,7 @@ async def test_pagination_refuses_when_the_cursor_restarts() -> None:
     def restarts(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=next(answers))
 
-    settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"), practice_id="p")
+    settings = fake_settings(tmp_path, api_key=SecretStr("k"), practice_id="p")
     async with PrincipleClient(settings, transport=httpx.MockTransport(restarts)) as client:
         with pytest.raises(PrincipleError):
             _ = [
@@ -207,7 +209,7 @@ async def test_practitioners_are_listed_for_their_practice(
     assert all("id" in row and "name" in row for row in rows)
 
 
-async def test_error_status_becomes_a_typed_failure() -> None:
+async def test_error_status_becomes_a_typed_failure(tmp_path: Path) -> None:
     """A non-2xx must raise with its status attached, not return an empty envelope.
 
     A caller that saw `{}` on a 403 would file an empty report as a complete one.
@@ -216,7 +218,7 @@ async def test_error_status_becomes_a_typed_failure() -> None:
     def forbidden(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"message": "forbidden"})
 
-    settings = Settings(environment=Environment.FAKE, api_key=SecretStr("k"), practice_id="p")
+    settings = fake_settings(tmp_path, api_key=SecretStr("k"), practice_id="p")
     async with PrincipleClient(settings, transport=httpx.MockTransport(forbidden)) as client:
         with pytest.raises(PrincipleError) as raised:
             await client.get("listPractices")

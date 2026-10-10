@@ -30,7 +30,7 @@ def test_launcher_records_the_installed_task_result(
     with schedules.open_schedules(configured) as scheduler:
         scheduler.get_job(schedule.id).modify(
             next_run_time=datetime.now(UTC) - timedelta(seconds=1))
-    monkeypatch.setattr(schedules, "Settings", lambda: configured)
+    monkeypatch.setattr(schedules, "load_settings", lambda: configured)
     assert schedules.main() == exit_code
     store = Storage(configured.database_path)
     try:

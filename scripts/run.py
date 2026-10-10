@@ -18,17 +18,14 @@ from pydantic import SecretStr
 
 from dental_practice_admin.config import (
     ENVIRONMENT_FIELDS,
-    FAKE_API_KEY,
-    FAKE_API_URL,
-    FAKE_PRACTICE_ID,
     Environment,
     Settings,
     SignIn,
     environment_suffix,
+    load_settings,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-STAGING_ORIGIN = "https://massey-admin-dev.ngrok-free.app"
 FAKE_SERVER_URL = "http://127.0.0.1:8898"
 FAKE_BANK_URL = "http://127.0.0.1:8897/v1"
 
@@ -51,19 +48,9 @@ def configuration(args: argparse.Namespace) -> Settings:
     if args.preset is Environment.FAKE:
         # Imported here so that a real run never loads test code.
         from tests.fake_akahu import FAKE_AKAHU_SETTINGS
-        overrides |= {"akahu_base_url": FAKE_BANK_URL, **FAKE_AKAHU_SETTINGS}
-    settings = Settings(**overrides)
-    if settings.environment is Environment.FAKE:
-        if settings.api_base_url == FAKE_API_URL:
-            settings.api_base_url = FAKE_SERVER_URL
-        if not settings.api_key.get_secret_value():
-            settings.api_key = SecretStr(FAKE_API_KEY)
-        if not settings.practice_id:
-            settings.practice_id = FAKE_PRACTICE_ID
-    if not settings.public_base_url:
-        settings.public_base_url = (
-            "http://localhost:8080" if args.preset is Environment.FAKE else STAGING_ORIGIN
-        )
+        overrides |= {"akahu_base_url": FAKE_BANK_URL, "public_base_url": "http://localhost:8080",
+                      **FAKE_AKAHU_SETTINGS}
+    settings = load_settings(**overrides)
     settings.require_web_configured()
     if (
         urlsplit(settings.public_base_url).hostname not in {"localhost", "127.0.0.1"}

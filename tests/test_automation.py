@@ -10,11 +10,12 @@ import httpx2 as httpx
 import pytest
 from pydantic import SecretStr
 
-from dental_practice_admin.config import Environment, Settings, SignIn
+from dental_practice_admin.config import Settings, SignIn
 from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.scripts import Script, execute, load_draft, run, save_draft
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 from tests.fake_akahu import FAKE_AKAHU_SETTINGS
+from tests.settings import fake_settings
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows process ownership")
@@ -79,9 +80,8 @@ def test_draft_source_and_results_are_private_on_staff_pages(tmp_path: Path) -> 
 
 
 def settings(tmp_path: Path) -> Settings:
-    return Settings(
-        environment=Environment.FAKE,
-        data_root=tmp_path,
+    return fake_settings(
+        tmp_path,
         ui_email="fake@fake.invalid",
         ui_password=SecretStr("fake-password"),
         firebase_key="fake-key",

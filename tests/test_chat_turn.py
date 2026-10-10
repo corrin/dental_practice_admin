@@ -21,16 +21,16 @@ import pytest
 from agents.models.openai_responses import OpenAIResponsesModel
 from chatkit.server import StreamingResult
 from openai import AsyncOpenAI
-from pydantic import SecretStr
 
 from dental_practice_admin.auth import StaffUser
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, build_tools
 from dental_practice_admin.chat_store import SqliteChatStore
-from dental_practice_admin.config import Environment, Settings
+from dental_practice_admin.config import Settings
 from dental_practice_admin.principle import CATALOGUE
-from tests.fake import FAKE_API_KEY, FAKE_PRACTICE_ID, FakeStore, seed
+from tests.fake import FakeStore, seed
 from tests.fake import transport as fake_transport
 from tests.fake_ai import FAKE_AI_KEY, MARKER, FakeAi, transport
+from tests.settings import fake_settings
 
 STAFF = StaffUser(email="nurse@practice.nz", name="Nurse")
 
@@ -56,12 +56,7 @@ def fake_ai_model(instance: FakeAi) -> OpenAIResponsesModel:
 
 @pytest.fixture
 def chat_settings(tmp_path: Path) -> Settings:
-    return Settings(
-        environment=Environment.FAKE,
-        api_key=SecretStr(FAKE_API_KEY),
-        practice_id=FAKE_PRACTICE_ID,
-        data_root=tmp_path,
-    )
+    return fake_settings(tmp_path)
 
 
 @pytest.fixture

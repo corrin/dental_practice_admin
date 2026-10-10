@@ -9,7 +9,8 @@ import pytest
 from scripts import run
 
 from dental_practice_admin.config import (
-    PRINCIPLE_URLS,
+    FAKE_PRACTICE_ID,
+    STAGING_API_URL,
     ConfigurationError,
     Environment,
     Settings,
@@ -17,10 +18,14 @@ from dental_practice_admin.config import (
 )
 from tests.fake.store import FAKE_API_KEY
 from tests.fake_akahu import FAKE_AKAHU_ENV
+from tests.settings import API_URLS, fake_settings
+
+PUBLIC_ORIGIN = "https://admin.fake.invalid"
 
 
 @pytest.fixture
-def credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+def credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A complete .env, as a developer's holds one, through the environment."""
     for suffix, project in (("STAGING", "principle-staging"), ("PROD", "principle")):
         for name, value in {
             "UI_EMAIL": "fake@fake.invalid",
@@ -43,6 +48,21 @@ def credentials(monkeypatch: pytest.MonkeyPatch) -> None:
         "ADMIN_GOOGLE_CLIENT_SECRET": "fake-google-secret",
         "ADMIN_STAFF_EMAILS": "staff@fake.invalid",
         "ADMIN_CHATKIT_DOMAIN_KEY": "fake-registered-domain",
+        "PRINCIPLE_ENVIRONMENT": "staging",
+        "PRINCIPLE_API_BASE_URL_FAKE": run.FAKE_SERVER_URL,
+        "PRINCIPLE_API_BASE_URL_STAGING": STAGING_API_URL,
+        "PRINCIPLE_API_BASE_URL_PROD": API_URLS[Environment.PRODUCTION],
+        "PRINCIPLE_API_KEY_FAKE": FAKE_API_KEY,
+        "PRINCIPLE_PRACTICE_ID_FAKE": FAKE_PRACTICE_ID,
+        "ADMIN_SIGN_IN": "google",
+        "OPENAI_BASE_URL": "https://api.openai.com/v1",
+        "ADMIN_AGENT_MODEL": "gpt-6.1-sol",
+        "AKAHU_BASE_URL": "https://api.akahu.io/v1",
+        "ADMIN_PLAYWRIGHT_MCP_PATH": "node_modules/@playwright/mcp/cli.js",
+        "ADMIN_DATA_ROOT": str(tmp_path / "data"),
+        "ADMIN_PUBLIC_BASE_URL": PUBLIC_ORIGIN,
+        "ADMIN_TASK_REPOSITORY": "fake-owner/fake-tasks",
+        "ADMIN_GITHUB_TOKEN": "fake-github-token",
         **FAKE_AKAHU_ENV,
     }.items():
         monkeypatch.setenv(key, value)
@@ -54,13 +74,13 @@ def arguments(**overrides: object) -> argparse.Namespace:
     )
 
 
-def test_normal_run_is_staging_with_google_and_real_ai(credentials: None) -> None:
+def test_a_run_without_options_uses_the_configuration_as_it_is(credentials: None) -> None:
     settings = run.configuration(arguments())
     assert settings.environment is Environment.STAGING
-    assert settings.api_base_url == PRINCIPLE_URLS[Environment.STAGING]
+    assert settings.api_base_url == STAGING_API_URL
     assert settings.sign_in is SignIn.GOOGLE
-    assert settings.openai_base_url == ""
-    assert settings.public_base_url == run.STAGING_ORIGIN
+    assert settings.openai_base_url == "https://api.openai.com/v1"
+    assert settings.public_base_url == PUBLIC_ORIGIN
 
 
 @pytest.mark.parametrize("principle", list(Environment))
@@ -79,10 +99,10 @@ def test_explicit_developer_login_cannot_reach_production(credentials: None) -> 
         run.configuration(arguments(principle=Environment.PRODUCTION, sign_in=SignIn.DEVELOPER))
 
 
-def test_fake_preset_still_requires_explicit_authentication_opt_out() -> None:
-    with pytest.raises(ConfigurationError, match="sign_in=google"):
-        run.configuration(arguments(preset=Environment.FAKE))
+def test_fake_preset_still_requires_explicit_authentication_opt_out(credentials: None) -> None:
+    assert run.configuration(arguments(preset=Environment.FAKE)).sign_in is SignIn.GOOGLE
     settings = run.configuration(arguments(preset=Environment.FAKE, sign_in=SignIn.DEVELOPER))
+    assert settings.sign_in is SignIn.DEVELOPER
     assert settings.api_key.get_secret_value() == FAKE_API_KEY
     assert settings.openai_api_key.get_secret_value() == "fake-openai-key"
 
@@ -91,6 +111,8 @@ def test_dotenv_choices_survive_without_cli_overrides(
     credentials: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
+    for chosen in ("PRINCIPLE_ENVIRONMENT", "ADMIN_SIGN_IN", "OPENAI_BASE_URL"):
+        monkeypatch.delenv(chosen)
     monkeypatch.setitem(Settings.model_config, "env_file", ".env")
     (tmp_path / ".env").write_text(
         "PRINCIPLE_ENVIRONMENT=fake\nADMIN_SIGN_IN=developer\n"
@@ -116,9 +138,7 @@ def test_children_receive_the_resolved_configuration(credentials: None) -> None:
 def test_launcher_stops_its_children_on_failure_or_interrupt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
 ) -> None:
-    settings = Settings(
-        environment=Environment.FAKE, data_root=tmp_path, public_base_url="http://localhost:8080"
-    )
+    settings = fake_settings(tmp_path, public_base_url="http://localhost:8080")
     child = MagicMock()
     child.poll.return_value = None
     monkeypatch.setattr("scripts.run.subprocess.Popen", MagicMock(return_value=child))

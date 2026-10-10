@@ -5,19 +5,20 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 from starlette.responses import RedirectResponse
 
 from dental_practice_admin.app import create_app
 from dental_practice_admin.config import ConfigurationError, Environment, Settings, SignIn
 from dental_practice_admin.storage import Coverage, Outcome, Storage
-from tests.fake_akahu import FAKE_AKAHU_SETTINGS
+from tests.settings import API_URLS, fake_settings
 
 
 def configured(tmp_path: Path, environment: Environment = Environment.FAKE) -> Settings:
-    return Settings(
+    return fake_settings(
+        tmp_path,
         environment=environment,
-        data_root=tmp_path,
+        api_base_url=API_URLS[environment],
         api_key=SecretStr("fake-review-key"),
         practice_id="fake-review-practice",
         sign_in=SignIn.GOOGLE,
@@ -33,7 +34,6 @@ def configured(tmp_path: Path, environment: Environment = Environment.FAKE) -> S
         firestore_root="organisations/fake/brands/fake",
         workspace="Synthetic workspace",
         workspace_slug="fake",
-        **FAKE_AKAHU_SETTINGS,
     )
 
 
@@ -116,8 +116,11 @@ def test_settings_do_not_change_until_restart(
         assert client.get("/").status_code == 401
 
 
-def test_google_is_the_default_even_with_fake_principle() -> None:
-    assert Settings(environment=Environment.FAKE).sign_in is SignIn.GOOGLE
+def test_sign_in_has_no_default(tmp_path: Path) -> None:
+    complete = fake_settings(tmp_path).model_dump()
+    complete.pop("sign_in")
+    with pytest.raises(ValidationError):
+        Settings(**complete)
 
 
 @pytest.mark.parametrize(

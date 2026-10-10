@@ -43,6 +43,7 @@ from dental_practice_admin.config import (
     Environment,
     Settings,
     is_production_host,
+    load_settings,
 )
 from dental_practice_admin.principle import PrincipleClient, PrincipleError
 
@@ -239,7 +240,7 @@ def write(
 
 def staging_settings() -> Settings:
     """Staging configuration, refusing production and missing credentials alike."""
-    settings = Settings(environment=Environment.STAGING)
+    settings = load_settings(environment=Environment.STAGING)
     if is_production_host(settings.api_base_url):
         raise ConfigurationError("the recorder addresses staging, never production")
     settings.require_credentials()

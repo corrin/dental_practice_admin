@@ -119,15 +119,17 @@ Principle always requires Google. A production investigation needs production cr
 the loader selects credentials from the chosen environment's section.
 
 CLI selections override `.env` and the shell. For settings not selected on the command line,
-shell variables override `.env`. `PRINCIPLE_ENVIRONMENT` selects Principle (default `staging`).
-Group its key and practice ID under matching `_FAKE`, `_STAGING`, and `_PROD` settings in `.env`.
-Optional endpoint overrides use `PRINCIPLE_API_BASE_URL_FAKE`, `_STAGING`, or `_PROD`; otherwise
-standard endpoints apply. Shared, unscoped Principle credentials are not used. Missing selected
-credentials fail startup.
+shell variables override `.env`. No setting has a default in the code: every one is set in
+`.env` or the environment, and a missing one fails startup. `PRINCIPLE_ENVIRONMENT` selects
+Principle. Group its endpoint, key and practice ID under matching `_FAKE`, `_STAGING`, and
+`_PROD` settings in `.env` (`PRINCIPLE_API_BASE_URL_STAGING=https://api.staging.principle.dental`).
+Shared, unscoped Principle credentials are not used.
 `--principle` overrides `--preset`, which overrides the configured environment.
-`ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL`, `OPENAI_API_KEY`, and
-`ADMIN_AGENT_MODEL` configure AI. Use only the `OPENAI_*` spellings for its key and endpoint.
-`ADMIN_PUBLIC_BASE_URL` overrides the access address for diagnostics. Presets are shortcuts,
+`ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL` (`https://api.openai.com/v1` for
+the real model), `OPENAI_API_KEY`, and `ADMIN_AGENT_MODEL` configure AI. Use only the
+`OPENAI_*` spellings for its key and endpoint. `ADMIN_PUBLIC_BASE_URL` is the access address;
+set it empty to take the address from each request. The fake preset sets the fake addresses
+and `http://localhost:8080` itself. Presets are shortcuts,
 not restrictions on mixing providers. Developer identity is prominently announced and has no
 sign-out button because it does not establish a Google session.
 
@@ -250,8 +252,8 @@ Browser login runs automatically before each workflow. The persistent profile, b
 output and cross-process lock live under the environment's data directory. Only one
 browser workflow runs at a time; API and Firestore work can continue. Firebase reads
 refresh their tokens and sign in once if a refresh is rejected. Invalid credentials
-fail explicitly. No Firestore writes are exposed. Set `ADMIN_PLAYWRIGHT_MCP_PATH` when
-the locked Node package lives outside the application's working directory.
+fail explicitly. No Firestore writes are exposed. `ADMIN_PLAYWRIGHT_MCP_PATH` locates the
+locked Node package, normally `node_modules/@playwright/mcp/cli.js`.
 
 ### Production incompatibility warning
 

@@ -45,13 +45,6 @@ class Environment(StrEnum):
     PRODUCTION = "production"
 
 
-PRINCIPLE_URLS = {
-    Environment.FAKE: FAKE_API_URL,
-    Environment.STAGING: STAGING_API_URL,
-    Environment.PRODUCTION: "https://api.principle.dental",
-}
-
-
 # Principle's web origins; the fake uses an unroutable origin unless a test supplies one.
 PRINCIPLE_WEB_URLS = {
     Environment.FAKE: "https://fake.principle.invalid",
@@ -97,7 +90,12 @@ ENVIRONMENT_FIELDS = ("api_base_url", "api_key", "practice_id", "ui_email", "ui_
 
 
 class Settings(BaseSettings):
-    """Resolved runtime configuration for one process."""
+    """Resolved runtime configuration for one process.
+
+    No setting has a value written here: each comes from `.env`, the environment or the caller,
+    so a missing one is refused rather than replaced by a guess. A field that defaults to
+    empty is checked by the `require_*` method for the features that use it.
+    """
 
     model_config = SettingsConfigDict(
         env_prefix="ADMIN_",
@@ -109,9 +107,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    environment: Environment = Field(
-        default=Environment.STAGING, validation_alias="PRINCIPLE_ENVIRONMENT"
-    )
+    environment: Environment = Field(validation_alias="PRINCIPLE_ENVIRONMENT")
     api_base_url: str = Field(default="", validation_alias="PRINCIPLE_API_BASE_URL")
     api_key: SecretStr = Field(default=SecretStr(""), validation_alias="PRINCIPLE_API_KEY")
     practice_id: str = Field(default="", validation_alias="PRINCIPLE_PRACTICE_ID")
@@ -122,7 +118,8 @@ class Settings(BaseSettings):
     firestore_root: str = Field(default="", validation_alias="PRINCIPLE_FIRESTORE_ROOT")
     workspace: str = Field(default="", validation_alias="PRINCIPLE_WORKSPACE")
     workspace_slug: str = Field(default="", validation_alias="PRINCIPLE_WORKSPACE_SLUG")
-    playwright_mcp_path: Path = Path("node_modules/@playwright/mcp/cli.js")
+    playwright_mcp_path: Path
+    # Where reviewed tasks are exported for review (README, task review).
     task_repository: str = ""
     github_token: SecretStr = SecretStr("")
 
@@ -130,7 +127,7 @@ class Settings(BaseSettings):
     # people allowed in, so there is no password store to leak or reset.
     #
     # Developer identity requires an explicit opt-out and is forbidden against production.
-    sign_in: SignIn = SignIn.GOOGLE
+    sign_in: SignIn
     session_secret: SecretStr = SecretStr("")
     google_client_id: str = ""
     google_client_secret: SecretStr = SecretStr("")
@@ -156,35 +153,32 @@ class Settings(BaseSettings):
         default=SecretStr(""),
         validation_alias="OPENAI_API_KEY",
     )
-    openai_base_url: str = Field(
-        default="",
-        validation_alias="OPENAI_BASE_URL",
-    )
-    # Confirmed present on /v1/models. A default that names a retired model is a chat box that
-    # breaks for staff on the day it is retired, so this is worth keeping current.
-    agent_model: str = "gpt-6.1-sol"
+    openai_base_url: str = Field(validation_alias="OPENAI_BASE_URL")
+    # Read off /v1/models with the configured key. A retired model is a chat box that breaks
+    # for staff on the day it is retired.
+    agent_model: str
 
     # The practice's bank account, through an Akahu personal app (my.akahu.nz/developers).
     # There is one bank whichever Principle this checkout talks to, so no environment suffix.
-    # The base URL moves only for the fake bank.
+    # The base URL is https://api.akahu.io/v1 except for the fake bank.
     akahu_app_token: SecretStr = Field(default=SecretStr(""), validation_alias="AKAHU_APP_TOKEN")
     akahu_user_token: SecretStr = Field(default=SecretStr(""),
                                         validation_alias="AKAHU_USER_TOKEN")
-    akahu_base_url: str = Field(default="https://api.akahu.io/v1",
-                                validation_alias="AKAHU_BASE_URL")
+    akahu_base_url: str = Field(validation_alias="AKAHU_BASE_URL")
 
     # Registered with OpenAI for the domain the chat page is served from, and required by the
     # ChatKit component alongside the endpoint URL. Not a secret: it is rendered into the page.
-    chatkit_domain_key: str = "domain_pk_localhost"
+    chatkit_domain_key: str
 
     # The origin staff reach, when it cannot be read from the request -- for example a scheduled
-    # task building a link. Behind a proxy the request carries it; set this only to override.
-    public_base_url: str = ""
+    # task building a link. Set it empty to take the origin from each request, which behind a
+    # proxy carries it.
+    public_base_url: str
 
     # Runtime data sits outside the source checkout on a real host (ARCHITECTURE.md,
     # Storage and configuration). Production and staging must not share a database or a
     # browser session file, so the environment name is part of the path.
-    data_root: Path = Field(default=Path.home() / "dental_practice_admin_data")
+    data_root: Path
 
     @classmethod
     def settings_customise_sources(
@@ -202,7 +196,10 @@ class Settings(BaseSettings):
             for source in sources:
                 values.update(source())
             values.update(initial)
-            environment = values.get("environment", values.get("PRINCIPLE_ENVIRONMENT", "staging"))
+            environment = values.get("environment", values.get("PRINCIPLE_ENVIRONMENT"))
+            if environment is None:
+                # Left unresolved, so validation names PRINCIPLE_ENVIRONMENT as missing.
+                return values
             suffix = environment_suffix(environment)
             for field in ENVIRONMENT_FIELDS:
                 alias = f"PRINCIPLE_{field.upper()}"
@@ -305,7 +302,8 @@ class Settings(BaseSettings):
     def _environment_matches_host(self) -> Settings:
         """Refuse config whose declared environment disagrees with its host."""
         if not self.api_base_url:
-            self.api_base_url = PRINCIPLE_URLS[self.environment]
+            raise ConfigurationError(
+                f"PRINCIPLE_API_BASE_URL_{environment_suffix(self.environment)} is not set")
         host = api_host(self.api_base_url)
         production_host = is_production_host(self.api_base_url)
         if self.environment is Environment.PRODUCTION and not production_host:
@@ -346,8 +344,11 @@ class Settings(BaseSettings):
         self.require_sign_in_configured()
         self.require_credentials()
         self.require_automation_configured()
-        if not self.openai_api_key.get_secret_value():
-            raise ConfigurationError("Chat needs OPENAI_API_KEY")
+        if not self.openai_api_key.get_secret_value() or not self.openai_base_url:
+            raise ConfigurationError("Chat needs OPENAI_API_KEY and OPENAI_BASE_URL")
+        if not self.task_repository or not self.github_token.get_secret_value():
+            raise ConfigurationError("Task review needs ADMIN_TASK_REPOSITORY and"
+                                     " ADMIN_GITHUB_TOKEN")
         missing = [name for name, value in (
             ("AKAHU_APP_TOKEN", self.akahu_app_token.get_secret_value()),
             ("AKAHU_USER_TOKEN", self.akahu_user_token.get_secret_value())) if not value]
@@ -373,6 +374,15 @@ class Settings(BaseSettings):
             raise ConfigurationError("Install the locked Playwright MCP package before startup")
         if which("node") is None:
             raise ConfigurationError("Install Node.js before startup")
+
+
+def load_settings(**overrides: Any) -> Settings:
+    """Settings from .env and the environment, with the caller's overrides on top.
+
+    The one way code outside tests builds Settings. Its required fields come from the
+    environment, which a bare `Settings()` call cannot show the type checker.
+    """
+    return Settings(**overrides)
 
 
 def current_settings(request: Request) -> Settings:

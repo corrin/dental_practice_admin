@@ -130,7 +130,7 @@ def model_for(settings: Settings) -> Model:
         raise ConfigurationError("Chat needs OPENAI_API_KEY")
     client = AsyncOpenAI(
         api_key=settings.openai_api_key.get_secret_value(),
-        base_url=settings.openai_base_url or None,
+        base_url=settings.openai_base_url,
     )
     return OpenAIResponsesModel(settings.agent_model, client)
 

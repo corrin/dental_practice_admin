@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from dental_practice_admin import scripts, task_files
 from dental_practice_admin.audit import Audit
-from dental_practice_admin.config import Settings
+from dental_practice_admin.config import Settings, load_settings
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 
 POLL_SECONDS = 300
@@ -85,7 +85,7 @@ class Schedule(BaseModel):
 
 def scheduled_task(name: str, revision: str, inputs: dict[str, Any]) -> None:
     """The serializable APScheduler callable; execution uses only installed files."""
-    settings = Settings()
+    settings = load_settings()
     asyncio.run(scripts.run(settings, task_files.load(settings, name, revision, inputs,
                                                      "scheduler"), name))
 
@@ -171,7 +171,7 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
 
 def main() -> int:
     """Check due tasks once for the Windows launcher."""
-    settings = Settings()
+    settings = load_settings()
     settings.require_credentials()
     return asyncio.run(run_due(settings))
 
