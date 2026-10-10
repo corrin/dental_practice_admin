@@ -88,9 +88,9 @@ running release is untouched.
    service.
 7. Point `current` at the new release and start the service.
 8. Health: `/health` must answer within 60 seconds, then `scripts\verify.ps1 -Deploying` must
-   pass (`-Deploying` skips only its refusal while `deploy-in-progress` exists). Only then is
-   the task runner enabled, so a release that is not healthy never runs a scheduled task that
-   writes to Principle, and `deploy-in-progress` removed.
+   pass (`-Deploying` skips only its refusal while `deploy-in-progress` exists). Then enable
+   the task runner, and last remove `deploy-in-progress`. The task runner waits for this check
+   so that a release that is not healthy never runs a scheduled task that writes to Principle.
 9. If anything fails from step 6 on, including the run being interrupted: put back what had
    changed by then, and exit with failure, naming the step to the person running it. Steps 6–8
    run inside one `try`/`finally` that does this, so every failure has one path back, in this
@@ -104,8 +104,8 @@ running release is untouched.
    `verify.ps1` fails after the rollback too, the service is left running as restored, the
    task runner stays disabled, `deploy-in-progress` stays so `verify.ps1` keeps refusing, and
    the message says first that the practice has no healthy release, then which step failed in
-   each. The person running the deploy is the one who tells the practice,
-   and staff see the sign-in page fail to load until a release is reinstated.
+   each. The person running the deploy is the one who tells the practice; staff may still
+   reach the restored release, so nobody else is relied on to notice.
 
    A `finally` does not run if the window is closed or the process killed. That case leaves
    `deploy-in-progress` behind: `install.ps1` and `verify.ps1` both refuse while it exists and
