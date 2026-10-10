@@ -14,13 +14,11 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx2 as httpx
-from pydantic import SecretStr
 
 from dental_practice_admin.config import (
     Environment,
     Settings,
     SignIn,
-    setting_name,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,12 +58,7 @@ def configuration(args: argparse.Namespace) -> Settings:
 
 def child_environment(settings: Settings) -> dict[str, str]:
     """Pass the resolved configuration to children without rereading or altering the parent."""
-    env = dict(os.environ)
-    for name in Settings.model_fields:
-        value = getattr(settings, name)
-        env[setting_name(name, settings.environment)] = (
-            value.get_secret_value() if isinstance(value, SecretStr) else str(value))
-    return env
+    return dict(os.environ) | settings.as_environment()
 
 
 def wait_for_server(url: str, child: subprocess.Popen[bytes], statuses: set[int]) -> None:

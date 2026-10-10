@@ -374,8 +374,7 @@ class Settings(BaseSettings):
         self.require_sign_in_configured()
         self.require_credentials()
         self.require_automation_configured()
-        if not self.openai_api_key.get_secret_value() or not self.openai_base_url:
-            raise ConfigurationError("Chat needs OPENAI_API_KEY and OPENAI_BASE_URL")
+        self.require_chat_configured()
         # Task review is part of the staff pages, so its settings are checked here with the
         # rest rather than when someone first asks for a review (ADR 0002).
         if not self.task_repository or not self.github_token.get_secret_value():
@@ -386,6 +385,17 @@ class Settings(BaseSettings):
             ("AKAHU_USER_TOKEN", self.akahu_user_token.get_secret_value())) if not value]
         if missing:
             raise ConfigurationError(f"Bank reconciliation needs {', '.join(missing)}")
+
+    def require_chat_configured(self) -> None:
+        """Refuse chat without the model's key and address."""
+        if not self.openai_api_key.get_secret_value() or not self.openai_base_url:
+            raise ConfigurationError("Chat needs OPENAI_API_KEY and OPENAI_BASE_URL")
+
+    def as_environment(self) -> dict[str, str]:
+        """These settings as the variables that would produce them, for a child process."""
+        return {setting_name(name, self.environment): (
+                    value.get_secret_value() if isinstance(value, SecretStr) else str(value))
+                for name, value in ((name, getattr(self, name)) for name in Settings.model_fields)}
 
     def require_automation_configured(self) -> None:
         """Validate automation settings once before accepting real work."""

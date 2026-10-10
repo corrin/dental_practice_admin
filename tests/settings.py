@@ -76,6 +76,4 @@ def use_fake_environment(monkeypatch: pytest.MonkeyPatch, data_root: Path,
 
 def fake_environment(data_root: Path, **overrides: Any) -> dict[str, str]:
     """The same settings as environment variables, named as `.env` names them."""
-    from scripts.run import child_environment
-
-    return child_environment(fake_settings(data_root, **overrides))
+    return fake_settings(data_root, **overrides).as_environment()

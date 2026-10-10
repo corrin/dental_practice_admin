@@ -49,7 +49,7 @@ from dental_practice_admin.auth import StaffUser
 from dental_practice_admin.automation import record_tool
 from dental_practice_admin.automation import tools as automation_tools
 from dental_practice_admin.chat_store import SqliteChatStore
-from dental_practice_admin.config import ConfigurationError, Settings
+from dental_practice_admin.config import Settings
 from dental_practice_admin.principle import api_tools
 from dental_practice_admin.storage import Storage
 
@@ -126,8 +126,7 @@ def model_for(settings: Settings) -> Model:
     `openai_base_url` at the fake AI is how a simulated model is selected -- the application never
     learns that it is simulated.
     """
-    if not settings.openai_api_key.get_secret_value() or not settings.openai_base_url:
-        raise ConfigurationError("Chat needs OPENAI_API_KEY and OPENAI_BASE_URL")
+    settings.require_chat_configured()
     client = AsyncOpenAI(
         api_key=settings.openai_api_key.get_secret_value(),
         base_url=settings.openai_base_url,

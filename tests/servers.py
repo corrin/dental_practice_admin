@@ -9,6 +9,7 @@ configure simulated providers and explicitly opt out of Google login.
 
 from __future__ import annotations
 
+import os
 import socket
 import subprocess
 import sys
@@ -101,7 +102,7 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
     # Every setting, as the fake environment has it, with only the simulations' real addresses
     # changed. OpenAI's own documented base URL selects the simulated model, so no production
     # code branches on being under test.
-    env = fake_environment(
+    env = dict(os.environ) | fake_environment(
         data_root,
         api_base_url=f"http://127.0.0.1:{fake_port}",
         openai_base_url=f"http://127.0.0.1:{fake_ai_port}/v1",
