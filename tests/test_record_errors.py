@@ -68,7 +68,9 @@ async def test_bad_contact_details_name_the_patient_without_claiming_an_interfac
 
 
 @pytest.mark.parametrize("change", [{"gender": "nonsense"}, {"contactNumbers": "not a list"},
-                                    {"contactNumbers": [{"number": "+64210000000"}]}])
+                                    {"contactNumbers": [{"number": "+64210000000"}]},
+                                    {"email": {"address": "fake@example.invalid"}},
+                                    {"contactNumbers": [{"label": "mobile", "number": 64}]}])
 async def test_any_other_break_in_a_patient_is_an_interface_change(
     tmp_path: Path, change: dict[str, Any],
 ) -> None:

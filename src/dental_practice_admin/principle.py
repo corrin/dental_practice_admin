@@ -16,7 +16,7 @@ import jsonref
 from agents import FunctionTool
 from agents.tool_context import ToolContext
 from fastmcp import FastMCP
-from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from openapi_core import OpenAPI
 from openapi_core.datatypes import RequestParameters
 
@@ -158,11 +158,15 @@ def _patient_shape(call: Call) -> str | None:
     return None
 
 
-def _contact_detail(path: Any) -> bool:
-    """True for the fields Principle accepts against its specification: numbers and email."""
-    parts = list(path)
-    return parts == ["email"] or (len(parts) == 3 and parts[0] == "contactNumbers"
-                                  and parts[2] == "number")
+def _contact_detail(error: ValidationError) -> bool:
+    """True when a phone number or email breaks only the specification's format.
+
+    A missing field or a changed type is an interface change, not bad data.
+    """
+    parts = list(error.absolute_path)
+    return error.validator in {"pattern", "format"} and (
+        parts == ["email"]
+        or (len(parts) == 3 and parts[0] == "contactNumbers" and parts[2] == "number"))
 
 
 class PrincipleClient:
@@ -217,7 +221,7 @@ class PrincipleClient:
         bad = []
         for row in rows:
             errors = list(PATIENT.iter_errors(row))
-            if not all(_contact_detail(error.absolute_path) for error in errors):
+            if not all(_contact_detail(error) for error in errors):
                 return None
             if errors:
                 bad.append(row)
