@@ -280,15 +280,16 @@ is tested first.
 - **Phase 4** is optional.
 
 ### Phase 0: test the riskiest parts first
-About two days. Scripts are not committed; findings go in `docs/principle/`, and gaps in
-`api-gaps.md`. Ranked by how likely each is to fail and how much of the design it would change:
+About two days. The scripts are committed to this PR under `scripts/spikes/`, with no patient
+data in them, so a finding can be re-run when it is questioned; they are deleted when Phase 3
+merges. Findings go in `docs/principle/`, and gaps in `api-gaps.md`. Ranked by how likely each is to fail and how much of the design it would change:
 
 | # | Risk | Why it may fail | How it is tested | If it fails |
 |---|---|---|---|---|
 | 1 | Recording and voiding a payment through Principle's API | Never used; the fake doesn't implement invoices; Principle's own handling is unknown | On **staging** (following `skills/principle-staging-browser/SKILL.md`): create a bank-transfer payment on an invoice, a part payment, and a card payment dated in the past; then void each. Record the valid `type`, `provider` and `status` values, whether invoice `status`/`paidAt` and the patient's `accountSummary` update, and what Principle's own screens show | No create: the page stays a matching aid and staff key payments. No void: Remove & redo becomes "fix in Principle", and the page tracks it until done |
 | 2 | Card days add up at all | Smartpay and Paymark may share one payment method in Principle; settlements may be net of fees; the takings day may follow entry date or appointment date | On a month of real deposits and Principle payments: sum each card method per day against each settlement, both ways of dating | Shared method: one combined card queue. Net of fees: the fee becomes an expected difference. Neither adds up: the slip is a checklist, not a sum |
-| 3 | Listing patients who owe money, with their unpaid invoices, fast enough for a page load | No outstanding-balance query is known; earlier work found unreliable totals on some endpoints | Time the candidate calls (`listInvoicesByDateRange`, per-patient `listInvoices`) against real data and compare a sample of balances with Principle's screens | Cache the unpaid-invoice list, refreshed on Fetch now |
-| 4 | Akahu gives the fields matching depends on | Particulars, code, reference and `other_account` vary by bank and payment type | Create the personal app, connect the account, dump a month | Memory keys on payer name instead of account number |
+| 3 | Listing patients who owe money, with their unpaid invoices, fast enough for a page load | No outstanding-balance query is known; earlier work found unreliable totals on some endpoints | Time the candidate calls (`listInvoicesByDateRange`, per-patient `listInvoices`) against real data and compare a sample of balances with Principle's screens | Cache the unpaid-invoice list for suggestions, refreshed on Fetch now; the chosen invoices are always re-read from Principle before a match is confirmed, so a stale cache can only cost a suggestion |
+| 4 | Akahu gives the fields matching depends on | Particulars, code, reference and `other_account` vary by bank and payment type | Create the personal app, connect the account, dump a month | Memory keys on payer name instead of account number. Names are shared, so a name link is only a reason shown to the LLM and staff, and never short-circuits as **Remembered** |
 | 5 | Insurer payments are entered per patient before the deposit | Assumed for Southern Cross and ACC | Check a month of each in Principle | Import ACC's ProviderHub remittance CSV instead |
 
 **Milestone 0:** each risk has a recorded answer, and the design is adjusted where one failed.
