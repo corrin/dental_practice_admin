@@ -53,8 +53,12 @@ try {
 # A failure from here leaves the launcher paused, so no task starts against a half-installed release.
 try {
     if (Get-Service dental-practice-admin -ErrorAction SilentlyContinue) { Stop-Service dental-practice-admin }
-    Run uv sync --locked
-    Run npm.cmd ci
+    # Everything on this server is backed up and paid for by the byte: no development tools, and
+    # no second copy of each package left in the download caches.
+    Run uv sync --locked --no-dev
+    Run npm.cmd ci --omit=dev
+    Run uv cache clean
+    Run npm.cmd cache clean --force
     Run powershell -NoProfile -File scripts\check_settings.ps1 -ReleaseRoot (Get-Location).Path
     # WinSW reads the definition at each start; its start and failure settings only at install.
     Copy-Item deploy\dental-practice-admin.xml .
@@ -89,4 +93,5 @@ if (-not (Get-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -ErrorAction S
 if (-not (Get-NetFirewallRule -DisplayName 'SMS bridge from reception' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName 'SMS bridge from reception' -Direction Inbound -Protocol TCP -LocalPort 5170 -RemoteAddress 192.168.192.125 -Action Allow -Profile Any | Out-Null }
 Run schtasks /Create /F /XML deploy\task-runner.xml /TN '\Massey Smiles Admin\Task runner' /RU $account /RP $password
 Remove-Item $env:TEMP\winsw.exe
+Remove-Item -Recurse -Force $env:TEMP\chocolatey -ErrorAction SilentlyContinue
 Write-Host 'Done.' -ForegroundColor Green

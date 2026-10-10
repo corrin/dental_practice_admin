@@ -172,8 +172,9 @@ cd 'C:\Program Files\DentalPracticeAdmin'; powershell -ExecutionPolicy Bypass -F
 
 It asks for `practice-app`'s password, then installs the tools (Chocolatey: Git, uv, Node.js,
 Caddy; WinSW), sets uv's machine settings, grants the account its logon rights, creates the data
-folders with their permissions, runs `uv sync --locked` and `npm ci`, checks `.env`, installs and
-starts the application service as `practice-app`, installs Caddy without starting it, opens the
+folders with their permissions, installs the app's packages without development tools, clears
+the download caches (everything on the server is backed up by the byte), checks `.env`, installs
+and starts the application service as `practice-app`, installs Caddy without starting it, opens the
 firewall (80 and 443 from anywhere; 5170 from reception, `192.168.192.125`, only; every network
 profile, since the server sometimes comes up on Public), and registers the launcher. It ends
 "Done."; anything else names what failed. Fix that and run it again.
