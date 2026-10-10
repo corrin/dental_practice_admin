@@ -74,6 +74,19 @@ async def test_the_worker_returns_text_beyond_ascii_intact(configured: Settings)
     assert result.printable == f"<p>{text}</p>"
 
 
+async def test_a_failing_task_leaves_its_reason_in_the_audit(configured: Settings) -> None:
+    """The run page sends staff to the audit, so the audit must say why the task failed."""
+    script = draft().model_copy(update={"source": (
+        "async def run(services, inputs):\n"
+        "    raise ValueError('fake reason the task failed')\n")})
+
+    with pytest.raises(RuntimeError):
+        await scripts.worker_run(configured, script, "fake-failing-run")
+
+    audit = (configured.data_dir / "audits" / "fake-failing-run.jsonl").read_text(encoding="utf-8")
+    assert "fake reason the task failed" in audit
+
+
 def test_the_run_page_offers_print_only_when_there_is_a_page(
         configured: Settings, client: TestClient) -> None:
     printable = finished(configured)

@@ -6,6 +6,7 @@ import contextlib
 import json
 import re
 import sys
+import traceback
 import uuid
 from collections.abc import Awaitable, Callable
 from importlib.metadata import version
@@ -184,7 +185,7 @@ async def recorded(settings: Settings, script: Script, task: str,
     except BaseException as error:
         storage.finish_run(run_id, Outcome.UNCERTAIN, Coverage.PARTIAL,
                            "Execution incomplete; inspect the audit before retrying")
-        audit.write("interrupted", error=type(error).__name__)
+        audit.write("interrupted", error=type(error).__name__, traceback=traceback.format_exc())
         raise
     finally:
         storage.close()
@@ -231,6 +232,8 @@ def main() -> int:
               recording(Audit(settings, payload["run_id"])), execution_lock(settings, script)):
             result = asyncio.run(execute(settings, script))
     except Exception as error:
+        # The run page sends staff to the audit; the caller only ever sees the type name.
+        Audit(settings, payload["run_id"]).write("failed", traceback=traceback.format_exc())
         print(type(error).__name__)
         return 1
     sys.stdout.buffer.write(result.model_dump_json().encode("utf-8") + b"\n")
