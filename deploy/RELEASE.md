@@ -27,12 +27,10 @@ The commands below use `massey-admin` for the service account; substitute your c
 
 - **Service account.** One local account for the service and the launcher, with a long
   password. `scripts\verify.ps1` refuses `LocalSystem`.
-- **Reception's LAN address.** Give the reception machine a DHCP reservation. Caddy forwards
-  SMS_Bridge traffic to it, and a renumbered machine silently stops SMS from arriving.
 - **Access** to the DNS for `massey-smiles.co.nz`, the router, Google Cloud (the OAuth client),
   the OpenAI platform (ChatKit domains), GitHub (`massey-reception-coder/admin_scripts`), and
   Akahu (the bank feed).
-- **A quiet hour** for step 8, which moves inbound SMS from reception to the server.
+- **A quiet hour** for step 8, which moves both public names from reception to the server.
 
 ### 2. Prepare the release on the development machine
 
@@ -143,12 +141,13 @@ prints `production C:\ProgramData\DentalPracticeAdmin\production`.
 
 ### 8. Caddy, DNS and the router
 
-This moves inbound SMS from reception's own Caddy to the server's. Do it in the quiet hour.
-Caddy can obtain certificates only once the router sends ports 80 and 443 to it, so it starts
-after the switch, not before: a failed attempt backs off, and SMS would wait on its retry.
+This moves both public names from reception's own Caddy to the server's. Do it in the quiet
+hour. The SMS bridge is dormant, so `office` answers 503 until [Reactivating SMS](#reactivating-sms)
+is done. Caddy can obtain certificates only once the router sends ports 80 and 443 to it, so it
+starts after the switch, not before: a failed attempt backs off, and staff would wait on its
+retry.
 
-1. Copy [Caddyfile](Caddyfile) to `C:\ProgramData\Caddy\Caddyfile` and replace
-   `RECEPTION_HOST` with reception's reserved LAN address. Check it with
+1. Copy [Caddyfile](Caddyfile) to `C:\ProgramData\Caddy\Caddyfile`. Check it with
    `& 'C:\Program Files\Caddy\caddy.exe' validate --config C:\ProgramData\Caddy\Caddyfile --adapter caddyfile`.
 2. Copy [caddy-service.xml](caddy-service.xml) to `C:\Program Files\Caddy`, with the WinSW
    executable beside it renamed `caddy-service.exe`, and run `caddy-service.exe install`. Run it
@@ -159,21 +158,24 @@ after the switch, not before: a failed attempt backs off, and SMS would wait on 
    sc.exe config caddy obj= "NT SERVICE\caddy"
    icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'NT SERVICE\caddy:(OI)(CI)M'
    ```
-3. Server firewall: allow inbound TCP 80 and 443. Reception's firewall: allow inbound TCP 5170
-   from the server's address only (SMS_Bridge's PRODUCTION.md: keep 5170 off the internet).
+3. Server firewall: allow inbound TCP 80 and 443.
 4. DNS: an A record `admin.massey-smiles.co.nz` for the practice's public address, the same
    address `office.massey-smiles.co.nz` already uses.
-5. Together, with nothing in between: stop and disable Caddy on reception, switch the router's
-   forward for TCP 80 and 443 to the server, and start the server's `caddy` service. Watch
-   `C:\ProgramData\Caddy\logs` until it has obtained both certificates.
+5. Together, with nothing in between: stop and disable Caddy on reception
+   (`sc.exe stop caddy`, then `sc.exe config caddy start= disabled`; in PowerShell `sc` means
+   `Set-Content`), switch the router's forward for TCP 80 and 443 to the server, and start the
+   server's `caddy` service. Watch `C:\ProgramData\Caddy\logs` until it has obtained both
+   certificates. Leave reception's Caddyfile and certificates in place for the undo.
 
 **Check:** from outside the practice network (a phone off Wi-Fi),
-`https://office.massey-smiles.co.nz/smsgateway/gateway-status` answers with SMS_Bridge's build,
-and `https://admin.massey-smiles.co.nz` shows the Google sign-in. Principle reaches SMS_Bridge
-through this path (`/smsgateway/webhooks/principle`), so send a message from Principle to a
-staff mobile and confirm it arrives. **To undo:** point the router back at reception, set
+`https://admin.massey-smiles.co.nz` shows the Google sign-in and
+`https://office.massey-smiles.co.nz` answers "SMS gateway inactive", both with valid
+certificates. On reception, `sc.exe qc caddy` shows `DISABLED` and `sc.exe query caddy` shows
+`STOPPED`. **To undo:** point the router back at reception, set
 reception's Caddy service back to Automatic (a disabled service can't be started), and start
-it.
+it. Reception's Caddy forwards `office` to the bridge, which with debug mode on serves patient
+identifiers, so first confirm on reception that `netstat -ano | findstr :5170` prints nothing.
+If it prints a listener, stop the bridge before starting Caddy.
 
 ### 9. The launcher
 
@@ -188,7 +190,8 @@ must pass.
 
 1. Sign in at `https://admin.massey-smiles.co.nz` and open **Reports & scripts**. Install each
    reviewed task from its merged `admin_scripts` pull request, for example the contact-details
-   clean-up from PR 7.
+   clean-up from PR 7 and the day sheet from PR 8. Run the day sheet for today and print it on a
+   surgery printer.
 2. Run each task once by hand and read its result. Then set **Run automatically** for the ones
    that run on a schedule.
 3. The contact-details clean-up has its own rollout in
@@ -229,8 +232,8 @@ from outside, and the restore drill. Record the release in its table.
 7. Run `uv sync --locked` and `npm ci`, then repeat step 5.3 as the service account, in case the
    release moved Playwright to a new browser.
 8. If step 2 listed other `deploy\` files, apply them:
-   - `Caddyfile`: copy it to `C:\ProgramData\Caddy\Caddyfile`, replace `RECEPTION_HOST` again,
-     validate as in step 8.1, and restart the `caddy` service.
+   - `Caddyfile`: copy it to `C:\ProgramData\Caddy\Caddyfile`, validate as in step 8.1, and
+     restart the `caddy` service.
    - `caddy-service.xml`: copy it to `C:\Program Files\Caddy`, then uninstall and install as in
      step 8.2, including the account.
    - `task-runner.xml`: re-register it as in step 9.2, adding `/F` to replace the existing task.
@@ -242,6 +245,36 @@ from outside, and the restore drill. Record the release in its table.
     apply the previous release's versions the same way. Start, enable, verify.
 
 Installed practice tasks and their schedules live in the data directory and survive a release.
+
+## Reactivating SMS
+
+The SMS bridge is dormant, waiting on Principle's API, and `office` answers 503 meanwhile.
+Before it carries traffic again:
+
+1. Deploy SMS_Bridge's API-key fix, which requires the key on every `/smsgateway` route
+   (corrin/SMS_Bridge#3).
+2. Turn debug mode off in `C:\ProgramData\SMS_Bridge\install-settings.json`. While it is on,
+   `/smsgateway/test/test-patient-lookup` returns patient identifiers to anyone, and
+   `/smsgateway/test/check-send-sms` sends a real SMS. Never probe that one to test.
+3. Decide where the bridge runs. JustRemotePhone lists "Windows Vista or newer" and says nothing of Windows Server, so
+   before choosing the server, pair the phone with Call Centre there and leave it connected for
+   a day.
+   - **Reception.** Give it a DHCP reservation (192.168.192.125), since a renumbered machine
+     silently stops SMS. Allow inbound TCP 5170 from the server's address only, and disable any
+     program-level allow rule for the bridge, which would otherwise open 5170 to the whole LAN.
+     The `office` upstream is `192.168.192.125:5170`.
+   - **The server.** Call Centre is a desktop program the SDK drives, so the server needs a
+     signed-in session at boot: automatic sign-in to a dedicated account, Call Centre started at
+     logon, and the phone paired from there. Bind the bridge to `http://127.0.0.1:5170` (a
+     change in SMS_Bridge's `Program.cs`). The `office` upstream is `127.0.0.1:5170`.
+4. In [Caddyfile](Caddyfile), replace the `office` site's `respond` line with
+   `reverse_proxy <upstream>`, carrying the same `header_up` as the `admin` site, and apply it as
+   in Later releases step 8.
+5. Add an alarm for the bridge's phone status. Texts that stop going out fail silently wherever
+   the bridge runs.
+
+**Check:** `https://office.massey-smiles.co.nz/smsgateway/gateway-status` with the API key
+answers with SMS_Bridge's build, and a message sent from Principle to a staff mobile arrives.
 
 ## Back up
 
