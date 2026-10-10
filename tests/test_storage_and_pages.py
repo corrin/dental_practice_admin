@@ -4,15 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
+from dental_practice_admin import schedules
 from dental_practice_admin.app import create_app
 from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.storage import Coverage, Outcome, Storage
+from tests.test_task_lifecycle import REVISION, install_fake
 
 
 @pytest.fixture
@@ -213,3 +216,67 @@ def test_health_reports_which_principle_it_is_talking_to(pages: Pages) -> None:
     payload = pages.client.get("/health").json()
     assert payload["status"] == "ok"
     assert payload["principle"] == "fake"
+
+
+ATTENTION = 'data-automation-id="staff-attention"'
+FOR_STAFF = [{"patient": "Fake Dummy", "field": "phone", "value": "ring mum",
+              "problem": "not a number", "href": "https://principle.invalid/patients/fake"}]
+
+
+def _scheduled(pages: Pages, overdue: bool = False) -> None:
+    configured = pages.client.app.state.settings  # type: ignore[attr-defined]
+    install_fake(configured.data_root)
+    schedule = schedules.Schedule(name="fake_report", revision=REVISION,
+                                  inputs={"numbers": [7]})
+    schedules.save(configured, schedule, "fake-staff")
+    if overdue:
+        with schedules.open_schedules(configured) as scheduler:
+            scheduler.get_job(schedule.id).modify(
+                next_run_time=datetime.now(UTC) - timedelta(hours=1))
+
+
+def _ran(pages: Pages, outcome: str, coverage: str, detail: dict[str, object]) -> str:
+    run_id = pages.store.start_run("fake_report", "scheduler", "fake")
+    if outcome != "running":
+        pages.store.finish_run(run_id, Outcome(outcome), Coverage(coverage), "Synthetic",
+                               detail)
+    return run_id
+
+
+def test_a_list_for_staff_is_announced_and_shown(pages: Pages) -> None:
+    _scheduled(pages)
+    run_id = _ran(pages, "succeeded", "complete", {"for_staff": FOR_STAFF})
+    body = pages.client.get("/chat").text
+    assert ATTENTION in body
+    assert f'href="/runs/{run_id}"' in body
+    run = pages.client.get(f"/runs/{run_id}").text
+    assert 'data-automation-id="for-staff"' in run
+    assert "ring mum" in run
+    assert 'href="https://principle.invalid/patients/fake"' in run
+
+
+def test_stopped_automatic_runs_are_announced(pages: Pages) -> None:
+    _scheduled(pages, overdue=True)
+    _ran(pages, "succeeded", "complete", {})
+    assert ATTENTION in pages.client.get("/").text
+
+
+def test_an_incomplete_last_run_is_announced(pages: Pages) -> None:
+    _scheduled(pages)
+    run_id = _ran(pages, "uncertain", "partial", {})
+    body = pages.client.get("/").text
+    assert ATTENTION in body
+    assert f'href="/runs/{run_id}"' in body
+
+
+def test_a_healthy_or_running_task_is_not_announced(pages: Pages) -> None:
+    _scheduled(pages)
+    _ran(pages, "succeeded", "complete", {"for_staff": []})
+    assert ATTENTION not in pages.client.get("/").text
+    _ran(pages, "running", "partial", {})
+    assert ATTENTION not in pages.client.get("/").text
+
+
+def test_an_unscheduled_task_is_not_announced(pages: Pages) -> None:
+    _ran(pages, "uncertain", "partial", {"for_staff": FOR_STAFF})
+    assert ATTENTION not in pages.client.get("/").text

@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
+from dental_practice_admin import schedules
 from dental_practice_admin.auth import AccessControl, CurrentStaff, StaffUser, build_oauth
 from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
@@ -50,12 +51,13 @@ def storage(
 
 def render(request: Request, template: str, staff: StaffUser, configured: Settings,
            store: Storage, **context: Any) -> HTMLResponse:
-    """Every staff page displays the same identity, environment and interface warnings."""
+    """Every staff page displays the same identity, environment, warnings and attention."""
     return TEMPLATES.TemplateResponse(request, template, {
         "staff": staff, "environment": configured.environment,
         "is_fake": configured.environment is Environment.FAKE,
         "chatkit_domain_key": configured.chatkit_domain_key,
-        "interface_warnings": store.interface_warnings(), **context})
+        "interface_warnings": store.interface_warnings(),
+        "attention": schedules.attention(configured, store), **context})
 
 
 router = APIRouter()

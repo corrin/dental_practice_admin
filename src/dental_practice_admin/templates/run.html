@@ -21,6 +21,17 @@
   <dt>Summary</dt><dd data-automation-id="run-summary">{{ run.summary }}</dd>
 </dl>
 
+{% if run.detail and run.detail.for_staff %}
+<h2>For staff to fix</h2>
+<table data-automation-id="for-staff">
+  <tr>{% for key in run.detail.for_staff[0] if key != "href" %}<th>{{ key }}</th>{% endfor %}<th></th></tr>
+  {% for row in run.detail.for_staff %}
+  <tr>{% for key, value in row.items() if key != "href" %}<td>{{ value }}</td>{% endfor %}
+    <td>{% if row.href %}<a href="{{ row.href }}">Open</a>{% endif %}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
 {% if run.detail %}
 <pre>{{ run.detail | tojson(indent=2) }}</pre>
 {% endif %}

@@ -54,6 +54,31 @@ def open_schedules(settings: Settings) -> Iterator[Any]:
             scheduler.shutdown()
 
 
+def attention(settings: Settings, store: Storage) -> list[dict[str, str]]:
+    """What staff must act on for scheduled tasks, each with the page that explains it.
+
+    A task's latest run may list records for staff (`detail["for_staff"]`). A schedule still
+    due well after the launcher should have claimed it means automatic runs have stopped.
+    """
+    latest = {run.task: run for run in store.latest_runs_by_task()}
+    now = datetime.now(UTC)
+    notes = []
+    with open_schedules(settings) as scheduler:
+        for job in scheduler.get_jobs():
+            title = task_files.installed(settings, job.name, job.args[1])[0].title
+            run = latest.get(job.name)
+            if job.next_run_time and (now - job.next_run_time).total_seconds() > 2 * POLL_SECONDS:
+                notes.append({"text": f"{title}: automatic runs have stopped",
+                              "href": "/tasks/manage"})
+            elif run and run.outcome is not Outcome.RUNNING and not run.is_trustworthy:
+                notes.append({"text": f"{title}: the last run did not complete",
+                              "href": f"/runs/{run.run_id}"})
+            if run and run.detail and run.detail.get("for_staff"):
+                notes.append({"text": f"{title}: {len(run.detail['for_staff'])} for staff to fix",
+                              "href": f"/runs/{run.run_id}"})
+    return notes
+
+
 class Schedule(BaseModel):
     """A pinned local task, explicit inputs, and one library-owned trigger."""
 
