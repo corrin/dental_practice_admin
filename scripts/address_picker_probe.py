@@ -5,8 +5,8 @@
 Types the address into a staging patient's edit dialog, picks the first suggestion, saves, and
 prints the address the API then holds and the names of any other fields the save changed,
 before restoring the original address through the API. Type a business address, not a person's.
-Use a dummy patient: the save is real and resubmits the whole profile. docs/principle/patient-
-writes.md records what it showed.
+Use a dummy patient: the save is real and resubmits the whole profile.
+docs/principle/patient-writes.md records what it showed.
 """
 from __future__ import annotations
 
