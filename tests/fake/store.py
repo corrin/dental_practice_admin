@@ -629,8 +629,7 @@ def seed(appointments_per_day: int = 8, days: int = 3) -> FakeStore:
     store.add_category("fake-category-recall", "Recall", ("Brown a100", "#d7ccc8"))
     store.add_category("fake-category-np", "New Patient Exam", ("Deep Purple a100", "#b388ff"))
     store.add_category("fake-category-uncoloured", "Consultation", None)
-    categories = ["fake-category-hygiene", "fake-category-recall", "fake-category-np",
-                  "fake-category-uncoloured"]
+    categories = ["fake-category-hygiene", "fake-category-recall", "fake-category-np"]
 
     statuses = ["scheduled", "confirmed", "complete", "cancelled"]
     for day in range(days):
@@ -653,7 +652,10 @@ def seed(appointments_per_day: int = 8, days: int = 3) -> FakeStore:
                 event_to=_iso(begins + timedelta(minutes=30)),
                 status=statuses[index % len(statuses)],
                 at=_iso(created_base - timedelta(minutes=index)),
-                category_id=categories[index % len(categories)],
+                # Statuses repeat every four, so the uncoloured category goes on one booked
+                # appointment by name: on a cancelled one no task would read its colour.
+                category_id=("fake-category-uncoloured" if index == 5
+                             else categories[index % len(categories)]),
                 step_name="Fillings upper right" if index == 1 else f"Planned - {first_day}",
                 online=index == 0,
                 treatments=(("Composite Filling - Direct Adhesive Restoration (1 surface)",
