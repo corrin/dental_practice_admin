@@ -31,8 +31,12 @@ as down.
 ### SMS_Bridge (its own PR, in that repository)
 
 - **`GET /smsgateway/phone-status`**, behind the API key. It returns
-  `{"up": bool, "since": "<ISO time of the last change>", "detail": "<application and phone state>"}`,
-  from `ApplicationStateChanged` and `PhoneStateChanged`.
+  `{"up": bool, "since": "<ISO time of the last change>", "detail": "<application and phone state>",
+  "outage": {"id": "<guid>", "started": "<ISO>"} | null, "popup": bool}`, from
+  `ApplicationStateChanged` and `PhoneStateChanged`.
+- **The bridge owns the outage.** An outage starts when the link has been down for 2 minutes,
+  and ends once it has stayed up for 30 minutes, so flapping stays one outage. The pop-up and
+  this application's email both key on `outage.id`. This application never re-derives the rule.
 - **The reception pop-up.** When the link has been down for 2 minutes, which rides out a
   reconnect, the bridge shows one Windows message box. It uses `MessageBoxW` from `user32` (a
   P/Invoke, no new program or package), system-modal so it sits on top, on a background thread
@@ -53,8 +57,8 @@ as down.
 
 - **Settings**, explicit as everywhere else:
   - `SMS_BRIDGE_URL`: `http://192.168.192.125:5170`, the bridge on the LAN. The public
-    `office` name would need the router to hairpin, which is unverified. After cutover the
-    bridge listens on that address and admits only the server.
+    `office` name would need the router to hairpin, which is unverified. RELEASE.md's
+    "Caddy, DNS and the router" step makes the bridge listen there and admit only the server.
   - `SMS_BRIDGE_API_KEY`
   - `ADMIN_ALERT_EMAIL`
   - `ADMIN_SMTP_HOST`, `ADMIN_SMTP_PORT`, `ADMIN_SMTP_USER`, `ADMIN_SMTP_PASSWORD`. A Google
@@ -71,9 +75,10 @@ as down.
   - The banner shows on the first down check, unlike the email: a staff member is looking, and
     a blip is cheap to read past.
 - **The email.**
-  - One email when the link has been down for 3 consecutive checks (about 15 minutes), and one
-    when the outage ends. The outage uses the same 30-minute rule as the pop-up, so flapping
-    sends no more mail.
+  - An alert email once an outage reported by the bridge has lasted 15 minutes, and an
+    all-clear when the bridge reports it ended. Both are keyed on `outage.id`.
+  - A bridge that doesn't answer for 3 consecutive checks is the one outage this application
+    records itself, because the bridge can't. It ends at the first good answer.
   - The row records what was sent, so there is never a repeat.
   - Sent with `smtplib` from the standard library.
   - A failed send is retried on the next poll. The banner says the email failed.
@@ -112,14 +117,17 @@ as down.
 - **The phone is connected around the clock.** Any drop at any hour is a fault, so there are no
   quiet hours.
 - **The email comes from a massey-smiles.co.nz Workspace account with an app password**, on
-  `smtp.gmail.com:587`. The account needs 2-step verification, and the Workspace admin must
-  allow app passwords.
-- **Reception is told once, not all day.** One outage gives one pop-up and one email, however
-  long it lasts and however often it flaps.
+  `smtp.gmail.com:587`. Setting up that account goes in RELEASE.md's step 5, with the other
+  settings.
+- **Reception is told once, not all day.** One outage gives reception one pop-up and the owner
+  one alert and one all-clear, however long it lasts and however often it flaps.
 
 ## Notes
 
-- A restarted bridge starts its record over, so its `since` is the restart time.
+- A restarted bridge starts its record over, so its `since` is the restart time. A restart
+  during an outage begins a new outage, so reception sees one more pop-up and the owner gets the
+  old outage's all-clear and a new alert. That's acceptable, because a restart is rare and
+  worth knowing about.
 
 ## Not in this change
 
