@@ -168,9 +168,9 @@ Met on 2026-10-10, with `day_sheet` merged in admin_scripts (PR #5).
 - **Open Dental.** 14 of the 15 appointments in its snapshot match on practitioner, start,
   length and patient. Each difference is a change made in Principle after the migration, as
   the Firestore `eventHistory` shows:
-  - Andrea's 14:00 was rebooked on 08/10.
-  - Her 15:00 and 16:00 were moved to 16/11, from other days.
-  - Her 08:50 and 11:20 were booked on 20/09 and 05/10.
+  - The one mismatch, Andrea's 14:00, was rebooked on 08/10.
+  - Four of her appointments exist only in Principle. The 15:00 and 16:00 were moved to 16/11
+    from other days, and the 08:50 and 11:20 were booked on 20/09 and 05/10.
 - **15/09 became a format reference only.** Open Dental's copy is the plan from before the
   migration, while Principle's is the day as it was run. Every element of `OD.png` has a field,
   except two that Principle doesn't hold:
