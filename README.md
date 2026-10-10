@@ -244,7 +244,8 @@ uv sync --locked
 Set `PRINCIPLE_UI_EMAIL`, `PRINCIPLE_UI_PASSWORD`, `PRINCIPLE_FIREBASE_KEY`,
 `PRINCIPLE_FIREBASE_PROJECT`, `PRINCIPLE_FIRESTORE_ROOT`, `PRINCIPLE_WORKSPACE` and
 `PRINCIPLE_WORKSPACE_SLUG`, each suffixed `_STAGING` or `_PROD`, alongside the API
-settings. Unscoped Principle credentials are ignored. The workspace value is the exact
+settings, and `ADMIN_GOOGLE_MAPS_API_KEY`, a Google key with the Geocoding API enabled, which
+the contact-details clean-up uses. Unscoped Principle credentials are ignored. The workspace value is the exact
 accessible dropdown option; the slug is the URL segment, which can differ from the
 option's subtitle. The Firestore root is `organisations/{org}/brands/{brand}`.
 

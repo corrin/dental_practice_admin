@@ -10,8 +10,9 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
+from dental_practice_admin import scripts
 from dental_practice_admin.app import create_app
 from dental_practice_admin.config import Environment, Settings, SignIn
 from dental_practice_admin.storage import Coverage, Outcome, Storage
@@ -254,10 +255,19 @@ def test_a_list_for_staff_is_announced_and_shown(pages: Pages) -> None:
 
 
 def test_stopped_automatic_runs_are_announced(pages: Pages) -> None:
+    assert ATTENTION not in pages.client.get("/").text
+    _ran(pages, "succeeded", "complete", {})
+    assert ATTENTION in pages.client.get("/").text
     _launcher_checked(pages, timedelta(minutes=1))
     assert ATTENTION not in pages.client.get("/").text
     _launcher_checked(pages, timedelta(hours=1))
     assert ATTENTION in pages.client.get("/").text
+
+
+def test_a_launcher_busy_with_a_long_run_is_not_called_stopped(pages: Pages) -> None:
+    _launcher_checked(pages, timedelta(minutes=20))
+    _ran(pages, "running", "partial", {})
+    assert ATTENTION not in pages.client.get("/").text
 
 
 def test_an_incomplete_last_run_is_announced(pages: Pages) -> None:
@@ -268,6 +278,7 @@ def test_an_incomplete_last_run_is_announced(pages: Pages) -> None:
 
 
 def test_a_healthy_or_running_task_is_not_announced(pages: Pages) -> None:
+    _launcher_checked(pages, timedelta(minutes=1))
     _ran(pages, "succeeded", "complete", {"for_staff": []})
     assert ATTENTION not in pages.client.get("/").text
     _ran(pages, "running", "partial", {})
@@ -277,3 +288,23 @@ def test_a_healthy_or_running_task_is_not_announced(pages: Pages) -> None:
 def test_a_run_started_by_a_person_is_not_announced(pages: Pages) -> None:
     _ran(pages, "uncertain", "partial", {"for_staff": FOR_STAFF}, initiator="fake-staff")
     assert ATTENTION not in pages.client.get("/").text
+
+
+def test_a_run_by_a_person_does_not_hide_the_automatic_one(pages: Pages) -> None:
+    _launcher_checked(pages, timedelta(minutes=1))
+    _ran(pages, "succeeded", "complete", {"for_staff": FOR_STAFF})
+    _ran(pages, "succeeded", "complete", {}, initiator="fake-staff")
+    assert ATTENTION in pages.client.get("/").text
+
+
+def test_the_tasks_page_shows_the_banner(pages: Pages) -> None:
+    _launcher_checked(pages, timedelta(minutes=1))
+    _ran(pages, "succeeded", "complete", {"for_staff": FOR_STAFF})
+    assert ATTENTION in pages.client.get("/tasks/manage").text
+
+
+@pytest.mark.parametrize("for_staff", [3, [{"patient": 3}], [{"href": "javascript:alert(1)"}]])
+def test_a_malformed_list_for_staff_is_refused_when_a_task_returns(for_staff: object) -> None:
+    with pytest.raises(ValidationError):
+        scripts.Result.model_validate({"summary": "Synthetic", "coverage": "complete",
+                                       "detail": {"for_staff": for_staff}})

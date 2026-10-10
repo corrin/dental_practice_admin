@@ -142,6 +142,8 @@ def check_web_build(
 
 
 PATIENT_REF = {"$ref": "#/components/schemas/Patient"}
+# Values the specification accepts, put in place of a bad one to check the rest of a response.
+STAND_IN = {"email": "stand-in@example.invalid", "number": "+6400000000"}
 PATIENT = Draft202012Validator({**PATIENT_REF, "components": SPEC["components"]},
                                format_checker=FormatChecker())
 
@@ -149,8 +151,8 @@ PATIENT = Draft202012Validator({**PATIENT_REF, "components": SPEC["components"]}
 def _patient_shape(call: Call) -> str | None:
     """Whether the call returns one patient, a `data` list of them, or neither."""
     responses = SPEC["paths"][call.path][call.method.lower()]["responses"]
-    schema = responses.get("200", {}).get("content", {}).get("application/json", {}).get(
-        "schema", {})
+    success = responses.get("200") or responses.get("201") or {}
+    schema = success.get("content", {}).get("application/json", {}).get("schema", {})
     if schema == PATIENT_REF:
         return "one"
     if schema.get("properties", {}).get("data", {}).get("items") == PATIENT_REF:
@@ -218,23 +220,28 @@ class PrincipleClient:
         if not isinstance(rows, list) or not all(
                 isinstance(row, dict) and isinstance(row.get("id"), str) for row in rows):
             return None
-        bad = []
+        bad, mended = [], []
         for row in rows:
             errors = list(PATIENT.iter_errors(row))
             if not all(_contact_detail(error) for error in errors):
                 return None
+            row = json.loads(json.dumps(row))
+            for error in errors:
+                *parents, last = error.absolute_path
+                target = row
+                for key in parents:
+                    target = target[key]
+                target[last] = STAND_IN[last]
             if errors:
-                bad.append(row)
-        if not bad:
+                bad.append(row["id"])
+            mended.append(row)
+        rest = mended[0] if shape == "one" else {**body, "data": mended}
+        try:
+            VALIDATOR.validate_response(
+                req, SimpleNamespace(**{**vars(resp), "data": json.dumps(rest).encode()}))
+        except Exception:
             return None
-        if shape == "list":
-            rest = {**body, "data": [row for row in rows if row not in bad]}
-            try:
-                VALIDATOR.validate_response(
-                    req, SimpleNamespace(**{**vars(resp), "data": json.dumps(rest).encode()}))
-            except Exception:
-                return None
-        return [row["id"] for row in bad]
+        return bad or None
 
     async def _response(self, response: httpx.Response) -> None:
         await response.aread()

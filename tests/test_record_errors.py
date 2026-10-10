@@ -149,6 +149,24 @@ async def test_a_broken_page_envelope_is_not_blamed_on_its_records(tmp_path: Pat
     assert not isinstance(caught.value, RecordError)
 
 
+async def test_a_new_patient_with_bad_contact_details_is_named(tmp_path: Path) -> None:
+    transport = httpx.MockTransport(lambda _: httpx.Response(201, json=BAD))
+    async with PrincipleClient(_production(tmp_path), transport=transport) as client:
+        with pytest.raises(RecordError) as caught:
+            await client.call("createPatient", {
+                k: v for k, v in GOOD.items() if k not in ("id", "address")})
+    assert caught.value.records == [BAD["id"]]
+
+
+async def test_a_bad_record_does_not_hide_another_break_in_the_response(tmp_path: Path) -> None:
+    transport = httpx.MockTransport(lambda _: httpx.Response(
+        200, content=json.dumps(BAD), headers={"content-type": "text/plain"}))
+    async with PrincipleClient(_production(tmp_path), transport=transport) as client:
+        with pytest.raises(PrincipleError) as caught:
+            await client.call("getPatient", {"patientId": "fake-bad"})
+    assert not isinstance(caught.value, RecordError)
+
+
 async def test_only_patient_responses_can_be_blamed_on_a_record(tmp_path: Path) -> None:
     body = {**GOOD, "email": "No email"}
     transport = httpx.MockTransport(lambda _: httpx.Response(200, json=body))
