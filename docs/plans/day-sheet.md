@@ -155,6 +155,35 @@ Every difference must be fixed, or explained in `api-gaps.md` (for example, migr
 already in `od_data/principle-migration-bug-report.md`, such as issue 14, "Upcoming appointments
 have no treatment"). Phase 2 doesn't start until this holds.
 
+### Result: Phase 1 is done
+
+Met on 2026-10-10, with `day_sheet` merged in admin_scripts (PR #5).
+- **The data.** Each item's fields are defined by `tasks/day_sheet/source.txt` and its tests.
+  Where each one comes from is in [`api-gaps.md`](../principle/api-gaps.md) and
+  [`firestore.md`](../principle/firestore.md).
+- **16/11.** The sheet matches Principle's timeline and appointment panels:
+  - 19 appointments, the lunch blocks, card notes and tags
+  - every card unconfirmed
+  - the tooth labels
+- **Open Dental.** 14 of the 15 appointments in its snapshot match on practitioner, start,
+  length and patient. Each difference is a change made in Principle after the migration, as
+  the Firestore `eventHistory` shows:
+  - The one mismatch, Andrea's 14:00, was rebooked on 08/10.
+  - Four of her appointments exist only in Principle. The 15:00 and 16:00 were moved to 16/11
+    from other days, and the 08:50 and 11:20 were booked on 20/09 and 05/10.
+- **15/09 became a format reference only.** Open Dental's copy is the plan from before the
+  migration, while Principle's is the day as it was run. Every element of `OD.png` has a field,
+  except two that Principle doesn't hold:
+  - block notes: no roster item in the practice has one
+  - the "Web Sched" dot on migrated bookings. Online booking made in Principle is flagged.
+- **Confirmation.** Principle has two states, confirmed and unconfirmed, where Open Dental had
+  several.
+- **Until patient contact details are cleaned,** a patient whose record fails the API
+  specification takes the timeline card's name, and the sheet is marked partial. 16/11 has
+  one. See [the contact details plan](clean-contact-details.md).
+- **Phase 2 starts by installing it** in the application with `install_existing`, so that it
+  runs from `/tasks/manage`. It isn't installed yet.
+
 ## Phase 2: lay it out on A4
 
 **Generic, in `dental_practice_admin`:**
