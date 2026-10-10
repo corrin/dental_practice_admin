@@ -15,9 +15,20 @@ for. Verified against production with reads only, 2026-10-09 and 2026-10-10, bui
 | Kind of appointment | `Appointment.treatmentCategory.name` (e.g. Hygiene, Recall, New Patient Exam) |
 | Procedures | `Appointment.treatments[].description` (e.g. "Composite Filling - Direct Adhesive Restoration (1 surface)") |
 | Status | `Appointment.status` |
+| Confirmed or not | `Appointment.status`: `confirmed`, or unconfirmed when `scheduled` or `unscheduled` |
 
 `treatments[]` on the appointment carries the whole linked treatment step, and matches
 `getPatientTreatmentStep` for the same step. No extra call is needed.
+
+The timeline's red "C" badge means *not confirmed*. The web build defines it as
+`AppointmentNotConfirmed` and shows it when `status` is `scheduled` or `unscheduled`. The
+"confirmed" badge is disabled, so a confirmed appointment shows none. On 16/11 all 19
+appointments are `scheduled`, and all 19 cards show "C".
+
+Principle has one unconfirmed state where Open Dental had several ("1 week sent", "Not Called",
+"Left Msg"). That is a difference between the systems, not a gap in the API. Open Dental's
+confirmations were not migrated as status: on 15/09 Principle shows each appointment marked
+`confirmed` minutes before it started, as the patient arrived.
 
 ## Missing from the API, read from Firestore
 
@@ -41,8 +52,7 @@ Requests to Principle:
 4. **Appointment tags.** `GET /v1/tags/appointment` lists the practice's tags, but `Appointment`
    has no `tags` field. Firestore has `tags[]` on the appointment. *Request:* `tags` on
    `Appointment`.
-
-## Not yet located
-
-- **The "C" badge.** Every appointment on the timeline shows "C". All 19 have `status`
-  `scheduled`, so the badge is not the status, and no Firestore field read so far explains it.
+5. **Online booking.** The timeline shows a globe on appointments booked online, the
+   equivalent of Open Dental's blue "Created from Web Sched" dot. Firestore has
+   `appointmentRequestRef` on the appointment document. `Appointment` has no such field.
+   *Request:* the booking source, or the appointment request ID, on `Appointment`.
