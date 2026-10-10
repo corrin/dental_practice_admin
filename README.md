@@ -385,11 +385,9 @@ interactive logon, the launcher interval, and recent application schedule-check 
 [`deploy/ACCEPTANCE.md`](deploy/ACCEPTANCE.md) holds what only a person can sign off:
 the reboot, the unattended run and the restore drill.
 
-Register `deploy/task-runner.xml` as `Massey Smiles Admin\Task runner` under the designated
-unattended account. Disable and remove the old `Massey Smiles Admin\Daily diary` Windows task
-before enabling application schedules; its diary command is not provided by this application.
-Approve and install each real practice task through its private PR, then create its schedule
-in the app. Reboot verification must include a due approved task, not just an empty poll.
+Installing the services, the launcher and practice tasks is in
+[`deploy/RELEASE.md`](deploy/RELEASE.md). Reboot verification must include a due approved task,
+not just an empty poll.
 
 Caddy fronts the application; [`deploy/Caddyfile`](deploy/Caddyfile) is the configuration it runs.
 Access is open to the internet so staff can work from home, which makes the Google sign-in

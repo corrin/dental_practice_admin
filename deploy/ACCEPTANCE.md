@@ -35,9 +35,9 @@ of this is worth doing.
       run is back. A backup nobody has restored is a hypothesis.
 - [ ] **Restore task files.** Restore installed revisions, local draft repositories, immutable
       source snapshots and audit files alongside the database. Verify a restored schedule runs.
-- [ ] **Reinstate the previous release.** Stop the service, swap the release directory back,
-      start, run `verify.ps1`. Confirm runtime data under `C:\ProgramData\DentalPracticeAdmin`
-      survived the swap untouched.
+- [ ] **Reinstate the previous release.** Roll back as [RELEASE.md](RELEASE.md)'s later
+      releases describe, then run `verify.ps1`. Confirm runtime data under
+      `C:\ProgramData\DentalPracticeAdmin` survived the swap untouched.
 
 ## Repeat quarterly
 

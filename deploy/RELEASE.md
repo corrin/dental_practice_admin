@@ -52,11 +52,13 @@ At the commit to release, run `scripts\release_gate.ps1`. It must end "Release c
 
 1. Install uv, Node.js (LTS) and Caddy (`caddy.exe` in `C:\Program Files\Caddy`). Download a
    WinSW 2.x executable.
-2. Set, once for the machine, where uv puts Python and how it installs packages. By default
-   Python lands in the installing user's `%AppData%`, and packages are hardlinked from that
-   user's cache, carrying its permissions; the service account can read neither.
+2. Set, once for the machine, where uv gets Python and how it installs packages. By default
+   it uses any Python already installed, possibly a per-user one, or puts its own in the
+   installing user's `%AppData%`, and it hardlinks packages from that user's cache, carrying its
+   permissions. The service account can read none of those.
 
    ```powershell
+   [Environment]::SetEnvironmentVariable('UV_PYTHON_PREFERENCE', 'only-managed', 'Machine')
    [Environment]::SetEnvironmentVariable('UV_PYTHON_INSTALL_DIR', 'C:\ProgramData\uv\python', 'Machine')
    [Environment]::SetEnvironmentVariable('UV_LINK_MODE', 'copy', 'Machine')
    ```
@@ -68,8 +70,9 @@ At the commit to release, run `scripts\release_gate.ps1`. It must end "Release c
 
 ### 5. The release directory
 
-1. Copy the repository at the released commit to `C:\Program Files\DentalPracticeAdmin`.
-   Grant the service account read: `icacls 'C:\Program Files\DentalPracticeAdmin' /grant 'massey-admin:(OI)(CI)RX'`.
+1. On the development machine, export exactly the released commit, which carries no `.env`,
+   `.venv` or other local files: `git archive --format=zip -o release.zip <commit>`. Extract it
+   on the server to `C:\Program Files\DentalPracticeAdmin`.
 2. In that directory: `uv sync --locked`, then `npm ci`.
 3. As the service account (`runas /user:massey-admin powershell`), in that directory:
    `node node_modules/@playwright/mcp/cli.js install-browser chrome-for-testing`. The browser
@@ -166,8 +169,9 @@ after the switch, not before: a failed attempt backs off, and SMS would wait on 
 `https://office.massey-smiles.co.nz/smsgateway/gateway-status` answers with SMS_Bridge's build,
 and `https://admin.massey-smiles.co.nz` shows the Google sign-in. Principle reaches SMS_Bridge
 through this path (`/smsgateway/webhooks/principle`), so send a message from Principle to a
-staff mobile and confirm it arrives. **To undo:** point the router back at reception and start
-reception's Caddy.
+staff mobile and confirm it arrives. **To undo:** point the router back at reception, set
+reception's Caddy service back to Automatic (a disabled service can't be started), and start
+it.
 
 ### 9. The launcher
 
@@ -198,28 +202,40 @@ from outside, and the restore drill. Record the release in its table.
 ## Later releases
 
 1. Run `scripts\release_gate.ps1` at the new commit, on the development machine.
-2. Read the release's pull requests for new required settings.
+2. Read the release's pull requests for new required settings, and list what changed under
+   `deploy\`: `git diff --stat <released commit>..<new commit> -- deploy`.
 3. Stop the launcher and wait for any run to finish, so no task is cut off mid-write or started
    from a half-installed release:
    `Disable-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner'`, then
    repeat `Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner'` until
    its State is not `Running`.
-4. Stop the `dental-practice-admin` service. Rename the release directory to keep it, for
-   example `DentalPracticeAdmin-previous`, and copy the new release in its place. Grant the
-   service account read on it as in step 5.1.
-5. Copy `.env` and `dental-practice-admin.exe` across from the kept release, and
-   `deploy\dental-practice-admin.xml` from the new one, so a changed service definition takes
-   effect. Add any new settings to `.env`, then restrict it again as in step 5.5: a copy takes
-   its new folder's permissions.
-6. Run `uv sync --locked` and `npm ci`, then repeat step 5.3 as the service account, in case the
+4. Make sure nobody has a run going from Reports & scripts or chat either: stopping the service
+   ends those mid-write. In the release directory this must print 0:
+   `.venv\Scripts\python.exe -c "from dental_practice_admin.config import Settings; from dental_practice_admin.storage import Storage; print(Storage(Settings().database_path).db.execute('SELECT count(*) FROM task_runs WHERE outcome = ?', ('running',)).fetchone()[0])"`
+5. Stop the `dental-practice-admin` service. Delete `DentalPracticeAdmin-previous` if it exists
+   (one kept release is enough, and each holds a copy of `.env`), rename the release directory to
+   `DentalPracticeAdmin-previous`, and extract the new release in its place as in step 5.1.
+6. Copy `.env` and `dental-practice-admin.exe` across with their permissions, so `.env` is never
+   readable by everyone, then add any new settings to `.env`:
+   `robocopy 'C:\Program Files\DentalPracticeAdmin-previous' 'C:\Program Files\DentalPracticeAdmin' .env dental-practice-admin.exe /COPY:DATS`.
+   Copy `deploy\dental-practice-admin.xml` from the new release. If it changed (step 2), WinSW
+   applies its start and failure settings only at install: `dental-practice-admin.exe uninstall`,
+   `dental-practice-admin.exe install`, and set **Log On** again as in step 7.2.
+7. Run `uv sync --locked` and `npm ci`, then repeat step 5.3 as the service account, in case the
    release moved Playwright to a new browser.
-7. Start the service and enable the launcher
+8. If step 2 listed other `deploy\` files, apply them:
+   - `Caddyfile`: copy it to `C:\ProgramData\Caddy\Caddyfile`, replace `RECEPTION_HOST` again,
+     validate as in step 8.1, and restart the `caddy` service.
+   - `caddy-service.xml`: copy it to `C:\Program Files\Caddy`, then uninstall and install as in
+     step 8.2, including the account.
+   - `task-runner.xml`: re-register it as in step 9.2, adding `/F` to replace the existing task.
+9. Start the service and enable the launcher
    (`Enable-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner'`). Wait five
    minutes, then run `scripts\verify.ps1`.
-8. **To roll back:** do steps 3 and 4 with the directories swapped back, start, enable, verify.
+10. **To roll back:** do steps 3 to 5 with `DentalPracticeAdmin-previous` renamed back into
+    place (keeping the failed release aside), start, enable, verify.
 
-Caddy is untouched by a release. Installed practice tasks and their schedules live in the data
-directory and survive it. The Caddyfile says how a change to it takes effect.
+Installed practice tasks and their schedules live in the data directory and survive a release.
 
 ## Back up
 
