@@ -366,13 +366,17 @@ def window() -> dict[str, str]:
     }
 
 
-async def record_firestore(settings: Settings, appointment: dict[str, Any]) -> list[Path]:
-    """The shape of every collection the fake serves, from one appointment's day on staging."""
+async def record_firestore(settings: Settings,
+                           appointments: list[dict[str, Any]]) -> list[Path]:
+    """The shape of every collection the fake serves, joined over sampled appointments.
+
+    Fields vary between documents (a step charted to a tooth or to the whole mouth), so one
+    document is too few to stand for a collection. The first appointment's day supplies the
+    schedule summaries and calendar events.
+    """
     firestore = Firestore(settings)
     try:
-        patient, ident = appointment["patientId"], appointment["id"]
-        step = (f"patients/{patient}/treatmentPlans/{appointment['treatmentPlanId']}"
-                f"/treatmentSteps/{appointment['treatmentStepId']}")
+        appointment = appointments[0]
         day = datetime.fromisoformat(appointment["event"]["from"]).astimezone(
             PRACTICE_TZ).date()
         start = datetime.combine(day, datetime.min.time(), tzinfo=PRACTICE_TZ)
@@ -392,21 +396,28 @@ async def record_firestore(settings: Settings, appointment: dict[str, Any]) -> l
         def stamp(moment: datetime) -> dict[str, str]:
             return {"timestampValue": moment.astimezone(UTC).isoformat().replace("+00:00", "Z")}
 
-        category = appointment.get("treatmentCategory", {}).get("id")
         source = f"firestore ({settings.environment.value})"
+        patients = [await firestore.read(f"patients/{p}")
+                    for p in sorted({a["patientId"] for a in appointments})]
+        bookings = [await firestore.read(f"patients/{a['patientId']}/appointments/{a['id']}")
+                    for a in appointments]
+        steps = [await firestore.read(
+            f"patients/{a['patientId']}/treatmentPlans/{a['treatmentPlanId']}"
+            f"/treatmentSteps/{a['treatmentStepId']}") for a in appointments]
+        categories = [await firestore.read(f"treatmentCategories/{c}") for c in sorted(
+            {a["treatmentCategory"]["id"] for a in appointments if a.get("treatmentCategory")})]
+        rosters = [document for staff in sorted({a["practitionerId"] for a in appointments})
+                   for document in found(await firestore.read(f"staff/{staff}",
+                                                              query("rosterSchedules")))]
         return [
-            write_shape("patient", source, [await firestore.read(f"patients/{patient}")]),
-            write_shape("appointment", source, [await firestore.read(
-                f"patients/{patient}/appointments/{ident}")]),
-            write_shape("treatment_step", source, [await firestore.read(step)]),
-            write_shape("treatment_category", source, found(await firestore.read(
-                "", query("treatmentCategories"))) if category is None else
-                [await firestore.read(f"treatmentCategories/{category}")]),
+            write_shape("patient", source, patients),
+            write_shape("appointment", source, bookings),
+            write_shape("treatment_step", source, steps),
+            write_shape("treatment_category", source, categories),
             write_shape("schedule_summaries", source, found(await firestore.read(
                 f"practices/{settings.practice_id}",
                 query("scheduleSummaries", ("day", "EQUAL", {"stringValue": day.isoformat()}))))),
-            write_shape("roster_schedules", source, found(await firestore.read(
-                f"staff/{appointment['practitionerId']}", query("rosterSchedules")))),
+            write_shape("roster_schedules", source, rosters),
             write_shape("calendar_events", source, found(await firestore.read("", query(
                 "calendarEvents", ("event.from", "GREATER_THAN_OR_EQUAL", stamp(start)),
                 ("event.from", "LESS_THAN", stamp(start + timedelta(days=7))))))),
@@ -493,13 +504,58 @@ async def record_successes(
     ]
 
 
-async def first_appointment(client: PrincipleClient, practice_id: str) -> dict[str, Any]:
-    """A booked appointment in the recording window, to read its documents from."""
+async def first_appointment(client: PrincipleClient, settings: Settings) -> dict[str, Any]:
+    """A booked appointment on a day with a schedule summary, to read its documents from.
+
+    Staging is a copy taken on one day: its summaries stop there, so the search reaches back
+    a month rather than staying near today.
+    """
+    today = date.today()
+    search = {"from": f"{today - timedelta(days=30)}T00:00:00Z",
+              "to": f"{today + timedelta(days=7)}T00:00:00Z"}
+    firestore = Firestore(settings)
+    checked: dict[date, bool] = {}
+    try:
+        async for row in client.rows("listAppointmentsByDateRange",
+                                     query={"practiceId": settings.practice_id, **search}):
+            if row["status"] == "cancelled" or not row.get("treatments"):
+                continue
+            day = datetime.fromisoformat(row["event"]["from"]).astimezone(PRACTICE_TZ).date()
+            if day not in checked:
+                found = await firestore.read(f"practices/{settings.practice_id}", {
+                    "structuredQuery": {"from": [{"collectionId": "scheduleSummaries"}],
+                                        "where": {"fieldFilter": {
+                                            "field": {"fieldPath": "day"}, "op": "EQUAL",
+                                            "value": {"stringValue": day.isoformat()}}}}})
+                checked[day] = any("document" in r for r in found)
+            if checked[day]:
+                return row
+    finally:
+        await firestore.aclose()
+    raise SystemExit(f"no booked appointment on a day with a schedule summary in "
+                     f"{search['from'][:10]}..{search['to'][:10]} ({settings.environment.value})")
+
+
+# Documents read per collection: enough for fields that only some documents carry (a step
+# charted to a tooth) to appear, few enough to keep a run short.
+DOCUMENTS_SAMPLED = 40
+
+
+async def sample(client: PrincipleClient, settings: Settings,
+                 appointment: dict[str, Any]) -> list[dict[str, Any]]:
+    """`appointment` first, then other booked appointments from the month before today."""
+    today = date.today()
+    search = {"from": f"{today - timedelta(days=30)}T00:00:00Z",
+              "to": f"{today + timedelta(days=7)}T00:00:00Z"}
+    rows = [appointment]
     async for row in client.rows("listAppointmentsByDateRange",
-                                 query={"practiceId": practice_id, **window()}):
-        if row["status"] != "cancelled" and row.get("treatments"):
-            return row
-    raise SystemExit("no booked appointment within a week of today on staging")
+                                 query={"practiceId": settings.practice_id, **search}):
+        if len(rows) == DOCUMENTS_SAMPLED:
+            break
+        if row["id"] != appointment["id"] and row["status"] != "cancelled" \
+                and row.get("treatments"):
+            rows.append(row)
+    return rows
 
 
 async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Path]:
@@ -532,7 +588,7 @@ async def main() -> None:
     names, patient_names = Pseudonymiser(), Pseudonymiser()
     async with PrincipleClient(settings) as client:
         written = await record_successes(client, settings.practice_id, names)
-        appointment = await first_appointment(client, settings.practice_id)
+        appointment = await first_appointment(client, settings)
         written += await record_patient(client, settings.practice_id, patient_names,
                                         appointment, "--create-patient" in sys.argv)
     names.unrecognised |= patient_names.unrecognised
@@ -542,9 +598,10 @@ async def main() -> None:
         # Reads only: one booked appointment and its documents. Shapes carry no values, and
         # the refusals' document path is replaced before anything is written.
         firestore_settings = Settings(environment=Environment.PRODUCTION)
-        async with PrincipleClient(firestore_settings) as client:
-            appointment = await first_appointment(client, firestore_settings.practice_id)
-    written += await record_firestore(firestore_settings, appointment)
+    async with PrincipleClient(firestore_settings) as client:
+        appointments = await sample(client, firestore_settings,
+                                    await first_appointment(client, firestore_settings))
+    written += await record_firestore(firestore_settings, appointments)
     written += await record_firestore_refusals(firestore_settings)
     for path in written:
         print(f"  wrote {path.relative_to(Path.cwd())}")
