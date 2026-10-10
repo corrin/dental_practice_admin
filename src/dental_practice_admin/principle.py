@@ -207,8 +207,8 @@ class PrincipleClient:
             records = self._bad_records(req, resp)
             if records is None:
                 raise self._incompatible(call, "response_schema") from None
-            # Recorded under its own id, so the next compatible response clears it. The warning
-            # says a record broke recently; which ones is the contact-details cleaner's report.
+            # Recorded under its own id, so the next compatible response clears it. It says
+            # a record broke recently, not which.
             self._incompatible(call, "record_schema", "record")
             raise RecordError(call, records, json.loads(response.content)) from None
         if self.settings.environment is Environment.PRODUCTION:
