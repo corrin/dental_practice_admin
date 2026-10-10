@@ -21,6 +21,18 @@
   <dt>Summary</dt><dd data-automation-id="run-summary">{{ run.summary }}</dd>
 </dl>
 
+{% if run.detail and run.detail.for_staff %}
+<h2>For staff to fix</h2>
+<table data-automation-id="for-staff">
+  {% set columns = run.detail.for_staff[0] | reject("equalto", "href") | list %}
+  <tr>{% for key in columns %}<th>{{ key }}</th>{% endfor %}<th></th></tr>
+  {% for row in run.detail.for_staff %}
+  <tr>{% for key in columns %}<td>{{ row[key] }}</td>{% endfor %}
+    <td>{% if row.href %}<a href="{{ row.href }}">Open</a>{% endif %}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
 {% if run.detail %}
 <pre>{{ run.detail | tojson(indent=2) }}</pre>
 {% endif %}

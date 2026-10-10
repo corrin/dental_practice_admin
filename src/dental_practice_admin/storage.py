@@ -292,13 +292,14 @@ class Storage:
         ).fetchone()
         return _row_to_run(row) if row is not None else None
 
-    def latest_runs_by_task(self) -> list[TaskRun]:
+    def latest_runs_by_task(self, initiator: str | None = None) -> list[TaskRun]:
         """One latest attempt per task, regardless of how often it runs."""
         return [_row_to_run(row) for row in self.db.execute(
             "SELECT * FROM task_runs WHERE rowid IN ("
             "SELECT rowid FROM (SELECT rowid, ROW_NUMBER() OVER ("
             "PARTITION BY task ORDER BY started_at DESC, rowid DESC) AS position "
-            "FROM task_runs) WHERE position = 1) ORDER BY task"
+            "FROM task_runs WHERE ? IS NULL OR initiator = ?) WHERE position = 1) ORDER BY task",
+            (initiator, initiator),
         )]
 
     # -- bank reconciliation -------------------------------------------------

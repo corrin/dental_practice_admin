@@ -23,10 +23,8 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
     from dental_practice_admin.app import TEMPLATES
     settings = request.app.state.settings
     task_files.cleanup(settings)
-    heartbeat = settings.data_dir / "audits" / "launcher.jsonl"
-    checked = datetime.fromtimestamp(heartbeat.stat().st_mtime, UTC) if heartbeat.exists() else None
-    launcher_recent = checked and (
-        datetime.now(UTC) - checked).total_seconds() <= 2 * schedules.POLL_SECONDS
+    checked = schedules.launcher_checked(settings)
+    launcher_recent = schedules.launcher_recent(checked)
     installed = []
     for path in (settings.data_dir / "installed").glob("*/*/task.json"):
         definition, _ = task_files.installed(settings, path.parent.parent.name, path.parent.name)
@@ -60,9 +58,10 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
     from dental_practice_admin.storage import Storage
     store = Storage(settings.database_path)
     recent = [run for run in store.latest_runs_by_task() if not run.task.startswith("draft:")]
+    attention = schedules.attention(settings, store)
     store.close()
     return TEMPLATES.TemplateResponse(request, "tasks.html", {
-        "staff": staff, "is_fake": settings.environment.value == "fake",
+        "staff": staff, "is_fake": settings.environment.value == "fake", "attention": attention,
         "days": DAYS, "installed": installed, "jobs": jobs, "recent": recent, "titles": titles,
         "launcher_recent": launcher_recent, "launcher_checked": checked})
 
@@ -136,7 +135,9 @@ def prepare_page(identifier: str, request: Request, staff: CurrentStaff) -> Any:
         row = store.db.execute("SELECT run_id FROM task_runs WHERE task=? "
             "ORDER BY started_at DESC LIMIT 1", ("draft:" + identifier,)).fetchone()
         latest = store.run(row[0]) if row else None
+        attention = schedules.attention(settings, store)
     return TEMPLATES.TemplateResponse(request, "prepare.html", {
         "staff": staff, "is_fake": settings.environment.value == "fake", "candidate": data,
+        "attention": attention,
         "identifier": identifier, "latest": latest,
         "tested": saved_scripts.tested(settings, identifier, script)})

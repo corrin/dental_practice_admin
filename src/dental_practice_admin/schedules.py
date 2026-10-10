@@ -54,6 +54,55 @@ def open_schedules(settings: Settings) -> Iterator[Any]:
             scheduler.shutdown()
 
 
+# deploy/task-runner.xml stops a launcher after this long, so a run older is not in progress.
+RUN_LIMIT = timedelta(minutes=30)
+
+
+def launcher_checked(settings: Settings) -> datetime | None:
+    """When the five-minute launcher last finished checking for due work, if it ever has."""
+    try:
+        modified = (settings.data_dir / "audits" / "launcher.jsonl").stat().st_mtime
+    except FileNotFoundError:
+        return None
+    return datetime.fromtimestamp(modified, UTC)
+
+
+def launcher_recent(checked: datetime | None) -> bool:
+    """False once the launcher has missed two checks."""
+    return checked is not None and (
+        datetime.now(UTC) - checked).total_seconds() <= 2 * POLL_SECONDS
+
+
+def attention(settings: Settings, store: Storage) -> list[dict[str, str]]:
+    """What staff must act on for automatic runs, each with the page that explains it.
+
+    Read from what the launcher has recorded, never the job store, so a page never waits on
+    the schedules lock. For each task the launcher has run, its latest run by anyone counts,
+    so a person's re-run can clear it; it may list records for staff (`detail["for_staff"]`).
+    The launcher records its check only after the work it found, so a run still within the
+    launcher's time limit, or the next poll after it, means it is busy, not stopped.
+    """
+    automatic = store.latest_runs_by_task(initiator="scheduler")
+    busy = any(run.outcome is Outcome.RUNNING and datetime.now(UTC)
+               - datetime.fromisoformat(run.started_at) < RUN_LIMIT + timedelta(
+                   seconds=POLL_SECONDS) for run in automatic)
+    notes = []
+    if automatic and not busy and not launcher_recent(launcher_checked(settings)):
+        notes.append({"text": "Automatic runs have stopped", "href": "/tasks/manage"})
+    scheduled = {run.task for run in automatic}
+    for run in store.latest_runs_by_task():
+        if run.task not in scheduled:
+            continue
+        title = run.task.replace("_", " ").capitalize()
+        if run.outcome is not Outcome.RUNNING and not run.is_trustworthy:
+            notes.append({"text": f"{title}: the last automatic run did not complete",
+                          "href": f"/runs/{run.run_id}"})
+        if run.detail and run.detail.get("for_staff"):
+            notes.append({"text": f"{title}: {len(run.detail['for_staff'])} for staff to fix",
+                          "href": f"/runs/{run.run_id}"})
+    return notes
+
+
 class Schedule(BaseModel):
     """A pinned local task, explicit inputs, and one library-owned trigger."""
 

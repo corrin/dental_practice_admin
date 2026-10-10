@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 from collections.abc import AsyncIterator, Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,7 +16,7 @@ import jsonref
 from agents import FunctionTool
 from agents.tool_context import ToolContext
 from fastmcp import FastMCP
-from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from openapi_core import OpenAPI
 from openapi_core.datatypes import RequestParameters
 
@@ -56,6 +57,24 @@ class PrincipleError(Exception):
     def __init__(self, status: int, method: str, url: str, body: object) -> None:
         super().__init__(f"{method} {url}: status {status}")
         self.status, self.body = status, body
+
+
+class RecordError(PrincipleError):
+    """The response is valid apart from the named patients' phone numbers or email addresses.
+
+    Principle stores contact details its own specification forbids (docs/principle/api-gaps.md,
+    "Client refusals"), so this is bad data rather than a changed interface, and records no
+    interface warning. `body` is the response as received, so a caller can still report or
+    repair those patients. Unlike other PrincipleErrors it holds patient data: never log it or
+    show it outside the practice. For getPatient it is raised only after the patient's practice
+    scope is confirmed.
+    """
+
+    body: dict[str, Any]
+
+    def __init__(self, call: Call, records: list[str], body: dict[str, Any]) -> None:
+        super().__init__(502, call.method, call.path, body)
+        self.records = records
 
 
 @dataclass(frozen=True)
@@ -122,6 +141,36 @@ def check_web_build(
     return build
 
 
+PATIENT_REF = {"$ref": "#/components/schemas/Patient"}
+# Values the specification accepts, put in place of a bad one to check the rest of a response.
+STAND_IN = {"email": "stand-in@example.invalid", "number": "+6400000000"}
+PATIENT = Draft202012Validator({**PATIENT_REF, "components": SPEC["components"]},
+                               format_checker=FormatChecker())
+
+
+def _patient_shape(call: Call) -> str | None:
+    """Whether the call returns one patient, a `data` list of them, or neither."""
+    responses = SPEC["paths"][call.path][call.method.lower()]["responses"]
+    success = responses.get("200") or responses.get("201") or {}
+    schema = success.get("content", {}).get("application/json", {}).get("schema", {})
+    if schema == PATIENT_REF:
+        return "one"
+    if schema.get("properties", {}).get("data", {}).get("items") == PATIENT_REF:
+        return "list"
+    return None
+
+
+def _contact_detail(error: ValidationError) -> bool:
+    """True when a phone number or email breaks only the specification's format.
+
+    A missing field or a changed type is an interface change, not bad data.
+    """
+    parts = list(error.absolute_path)
+    return error.validator in {"pattern", "format"} and (
+        parts == ["email"]
+        or (len(parts) == 3 and parts[0] == "contactNumbers" and parts[2] == "number"))
+
+
 class PrincipleClient:
     """Shared scope, validation, errors and pagination around FastMCP's HTTP executor."""
 
@@ -153,6 +202,47 @@ class PrincipleClient:
                 store.close()
         return PrincipleError(502, call.method, call.path, reason)
 
+    @staticmethod
+    def _bad_records(call: Call, req: SimpleNamespace, resp: SimpleNamespace
+                     ) -> list[str] | None:
+        """Ids of the patients whose contact details break the specification, if that is all.
+
+        None when the call returns no patients, or anything else in the response breaks it:
+        that is an interface incompatibility, not bad data.
+        """
+        shape = _patient_shape(call)
+        try:
+            body = json.loads(resp.data)
+        except ValueError:
+            return None
+        rows = [body] if shape == "one" else body.get("data") if (
+            shape == "list" and isinstance(body, dict)) else None
+        if not isinstance(rows, list) or not all(
+                isinstance(row, dict) and isinstance(row.get("id"), str) for row in rows):
+            return None
+        bad, mended = [], []
+        for row in rows:
+            errors = list(PATIENT.iter_errors(row))
+            if not all(_contact_detail(error) for error in errors):
+                return None
+            row = json.loads(json.dumps(row))
+            for error in errors:
+                *parents, last = error.absolute_path
+                target = row
+                for key in parents:
+                    target = target[key]
+                target[last] = STAND_IN[last]
+            if errors:
+                bad.append(row["id"])
+            mended.append(row)
+        rest = mended[0] if shape == "one" else {**body, "data": mended}
+        try:
+            VALIDATOR.validate_response(
+                req, SimpleNamespace(**{**vars(resp), "data": json.dumps(rest).encode()}))
+        except Exception:
+            return None
+        return bad or None
+
     async def _response(self, response: httpx.Response) -> None:
         await response.aread()
         request = response.request
@@ -175,7 +265,10 @@ class PrincipleClient:
         try:
             VALIDATOR.validate_response(req, resp)
         except Exception:
-            raise self._incompatible(call, "response_schema") from None
+            records = self._bad_records(call, req, resp)
+            if records is None:
+                raise self._incompatible(call, "response_schema") from None
+            raise RecordError(call, records, json.loads(response.content)) from None
         if self.settings.environment is Environment.PRODUCTION:
             store = Storage(self.settings.database_path)
             try:
@@ -211,12 +304,18 @@ class PrincipleClient:
             raise CallError(f"{name} requires arguments matching its schema")
         patient_id = values.get("patientId")
         if patient_id and name != "getPatient":
-            await self.call("getPatient", {"patientId": patient_id})
+            # In scope even if its record breaks the specification, which may be what is fixed.
+            with suppress(RecordError):
+                await self.call("getPatient", {"patientId": patient_id})
         try:
             result = await self.server.call_tool(name, values)
         except Exception as error:
             cause: BaseException | None = error
             while cause is not None:
+                if isinstance(cause, RecordError) and name == "getPatient":
+                    await self._in_practice(values["patientId"], cause.body.get("name"))
+                if isinstance(cause, RecordError) and call.method != "GET":
+                    return cause.body  # Saved; the patient still holds details to fix.
                 if isinstance(cause, (PrincipleError, httpx.HTTPError)):
                     raise cause from None
                 cause = cause.__cause__ or cause.__context__
@@ -225,10 +324,19 @@ class PrincipleClient:
         if not isinstance(output, dict):
             raise self._incompatible(call, "missing_data")
         if name == "getPatient":
-            scoped = await self.call("searchPatients", {"name": output["name"]})
-            if not any(row["id"] == patient_id for row in scoped["data"]):
-                raise CallError("Patient is outside this practice or search is inconclusive")
+            await self._in_practice(values["patientId"], output["name"])
         return output
+
+    async def _in_practice(self, patient_id: str, name: object) -> None:
+        """Refuse a patient the practice-scoped search by their name does not return."""
+        if not isinstance(name, str):
+            raise CallError("Patient is outside this practice or search is inconclusive")
+        try:
+            rows = (await self.call("searchPatients", {"name": name}))["data"]
+        except RecordError as error:
+            rows = error.body["data"]
+        if not any(row["id"] == patient_id for row in rows):
+            raise CallError("Patient is outside this practice or search is inconclusive")
 
     async def get(self, name: str, *, path_params: Mapping[str, Any] | None = None,
                   query: Mapping[str, Any] | None = None) -> dict[str, Any]:

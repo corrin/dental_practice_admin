@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 import httpx2 as httpx
 import portalocker
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, field_validator
 
 from dental_practice_admin import browser
 from dental_practice_admin.audit import Audit, recording
@@ -43,6 +43,21 @@ class Result(BaseModel):
     summary: str
     detail: dict[str, Any]
     coverage: Coverage
+
+    @field_validator("detail")
+    @classmethod
+    def _for_staff(cls, detail: dict[str, Any]) -> dict[str, Any]:
+        """Every staff page shows `for_staff`, so a malformed list is refused here instead."""
+        rows = detail.get("for_staff", [])
+        if not isinstance(rows, list) or not all(
+                isinstance(row, dict) and all(isinstance(v, str) for v in row.values())
+                for row in rows):
+            raise ValueError("detail.for_staff must be a list of objects with string values")
+        if any(row.keys() != rows[0].keys() for row in rows):
+            raise ValueError("detail.for_staff rows must all have the same keys")
+        if not all(re.match(r"https?://|/", row.get("href", "/")) for row in rows):
+            raise ValueError("detail.for_staff links must be http(s) or relative")
+        return detail
 
 
 def save_draft(settings: Settings, script: Script) -> str:

@@ -9,6 +9,7 @@ the data means, and nothing speculative.
 - [website.md](website.md): navigating the web app, and what its forms do.
 - [api-gaps.md](api-gaps.md): what the day sheet and bank reconciliation need that the REST API
   does not provide, and how payments are recorded.
+- [patient-writes.md](patient-writes.md): what updating a patient changes, and the address format the website saves.
 
 The REST API is covered elsewhere: `tests/spec/` and the pagination contract table in the
 top-level README.

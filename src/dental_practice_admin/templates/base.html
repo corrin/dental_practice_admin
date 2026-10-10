@@ -38,6 +38,13 @@
 </p>
 {% endif %}
 {% if staff %}
+{% if attention %}
+<div class="banner" role="alert" data-automation-id="staff-attention">
+  <ul>{% for note in attention %}
+    <li><a href="{{ note.href }}">{{ note.text }}</a></li>
+  {% endfor %}</ul>
+</div>
+{% endif %}
 {% if interface_warnings %}
 <div class="banner" role="alert" data-automation-id="principle-interface-warning">
   <strong>Principle may have changed.</strong> Some requests do not match this app's released

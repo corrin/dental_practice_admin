@@ -14,6 +14,8 @@ For Principle staging browser experiments, read
 This repository is public. A patient's details that reach GitHub cannot be taken back, and no scan
 can recognise every patient, so real data has no place here at all.
 
+- Staging holds the same real patients as production; it is only disconnected from the practice.
+  Everything here about production data applies to staging data too.
 - Production reads, captures and reports go under `ADMIN_DATA_ROOT`, or into the private practice
   repository `massey-reception-coder/admin_scripts`. Never into this checkout.
 - Findings from production enter `docs/` as counts and shapes ("19 of 287 patients break the
