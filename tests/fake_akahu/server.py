@@ -49,7 +49,7 @@ def transaction(ident: str, days_ago: int, amount: float, description: str,
 
 
 def seed() -> list[dict[str, Any]]:
-    """A few days of the practice's account: a transfer, a card settlement, and a debit."""
+    """A few days of the account: a transfer, a card settlement, a debit and a one-cent check."""
     return [
         transaction("trans_fake_transfer", 3, 185.0, "FAKE PAYER SMITH",
                     particulars="SMITH", reference="LILY"),

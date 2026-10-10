@@ -15,7 +15,6 @@ from urllib.parse import urlsplit
 
 import httpx2 as httpx
 from pydantic import SecretStr
-from tests.fake_akahu import FAKE_AKAHU_SETTINGS
 
 from dental_practice_admin.config import (
     ENVIRONMENT_FIELDS,
@@ -50,6 +49,7 @@ def configuration(args: argparse.Namespace) -> Settings:
     if args.sign_in is not None:
         overrides["sign_in"] = args.sign_in
     if args.preset is Environment.FAKE:
+        from tests.fake_akahu import FAKE_AKAHU_SETTINGS
         overrides |= {"akahu_base_url": FAKE_BANK_URL, **FAKE_AKAHU_SETTINGS}
     settings = Settings(**overrides)
     if settings.environment is Environment.FAKE:
