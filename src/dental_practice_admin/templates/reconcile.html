@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Bank reconciliation{% endblock %}
+{% block body %}
+<p><a href="/">&larr; Recent runs</a></p>
+<h1>Bank reconciliation</h1>
+<p>
+  <span class="tag {% if bank_stale %}failed{% endif %}" data-automation-id="bank-as-of">Bank data as of {{ refreshed }}</span>
+  <span class="tag {% if principle_stale %}failed{% endif %}" data-automation-id="principle-as-of">Principle read at {{ principle_read }}</span>
+  <button class="btn btn-sm btn-primary" id="fetch" data-automation-id="fetch-now">Fetch now</button>
+  <span class="quiet" id="fetch-progress" hidden>Fetching from the bank and Principle. The first fetch takes a few minutes.</span>
+</p>
+{% if last_fetch and last_fetch[1] %}
+<div class="banner" role="alert" data-automation-id="fetch-problems">
+  <strong>The last fetch, {{ local_time(last_fetch[0]) }}, did not finish.</strong> What is shown may be out of date.
+  <ul>{% for problem in last_fetch[1] %}<li>{{ problem }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+<p class="text-danger" id="status" role="alert"></p>
+<ul class="nav nav-tabs">
+  {% for key, label in [("open", "To reconcile"), ("matched", "Reconciled"), ("excluded", "Excluded")] %}
+  <li class="nav-item"><a class="nav-link {% if tab == key %}active{% endif %}" href="/reconcile?tab={{ key }}">{{ label }}</a></li>
+  {% endfor %}
+</ul>
+{% if not deposits %}
+<p class="quiet mt-3" data-automation-id="no-deposits">Nothing here.</p>
+{% else %}
+<table data-automation-id="deposit-list">
+  <tr><th>Date</th><th>Amount</th><th>From the bank</th><th></th></tr>
+  {% for d in deposits %}
+  <tr data-automation-id="deposit-row">
+    <td class="mono">{{ d.date }}</td>
+    <td class="mono">${{ '{:,.2f}'.format(d.amount_cents / 100) }}</td>
+    <td>{{ d.description }}
+      <div class="quiet">{% for label, value in [("Particulars", d.particulars), ("Code", d.code), ("Ref", d.reference)] if value %}{{ label }}: {{ value }}&nbsp;&nbsp;{% endfor %}</div>
+    </td>
+    <td>
+      {% if tab == "open" %}
+      <a class="btn btn-sm btn-outline-primary" href="/reconcile/{{ d.akahu_id }}">Find &amp; Match</a>
+      <input class="form-control form-control-sm d-inline-block w-auto" placeholder="Why it is not a patient payment" data-reason="{{ d.akahu_id }}">
+      <button class="btn btn-sm btn-outline-secondary" data-exclude="{{ d.akahu_id }}">Exclude</button>
+      {% elif tab == "matched" %}
+      <span class="tag">Manual</span>
+      <ul class="mb-1">{% for m in d.matches %}
+        <li>{{ names[m.patient_id].name if m.patient_id in names else m.patient_id }}:
+          ${{ '{:,.2f}'.format(m.amount_cents / 100) }}
+          {% if m.principle_transaction_id %}payment already in Principle{% else %}invoice, to be keyed in Principle{% endif %}</li>
+      {% endfor %}</ul>
+      <span class="quiet">{{ d.decided_by }}, {{ local_time(d.decided_at) }}</span>
+      <button class="btn btn-sm btn-outline-secondary" data-reopen="{{ d.akahu_id }}" data-status="matched">Unreconcile</button>
+      {% else %}
+      {{ d.note }} <span class="quiet">({{ d.decided_by }}, {{ local_time(d.decided_at) }})</span>
+      <button class="btn btn-sm btn-outline-secondary" data-reopen="{{ d.akahu_id }}" data-status="excluded">Undo</button>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+<script>
+const el = id => document.getElementById(id);
+async function post(url, payload) {
+  el('status').textContent = '';
+  const response = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
+                                     body:JSON.stringify(payload)});
+  const result = await response.json();
+  if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'That did not work. Reload the page and try again.');
+  return result;
+}
+function act(url, payload) {
+  post(url, payload).then(r => { location.href = r.url; }, e => { el('status').textContent = e.message; });
+}
+el('fetch').onclick = () => {
+  el('fetch').disabled = true;
+  el('fetch-progress').hidden = false;
+  post('/reconcile/fetch', {}).then(() => location.reload(), e => {
+    el('status').textContent = e.message;
+    el('fetch').disabled = false;
+    el('fetch-progress').hidden = true;
+  });
+};
+document.querySelectorAll('[data-exclude]').forEach(button => button.onclick = () =>
+  act(`/reconcile/${button.dataset.exclude}/exclude`,
+      {reason: document.querySelector(`[data-reason="${button.dataset.exclude}"]`).value}));
+document.querySelectorAll('[data-reopen]').forEach(button => button.onclick = () =>
+  act(`/reconcile/${button.dataset.reopen}/reopen`, {status: button.dataset.status}));
+</script>
+{% endblock %}

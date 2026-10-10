@@ -46,7 +46,7 @@ def _isolate_local_tests(
     if request.node.get_closest_marker("integration") or request.node.get_closest_marker("llm"):
         return
     for name in list(os.environ):
-        if name.startswith(("ADMIN_", "PRINCIPLE_", "OPENAI_")):
+        if name.startswith(("ADMIN_", "PRINCIPLE_", "OPENAI_", "AKAHU_")):
             monkeypatch.delenv(name)
     monkeypatch.setitem(Settings.model_config, "env_file", None)
 

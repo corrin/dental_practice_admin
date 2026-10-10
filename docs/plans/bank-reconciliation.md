@@ -91,10 +91,11 @@ Only credits are stored.
 SQLite tables in `storage.py`:
 
 **`bank_deposits`**
-- Columns: `akahu_id` (primary key), `date`, `amount_cents`, `payer_name`, `particulars`, `code`, `reference`, `kind` (`batch`/`individual`), `status`, `method`,
-  `decided_by`, `decided_at`, `note`.
-- `status` is one of `open`, `recording`, `matched`, `check` or `excluded`.
-- `method` is one of `rule`, `sum`, `suggested` or `manual`.
+- Columns: `akahu_id` (primary key), `date`, `amount_cents`, `description` (as the bank sent
+  it; the payer's name is part of it), `particulars`, `code`, `reference`, `status`,
+  `decided_by`, `decided_at`, `note`. Phase 2 adds `kind` (`batch`/`individual`) and `method`.
+- `status` is `open`, `matched` or `excluded`; Phase 3 adds `recording` and `check`.
+- `method` (Phase 2) is one of `rule`, `sum`, `suggested` or `manual`.
 
 **`bank_matches`**
 - Columns: `akahu_id`, `principle_transaction_id`, `patient_id`, `invoice_id`,
@@ -102,19 +103,31 @@ SQLite tables in `storage.py`:
 - A batch deposit has one row for each existing payment it covers.
 - An individual deposit has one row for each existing payment it matched
   (`created_here` = false) and one for each payment the page created (`created_here` = true).
+  A Phase 1 match to an invoice has no `principle_transaction_id`: staff key that payment in
+  Principle by hand.
 
 **`payer_links`**
 - Columns: `payer_name`, `patient_id`, `created_by`, `created_at`.
 - This is the memory: which payer pays for which patients. Akahu gives no payer account
-  number (Phase 0), so it keys on the payer name in the description.
+  number (Phase 0), so it keys on the payer name: the deposit's description in capitals with
+  its digits removed, which is how Phase 0 grouped repeat payers.
 - A row is written when staff confirm a match. It is listed on a **Remembered payers** view
   where any link can be deleted.
 - The memory is plain rows that staff can see and edit, as in Actual Budget, not a hidden model.
   One payer can link to several patients (a parent paying for a family).
 
+**`bank_account`** and **`bank_fetch`** hold when Akahu last read the bank, and when Fetch now
+last ran and what failed in it, for the page header.
+
+**`principle_cache`** and **`principle_cache_marks`** hold the unpaid invoices, complete payments
+and patient names the page shows, and how far each has been read, so showing the page makes no
+calls to Principle. Fetch now refreshes them by `updatedFrom`; the header shows when Principle
+was last read, in red after two days, as for the bank.
+
 ### Fetching from Akahu
-- An Akahu "personal app" on the practice's own account. `AKAHU_APP_TOKEN`, `AKAHU_USER_TOKEN`
-  and `AKAHU_ACCOUNT_ID` are validated in `Settings` at startup (ADR 0002).
+- An Akahu "personal app" on the practice's own account. `AKAHU_APP_TOKEN` and
+  `AKAHU_USER_TOKEN` are validated in `Settings` at startup (ADR 0002). The account is the one
+  active account `GET /v1/accounts` returns, as in akahu_to_budget; more than one is refused.
 - `GET /v1/accounts/{id}/transactions?start=…`, paged by `cursor.next`. Deposits carry
   `description` and, on most, `meta.particulars`, `meta.code` and `meta.reference`; never
   `meta.other_account`. `date` is NZ midnight in UTC, so its NZ day is the next UTC date.

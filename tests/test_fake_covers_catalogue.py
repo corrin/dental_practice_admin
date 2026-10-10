@@ -1,4 +1,4 @@
-"""The diary fake covers verified behaviours; generated transport tests cover other reads."""
+"""The fake covers the diary and reconciliation reads; generated transport tests cover others."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ def _concrete_path(call: Call) -> str:
 
 @pytest.mark.parametrize("call", [call for call in CATALOGUE if call.name in {
     "listPractices", "listPractitioners", "listAppointmentsByDateRange",
+    "getPatient", "searchPatients", "listInvoicesByDateRange", "listTransactionsByDateRange",
 }], ids=lambda call: call.name)
 def test_every_catalogue_call_is_routed(call: Call) -> None:
     """Every operation used by the diary must reach an independently verified fake route."""
