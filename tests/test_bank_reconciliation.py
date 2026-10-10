@@ -13,7 +13,7 @@ from pydantic import SecretStr
 
 from dental_practice_admin import akahu, reconcile
 from dental_practice_admin.app import create_app
-from dental_practice_admin.config import ConfigurationError, Settings, load_settings
+from dental_practice_admin.config import ConfigurationError, Settings
 from dental_practice_admin.storage import MatchRefusedError, MatchRow, Storage
 from tests.fake import FakeStore, seed
 from tests.fake import transport as principle_transport
@@ -72,7 +72,7 @@ def test_the_bank_settings_use_akahus_names(
 ) -> None:
     for name, value in (fake_environment(tmp_path) | FAKE_AKAHU_ENV).items():
         monkeypatch.setenv(name, value)
-    assert load_settings().model_dump(include=set(FAKE_AKAHU_SETTINGS)) == FAKE_AKAHU_SETTINGS
+    assert Settings().model_dump(include=set(FAKE_AKAHU_SETTINGS)) == FAKE_AKAHU_SETTINGS
 
 
 @pytest.mark.parametrize("missing", sorted(FAKE_AKAHU_SETTINGS))

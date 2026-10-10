@@ -28,7 +28,6 @@ from dental_practice_admin.config import (
     Settings,
     SignIn,
     current_settings,
-    load_settings,
 )
 from dental_practice_admin.scripts import load_draft
 from dental_practice_admin.storage import Storage, TaskRun
@@ -69,7 +68,7 @@ router = APIRouter()
 
 def create_app(configured: Settings | None = None) -> FastAPI:
     """Resolve one configuration and protect all routes before accepting requests."""
-    configured = configured if configured is not None else load_settings()
+    configured = configured if configured is not None else Settings()
     configured.require_web_configured()
     app = FastAPI(title="Massey Smiles Admin")
     app.state.settings = configured

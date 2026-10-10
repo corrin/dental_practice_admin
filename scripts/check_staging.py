@@ -18,7 +18,7 @@ from dotenv import dotenv_values
 from playwright.sync_api import Page, Response, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from dental_practice_admin.config import STAGING_API_URL, Environment, load_settings
+from dental_practice_admin.config import STAGING_API_URL, Environment, Settings
 from dental_practice_admin.principle import PrincipleClient
 
 UI_URL = "https://staging.principle.dental"
@@ -37,7 +37,7 @@ def document_names(body: str) -> set[str]:
 async def check_api(env_file: Path) -> dict[str, Any]:
     """Read practices and practitioners using the application's staging configuration."""
     options: dict[str, Any] = {"_env_file": env_file, "environment": Environment.STAGING}
-    settings = load_settings(**options)
+    settings = Settings(**options)
     if settings.api_base_url.rstrip("/") != STAGING_API_URL:
         raise ValueError("The check requires the standard staging API URL")
     async with PrincipleClient(settings) as client:

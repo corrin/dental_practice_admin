@@ -16,7 +16,7 @@ from pydantic import BaseModel, SecretStr
 
 from dental_practice_admin import browser
 from dental_practice_admin.audit import Audit, recording
-from dental_practice_admin.config import Settings, load_settings
+from dental_practice_admin.config import Settings
 from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.principle import PrincipleClient
 from dental_practice_admin.processes import own_process_tree
@@ -175,7 +175,7 @@ def main() -> int:
     """Worker protocol uses stdin; credentials never appear in command-line arguments."""
     own_process_tree()
     payload = json.load(sys.stdin)
-    settings = load_settings(**{"_env_file": None, **payload["settings"]})
+    settings = Settings(**{"_env_file": None, **payload["settings"]})
     settings.require_credentials()
     script = Script.model_validate(payload["script"])
     try:

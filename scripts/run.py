@@ -22,7 +22,6 @@ from dental_practice_admin.config import (
     Settings,
     SignIn,
     environment_suffix,
-    load_settings,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,7 +50,7 @@ def configuration(args: argparse.Namespace) -> Settings:
         from tests.fake_akahu import FAKE_AKAHU_SETTINGS
         overrides |= {"akahu_base_url": FAKE_BANK_URL, "public_base_url": "http://localhost:8080",
                       **FAKE_AKAHU_SETTINGS}
-    settings = load_settings(**overrides)
+    settings = Settings(**overrides)
     settings.require_web_configured()
     if (
         urlsplit(settings.public_base_url).hostname not in {"localhost", "127.0.0.1"}

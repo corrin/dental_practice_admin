@@ -4,14 +4,14 @@ import pytest
 from openai import AsyncOpenAI
 from openai.types.responses import FunctionToolParam
 
-from dental_practice_admin.config import load_settings
+from dental_practice_admin.config import Settings
 from dental_practice_admin.principle import api_tools
 
 pytestmark = pytest.mark.llm
 
 
 async def test_real_model_accepts_the_configured_model_and_wire_format() -> None:
-    settings = load_settings()
+    settings = Settings()
     key = settings.openai_api_key.get_secret_value()
     assert key and "fake" not in key.lower(), "Live verification needs a real OPENAI_API_KEY"
     assert settings.openai_base_url.rstrip("/") == "https://api.openai.com/v1", (

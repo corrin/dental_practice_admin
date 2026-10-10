@@ -26,7 +26,7 @@ Check 'Configuration is complete' {
     $python = Join-Path $InstallRoot '.venv\Scripts\python.exe'
     Push-Location $InstallRoot
     try {
-        & $python -c 'from dental_practice_admin.config import load_settings; load_settings().require_web_configured()'
+        & $python -c 'from dental_practice_admin.config import Settings; Settings().require_web_configured()'
         if ($LASTEXITCODE -ne 0) { throw 'a required setting is missing; the error above names it' }
     } finally { Pop-Location }
     'every setting present'

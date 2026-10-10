@@ -25,8 +25,8 @@ PUBLIC_ORIGIN = "https://admin.fake.invalid"
 
 @pytest.fixture
 def credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    (tmp_path / "data").mkdir()
     """A complete .env, as a developer's holds one, through the environment."""
+    (tmp_path / "data").mkdir()
     for suffix, project in (("STAGING", "principle-staging"), ("PROD", "principle")):
         for name, value in {
             "UI_EMAIL": "fake@fake.invalid",

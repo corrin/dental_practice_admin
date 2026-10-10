@@ -18,7 +18,6 @@ from dental_practice_admin.config import (
     Environment,
     Settings,
     is_production_host,
-    load_settings,
 )
 from dental_practice_admin.principle import PrincipleClient
 from tests import settings as test_settings
@@ -79,7 +78,7 @@ async def fake_client(
 @pytest.fixture
 def staging_settings() -> Settings:
     """Staging configuration, refusing when credentials are absent."""
-    settings = load_settings(environment=Environment.STAGING)
+    settings = Settings(environment=Environment.STAGING)
     if is_production_host(settings.api_base_url):
         raise ConfigurationError("the integration tier must not address production")
     settings.require_credentials()

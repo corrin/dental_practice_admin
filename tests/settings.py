@@ -14,11 +14,11 @@ from dental_practice_admin.config import (
     FAKE_API_KEY,
     FAKE_API_URL,
     FAKE_PRACTICE_ID,
+    PRODUCTION_API_URL,
     STAGING_API_URL,
     Environment,
     Settings,
     SignIn,
-    load_settings,
 )
 from tests.fake_ai import FAKE_AI_KEY
 from tests.fake_akahu import FAKE_AKAHU_SETTINGS
@@ -26,7 +26,7 @@ from tests.fake_akahu import FAKE_AKAHU_SETTINGS
 API_URLS = {
     Environment.FAKE: FAKE_API_URL,
     Environment.STAGING: STAGING_API_URL,
-    Environment.PRODUCTION: "https://api.principle.dental",
+    Environment.PRODUCTION: PRODUCTION_API_URL,
 }
 
 FAKE_SETTINGS: dict[str, Any] = {
@@ -51,7 +51,7 @@ FAKE_SETTINGS: dict[str, Any] = {
 def fake_settings(data_root: Path, **overrides: Any) -> Settings:
     """The fake environment's settings, with runtime data under `data_root`, which is created."""
     data_root.mkdir(parents=True, exist_ok=True)
-    return load_settings(**(FAKE_SETTINGS | {"data_root": data_root} | overrides))
+    return Settings(**(FAKE_SETTINGS | {"data_root": data_root} | overrides))
 
 
 def fake_environment(data_root: Path, **overrides: Any) -> dict[str, str]:

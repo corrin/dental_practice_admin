@@ -81,6 +81,7 @@ ignore = ["D203", "D213", "D401", "D102", "D105", "D107"]
 [tool.mypy]
 python_version = "3.14"
 strict = true
+plugins = ["pydantic.mypy"]
 files = ["src", "tests", "scripts"]
 # src is the package root; without these mypy reads src/dental_practice_admin/*.py twice, once
 # as a top-level module and once through the installed package.

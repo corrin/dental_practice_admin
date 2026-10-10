@@ -26,7 +26,8 @@ from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 from starlette.requests import Request
 
-PRODUCTION_API_HOSTS = frozenset({"api.principle.dental", "app.principle.dental"})
+PRODUCTION_API_URL = "https://api.principle.dental"
+PRODUCTION_API_HOSTS = frozenset({urlsplit(PRODUCTION_API_URL).hostname, "app.principle.dental"})
 
 STAGING_API_URL = "https://api.staging.principle.dental"
 
@@ -386,15 +387,6 @@ class Settings(BaseSettings):
             raise ConfigurationError("Install the locked Playwright MCP package before startup")
         if which("node") is None:
             raise ConfigurationError("Install Node.js before startup")
-
-
-def load_settings(**overrides: Any) -> Settings:
-    """Settings from .env and the environment, with the caller's overrides on top.
-
-    The one way to build Settings. Its required fields come from the environment, which a
-    bare `Settings()` call cannot show the type checker.
-    """
-    return Settings(**overrides)
 
 
 def current_settings(request: Request) -> Settings:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import re
 from pathlib import Path
 from typing import Any
 
@@ -12,19 +11,17 @@ from pydantic import SecretStr, ValidationError
 
 from dental_practice_admin.config import (
     FAKE_API_URL,
+    PRODUCTION_API_URL,
     STAGING_API_URL,
     ConfigurationError,
     Environment,
     Settings,
     SignIn,
     environment_suffix,
-    load_settings,
 )
 from dental_practice_admin.principle import PrincipleClient
 from tests.fake import FakeStore
 from tests.settings import API_URLS, fake_environment, fake_settings
-
-PRODUCTION_API_URL = API_URLS[Environment.PRODUCTION]
 
 
 @pytest.fixture(autouse=True)
@@ -57,26 +54,13 @@ def _settings(**overrides: Any) -> Settings:
 def test_a_setting_without_a_value_is_refused(
     name: str, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No setting falls back to a value written in the code."""
+    """Nothing falls back to a value in the code: `sign_in`, for one, is never assumed."""
     alias = Settings.model_fields[name].validation_alias or f"ADMIN_{name.upper()}"
     monkeypatch.delenv(str(alias))
     complete = _settings().model_dump()
     complete.pop(name)
     with pytest.raises(ValidationError):
-        load_settings(**complete)
-
-
-def test_settings_are_only_built_through_load_settings() -> None:
-    """One way in, so every caller gets the same sources and the same checks."""
-    repository = Path(__file__).resolve().parent.parent
-    direct = [f"{path.relative_to(repository)}:{number}"
-              for folder in ("src", "scripts", "tests")
-              for path in (repository / folder).rglob("*.py")
-              for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
-              if not line.lstrip().startswith("#")
-              and re.search(r"(?<![\w.`])Settings\(", line)
-              and not re.search(r"class Settings\(|return Settings\(\*\*overrides\)", line)]
-    assert not direct
+        Settings(**complete)
 
 
 def test_no_setting_has_a_value_written_in_the_code() -> None:
@@ -165,7 +149,7 @@ def test_the_allowlist_can_be_set_from_the_environment(
     monkeypatch.setenv("ADMIN_STAFF_DOMAIN", "@Example.COM")
     monkeypatch.setenv("ADMIN_SIGN_IN", "google")
 
-    settings = load_settings()
+    settings = Settings()
 
     assert settings.allowed_emails == {"one@practice.nz", "two@practice.nz"}
     assert settings.admits("ONE@practice.nz", email_verified=True)
@@ -186,7 +170,7 @@ def test_openai_settings_use_the_names_openai_documents(
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:8899/v1")
 
-    settings = load_settings()
+    settings = Settings()
 
     assert settings.openai_api_key.get_secret_value() == "sk-test"
     assert settings.openai_base_url == "http://127.0.0.1:8899/v1"
@@ -288,13 +272,13 @@ def test_selected_section_and_child_handoff(
     )
     monkeypatch.setitem(Settings.model_config, "env_file", str(dotenv))
     monkeypatch.setenv("PRINCIPLE_ENVIRONMENT", "fake")
-    settings = load_settings(environment=Environment(environment))
+    settings = Settings(environment=Environment(environment))
     assert settings.api_key.get_secret_value() == f"fake-{suffix}-API_KEY"
     assert settings.practice_id == f"fake-{suffix}-PRACTICE_ID"
     for key, value in child_environment(settings).items():
         monkeypatch.setenv(key, value)
     dotenv.write_text("")
-    child = load_settings()
+    child = Settings()
     assert child.environment == settings.environment
     assert child.api_key == settings.api_key
     assert child.practice_id == settings.practice_id
@@ -309,7 +293,7 @@ def test_missing_selected_section_cannot_use_shared_or_other_keys(
     monkeypatch.setenv("PRINCIPLE_API_KEY_PROD", "fake-production-key")
     monkeypatch.setenv("PRINCIPLE_PRACTICE_ID_PROD", "fake-production-practice")
     with pytest.raises(ConfigurationError, match="PRINCIPLE_API_KEY_STAGING"):
-        load_settings(environment=Environment.STAGING).require_credentials()
+        Settings(environment=Environment.STAGING).require_credentials()
 
 
 def test_scoped_shell_overrides_dotenv_and_explicit_values_override_both(
@@ -323,10 +307,10 @@ def test_scoped_shell_overrides_dotenv_and_explicit_values_override_both(
     monkeypatch.setenv("PRINCIPLE_ENVIRONMENT", "staging")
     monkeypatch.setenv("PRINCIPLE_API_KEY_STAGING", "fake-shell-key")
     monkeypatch.setenv("PRINCIPLE_API_BASE_URL_STAGING", STAGING_API_URL)
-    settings = load_settings()
+    settings = Settings()
     assert settings.api_key.get_secret_value() == "fake-shell-key"
     assert settings.api_base_url == STAGING_API_URL
-    explicit = load_settings(
+    explicit = Settings(
         api_key=SecretStr("fake-explicit-key"), api_base_url="https://explicit.fake.invalid"
     )
     assert explicit.api_key.get_secret_value() == "fake-explicit-key"
