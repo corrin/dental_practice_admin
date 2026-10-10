@@ -93,10 +93,12 @@ block an otherwise good read; the client works around the first and third:
    `oneOf` branches with no mapping, so openapi-core looks for component schemas named
    `practitioner` and `unallocated`. The `oneOf` alone accepts the data, so the client
    validates without the discriminator (`principle._validator`).
-2. **Patients with a spaced phone number.** `ContactNumber.number` must match
-   `^\+?\d{6,15}$`; numbers like `021 123 4567` fail. The client reads `getPatient` before every
-   patient-scoped call, so none of that patient's invoices can be read. 1 in 15 production
-   patients who owe money, 5 in 60 staging patients.
+2. **Patients whose record breaks the specification.** `ContactNumber.number` must match
+   `^\+?\d{6,15}$`, so numbers like `021 123 4567` fail, and `email` must be a valid address.
+   The client reads `getPatient` before every patient-scoped call, so none of that patient's
+   invoices can be read. On 2026-10-10, 19 of the 287 production patients with an unpaid
+   invoice or a recent payment failed: 18 on a phone number, 1 on an email address. On staging,
+   5 in 60. The reconcile page shows such a patient as unreadable and carries on.
 3. **`listTransactionsByDateRange` over a split payment.** `PrincipleClient.rows` treats the
    repeated `id` as a restarted walk. Seen on staging's migrated payments (115 of 1,899 rows);
    none in 890 production rows from 2026-09-01 to 2026-10-09. The client keys these rows by
