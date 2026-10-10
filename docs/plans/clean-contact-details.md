@@ -1,0 +1,73 @@
+# Clean patient contact details: requirements
+
+Keep patients' contact details in Principle clean, now and from now on. Contact details are
+phone numbers, postal addresses, email addresses, and any other contact field Principle holds.
+
+This document says what is needed. The session that builds it does the investigation and the
+design.
+
+## Why
+
+On 2026-10-10, one patient's second phone number broke the format in Principle's own API
+specification. The app rejects data that breaks the specification, so that one record
+stopped the day sheet for every practitioner.
+
+Bad contact details come from the Open Dental migration, and they can come back whenever
+anyone types a new one into Principle. The Open Dental cleaner fixed this kind of problem in
+Open Dental. The owner will say where it is. Its rules are a starting point.
+
+## Requirements
+
+### Clean now
+
+1. **Every patient is checked.** Every active and inactive patient in the practice, and
+   every contact field on each one.
+2. **Each problem is fixed or flagged, never guessed at.**
+   - A detail that can be cleaned without doubt is fixed. Two examples:
+     - "021 123 4567" becomes the practice's standard form.
+     - An email address with stray spaces has them removed.
+   - A detail whose meaning is unclear is listed for staff to fix by hand. Examples:
+     - too few digits
+     - two numbers in one field
+     - "ring mum" written in a phone field
+     - an address that can't be matched to a real one
+3. **The standard forms are the owner's decision.** Before building, show the owner worked
+   examples, including an edge case, and get approval. Two of the open questions:
+   - national "021…" or international "+6421…"
+   - how an address is laid out
+
+### Keep it clean
+
+4. **New bad data is found within a day.** A regular check finds any contact detail that
+   has gone bad since the last check, however it got in: the website, the API, or anything
+   else.
+5. **Staff hear about what needs fixing.** Unclear details reach staff as a short list
+   they'll actually see. A report that no one opens doesn't count.
+6. **When nothing needs fixing, the check says so.** Silence must never be what a working
+   check and a broken check have in common. A check that fails to run is noticed.
+
+### Never break the practice
+
+7. **One bad record never stops a report or task.** It makes that result partial, with the
+   record identified, and everything else still works. The app goes on detecting
+   specification breaks rather than quietly accepting them.
+8. **Changing a detail never contacts the patient.** No SMS, email or reminder is sent
+   because a detail was cleaned. Prove this on staging before production is touched.
+9. **Writes go through the REST API only, never Firestore.** Each write changes only the
+   intended field. Each is read back, and a read-back that doesn't match is reported, not
+   counted as done.
+10. **Patient records change only with approval.** The owner approves the first clean-up
+    as a before-and-after list. For the regular check, the owner decides whether
+    unambiguous fixes go ahead automatically or wait for approval.
+11. **No patient data in the repository.** It's public, so tests use synthetic data.
+
+## Done
+
+- The owner has approved the standard forms.
+- Production holds no contact detail that breaks the specification or the standard forms.
+  The only exceptions are the unclear ones, and those are with staff.
+- The regular check is running, and has reported at least once.
+- A bad contact detail no longer stops the day sheet (`admin_scripts` PR #5) or any other
+  task.
+- `docs/principle/` records what was learned, with no patient data.
+- Merged to `main`, following `AGENTS.md`.
