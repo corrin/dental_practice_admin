@@ -235,10 +235,10 @@ categories, and with them the new-patient flag, would not show.
 - **Partial coverage.** Red INCOMPLETE lines under the header name each gap by practitioner
   and start time. The header grows to fit them and the legend.
 
-**Measured on production (2026-10-10 proofs):** every one of 22 days printed exactly one page
-per practitioner, and no card was clipped. About one card a week is cut with "…". These
-are 10–20-minute slots with long notes and no free time below. The check printed each day
-with headless Chromium and compared every card's laid-out height with its slot.
+**Measured on production (2026-10-10 proofs, with the growing header and colour strip):**
+every one of 22 days, 15/09 and 12/10 to 16/11, printed exactly one page per practitioner, and
+no card was clipped without its "…". The check printed each day with headless Chromium and
+compared every card's laid-out height with its slot.
 
 **Phase 2 is done when:**
 - the 15/09 and 16/11 sheets print on the surgery printer,
