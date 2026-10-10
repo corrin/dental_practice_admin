@@ -4,8 +4,7 @@ How the application gets onto the practice server, first time and after. Each st
 check it worked; don't move on from a step whose check fails. Then sign off
 [ACCEPTANCE.md](ACCEPTANCE.md).
 
-This is the one file of production install steps for every workstream (AGENTS.md). Work that
-needs something done on the host adds it here, in its own pull request.
+This is the one file of production install steps for every workstream; see AGENTS.md.
 
 The server runs two Windows services and one scheduled task:
 
