@@ -59,7 +59,7 @@ SMS. A real test message is the owner's call.
 - **Reception's LAN address.** Give reception a DHCP reservation for `192.168.192.125`. The
   server's firewall admits reception's SMS check by that address, and a renumbered reception
   would see a false SMS warning every hour.
-- **The server's LAN address.** Give the server a DHCP reservation (or a static address) for
+- **The server's LAN address.** Give the server a DHCP reservation for
   `192.168.192.30`. The router's forward for ports 80 and 443, the bridge's listen address and
   reception's SMS check all name it.
 
@@ -274,12 +274,17 @@ left on reception. It holds the bridge's API key, Principle's webhook secret, pa
 the TLS keys for both public names, none of which reception needs any more. After this, step 8
 can't be undone.
 
-1. Delete the old bridge's startup task, then its installation directory.
-2. Stop Call Centre starting at logon, unless reception uses it for calls.
+1. Find the old bridge's startup task with
+   `Get-ScheduledTask | Where-Object { $_.Actions.Execute -match 'SMS_Bridge' }`, delete it with
+   `Unregister-ScheduledTask`, then delete the installation directory its action names.
+2. Stop Call Centre starting at logon (Settings > Apps > Startup, or its own logon task),
+   unless reception uses it for calls.
 3. `sc.exe delete caddy`, then delete `C:\Program Files\Caddy` and Caddy's data directory, which
    holds the certificates.
-4. In `C:\ProgramData\SMS_Bridge`, delete everything except `check-sms.ps1`, which reception's
-   SMS check runs.
+4. Copy reception's `C:\ProgramData\SMS_Bridge` to the server's
+   `C:\ProgramData\SMS_Bridgeeception`, which keeps that folder's permissions, so the message
+   history before the move survives. Then, on reception, delete everything in it except
+   `check-sms.ps1`, which reception's SMS check runs.
 5. Remove any firewall rule on reception that admits port 5170, 80 or 443.
 
 **Check:** on reception, `sc.exe query caddy` reports that the service does not exist,
@@ -314,7 +319,7 @@ PRODUCTION.md's acceptance check for it.
    `dental-practice-admin.exe install`, and set **Log On** again as in step 7.2.
 7. Run `uv sync --locked` and `npm ci`, then repeat step 5.3 as the service account, in case the
    release moved Playwright to a new browser. Then run step 6's check of the first release
-   (`scripts\check_settings.ps1`), so a missing setting shows before the service starts rather
+   (`scripts\check_settings.ps1 -ReleaseRoot 'C:\Program Files\DentalPracticeAdmin'`), so a missing setting shows before the service starts rather
    than as a service that stops.
 8. If step 2 listed other `deploy\` files, apply them:
    - `Caddyfile`: copy it to `C:\ProgramData\Caddy\Caddyfile`, validate as in step 8.1, and
