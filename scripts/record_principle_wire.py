@@ -381,15 +381,6 @@ async def record_firestore(settings: Settings,
             PRACTICE_TZ).date()
         start = datetime.combine(day, datetime.min.time(), tzinfo=PRACTICE_TZ)
 
-        def query(collection: str, *filters: tuple[str, str, dict[str, Any]]) -> dict[str, Any]:
-            where = [{"fieldFilter": {"field": {"fieldPath": p}, "op": o, "value": v}}
-                     for p, o, v in filters]
-            body: dict[str, Any] = {"from": [{"collectionId": collection}]}
-            if where:
-                body["where"] = (where[0] if len(where) == 1
-                                 else {"compositeFilter": {"op": "AND", "filters": where}})
-            return {"structuredQuery": body}
-
         def found(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             return [row["document"] for row in rows if "document" in row]
 
@@ -504,15 +495,31 @@ async def record_successes(
     ]
 
 
+def query(collection: str, *filters: tuple[str, str, dict[str, Any]]) -> dict[str, Any]:
+    """A Firestore structured query over one collection, its filters joined with AND."""
+    where = [{"fieldFilter": {"field": {"fieldPath": p}, "op": o, "value": v}}
+             for p, o, v in filters]
+    body: dict[str, Any] = {"from": [{"collectionId": collection}]}
+    if where:
+        body["where"] = (where[0] if len(where) == 1
+                         else {"compositeFilter": {"op": "AND", "filters": where}})
+    return {"structuredQuery": body}
+
+
+def recent() -> dict[str, str]:
+    """The month before today and the week after: staging's copy is up to a month old."""
+    today = date.today()
+    return {"from": f"{today - timedelta(days=30)}T00:00:00Z",
+            "to": f"{today + timedelta(days=7)}T00:00:00Z"}
+
+
 async def first_appointment(client: PrincipleClient, settings: Settings) -> dict[str, Any]:
     """A booked appointment on a day with a schedule summary, to read its documents from.
 
     Staging is a copy taken on one day: its summaries stop there, so the search reaches back
     a month rather than staying near today.
     """
-    today = date.today()
-    search = {"from": f"{today - timedelta(days=30)}T00:00:00Z",
-              "to": f"{today + timedelta(days=7)}T00:00:00Z"}
+    search = recent()
     firestore = Firestore(settings)
     checked: dict[date, bool] = {}
     try:
@@ -522,11 +529,8 @@ async def first_appointment(client: PrincipleClient, settings: Settings) -> dict
                 continue
             day = datetime.fromisoformat(row["event"]["from"]).astimezone(PRACTICE_TZ).date()
             if day not in checked:
-                found = await firestore.read(f"practices/{settings.practice_id}", {
-                    "structuredQuery": {"from": [{"collectionId": "scheduleSummaries"}],
-                                        "where": {"fieldFilter": {
-                                            "field": {"fieldPath": "day"}, "op": "EQUAL",
-                                            "value": {"stringValue": day.isoformat()}}}}})
+                found = await firestore.read(f"practices/{settings.practice_id}", query(
+                    "scheduleSummaries", ("day", "EQUAL", {"stringValue": day.isoformat()})))
                 checked[day] = any("document" in r for r in found)
             if checked[day]:
                 return row
@@ -544,12 +548,9 @@ DOCUMENTS_SAMPLED = 40
 async def sample(client: PrincipleClient, settings: Settings,
                  appointment: dict[str, Any]) -> list[dict[str, Any]]:
     """`appointment` first, then other booked appointments from the month before today."""
-    today = date.today()
-    search = {"from": f"{today - timedelta(days=30)}T00:00:00Z",
-              "to": f"{today + timedelta(days=7)}T00:00:00Z"}
     rows = [appointment]
     async for row in client.rows("listAppointmentsByDateRange",
-                                 query={"practiceId": settings.practice_id, **search}):
+                                 query={"practiceId": settings.practice_id, **recent()}):
         if len(rows) == DOCUMENTS_SAMPLED:
             break
         if row["id"] != appointment["id"] and row["status"] != "cancelled" \
@@ -595,8 +596,9 @@ async def main() -> None:
     written += await record_refusals(settings, names)
     firestore_settings = settings
     if "--firestore-from-production" in sys.argv:
-        # Reads only: one booked appointment and its documents. Shapes carry no values, and
-        # the refusals' document path is replaced before anything is written.
+        # Reads only: up to DOCUMENTS_SAMPLED booked appointments with their patients, steps
+        # and rosters, and one day's summaries and calendar events. Only field names and types
+        # are written, and the refusals' document path is replaced first.
         firestore_settings = Settings(environment=Environment.PRODUCTION)
     async with PrincipleClient(firestore_settings) as client:
         appointments = await sample(client, firestore_settings,

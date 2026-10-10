@@ -77,6 +77,14 @@ direct write can leave inconsistent.
 **Verified:** [the staging direct-write comparison](https://github.com/corrin/dental_practice_admin/blob/84daa1a/scripts/address_via_firestore.py).
 Staging, 2026-10-01, build `main.ecfbec0077a05029.js`.
 
+## Staging is a dated copy
+
+Staging's Firestore stops where its copy was taken. On 2026-10-10 its schedule summaries ended
+on 2026-09-28, it held no `calendarEvents` at all, and none of its 16 booked appointments in
+the month before had a step charted to a tooth. Shapes that need those come from production
+(`scripts/record_principle_wire.py --firestore-from-production`).
+**Verified:** staging reads with the staging UI login, 2026-10-10.
+
 ## Production
 
 **What:** production's Massey Smiles workspace uses the same organisation and brand IDs as
