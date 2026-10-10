@@ -95,7 +95,7 @@ SQLite tables in `storage.py`:
   it; the payer's name is part of it), `particulars`, `code`, `reference`, `status`,
   `decided_by`, `decided_at`, `note`. Phase 2 adds `kind` (`batch`/`individual`) and `method`.
 - `status` is `open`, `matched` or `excluded`; Phase 3 adds `recording` and `check`.
-- `method` is one of `rule`, `sum`, `suggested` or `manual`.
+- `method` (Phase 2) is one of `rule`, `sum`, `suggested` or `manual`.
 
 **`bank_matches`**
 - Columns: `akahu_id`, `principle_transaction_id`, `patient_id`, `invoice_id`,
@@ -109,7 +109,8 @@ SQLite tables in `storage.py`:
 **`payer_links`**
 - Columns: `payer_name`, `patient_id`, `created_by`, `created_at`.
 - This is the memory: which payer pays for which patients. Akahu gives no payer account
-  number (Phase 0), so it keys on the payer name in the description.
+  number (Phase 0), so it keys on the payer name: the deposit's description in capitals with
+  its digits removed, which is how Phase 0 grouped repeat payers.
 - A row is written when staff confirm a match. It is listed on a **Remembered payers** view
   where any link can be deleted.
 - The memory is plain rows that staff can see and edit, as in Actual Budget, not a hidden model.
@@ -120,7 +121,8 @@ last ran and what failed in it, for the page header.
 
 **`principle_cache`** and **`principle_cache_marks`** hold the unpaid invoices, complete payments
 and patient names the page shows, and how far each has been read, so showing the page makes no
-calls to Principle.
+calls to Principle. Fetch now refreshes them by `updatedFrom`; the header shows when Principle
+was last read, in red after two days, as for the bank.
 
 ### Fetching from Akahu
 - An Akahu "personal app" on the practice's own account. `AKAHU_APP_TOKEN` and
