@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
+from dental_practice_admin import scripts
 from dental_practice_admin.app import create_app
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 from tests.settings import fake_settings
@@ -207,3 +211,98 @@ def test_health_reports_which_principle_it_is_talking_to(pages: Pages) -> None:
     payload = pages.client.get("/health").json()
     assert payload["status"] == "ok"
     assert payload["principle"] == "fake"
+
+
+ATTENTION = 'data-automation-id="staff-attention"'
+FOR_STAFF = [{"patient": "Fake Dummy", "field": "phone", "value": "ring mum",
+              "problem": "not a number", "href": "https://principle.invalid/patients/fake"}]
+
+
+def _launcher_checked(pages: Pages, ago: timedelta) -> None:
+    configured = pages.client.app.state.settings  # type: ignore[attr-defined]
+    heartbeat = configured.data_dir / "audits" / "launcher.jsonl"
+    heartbeat.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat.write_text("{}\n", encoding="utf-8")
+    when = (datetime.now(UTC) - ago).timestamp()
+    os.utime(heartbeat, (when, when))
+
+
+def _ran(pages: Pages, outcome: str, coverage: str, detail: dict[str, object],
+         initiator: str = "scheduler") -> str:
+    run_id = pages.store.start_run("fake_report", initiator, "fake")
+    if outcome != "running":
+        pages.store.finish_run(run_id, Outcome(outcome), Coverage(coverage), "Synthetic",
+                               detail)
+    return run_id
+
+
+def test_a_list_for_staff_is_announced_and_shown(pages: Pages) -> None:
+    run_id = _ran(pages, "succeeded", "complete", {"for_staff": FOR_STAFF})
+    body = pages.client.get("/chat").text
+    assert ATTENTION in body
+    assert f'href="/runs/{run_id}"' in body
+    run = pages.client.get(f"/runs/{run_id}").text
+    assert 'data-automation-id="for-staff"' in run
+    assert "ring mum" in run
+    assert 'href="https://principle.invalid/patients/fake"' in run
+
+
+def test_stopped_automatic_runs_are_announced(pages: Pages) -> None:
+    assert ATTENTION not in pages.client.get("/").text
+    _ran(pages, "succeeded", "complete", {})
+    assert ATTENTION in pages.client.get("/").text
+    _launcher_checked(pages, timedelta(minutes=1))
+    assert ATTENTION not in pages.client.get("/").text
+    _launcher_checked(pages, timedelta(hours=1))
+    assert ATTENTION in pages.client.get("/").text
+
+
+def test_a_launcher_busy_with_a_long_run_is_not_called_stopped(pages: Pages) -> None:
+    _launcher_checked(pages, timedelta(minutes=40))
+    run_id = _ran(pages, "running", "partial", {})
+    started = (datetime.now(UTC) - timedelta(minutes=32)).isoformat()
+    pages.store.db.execute("UPDATE task_runs SET started_at=? WHERE run_id=?", (started, run_id))
+    assert ATTENTION not in pages.client.get("/").text
+
+
+def test_an_incomplete_last_run_is_announced(pages: Pages) -> None:
+    run_id = _ran(pages, "uncertain", "partial", {})
+    body = pages.client.get("/").text
+    assert ATTENTION in body
+    assert f'href="/runs/{run_id}"' in body
+
+
+def test_a_healthy_or_running_task_is_not_announced(pages: Pages) -> None:
+    _launcher_checked(pages, timedelta(minutes=1))
+    _ran(pages, "succeeded", "complete", {"for_staff": []})
+    assert ATTENTION not in pages.client.get("/").text
+    _ran(pages, "running", "partial", {})
+    assert ATTENTION not in pages.client.get("/").text
+
+
+def test_a_run_started_by_a_person_is_not_announced(pages: Pages) -> None:
+    _ran(pages, "uncertain", "partial", {"for_staff": FOR_STAFF}, initiator="fake-staff")
+    assert ATTENTION not in pages.client.get("/").text
+
+
+def test_a_person_re_running_a_scheduled_task_replaces_its_result(pages: Pages) -> None:
+    _launcher_checked(pages, timedelta(minutes=1))
+    _ran(pages, "uncertain", "partial", {})
+    _ran(pages, "succeeded", "complete", {"for_staff": FOR_STAFF}, initiator="fake-staff")
+    assert ATTENTION in pages.client.get("/").text
+    _ran(pages, "succeeded", "complete", {}, initiator="fake-staff")
+    assert ATTENTION not in pages.client.get("/").text
+
+
+def test_the_tasks_page_shows_the_banner(pages: Pages) -> None:
+    _launcher_checked(pages, timedelta(minutes=1))
+    _ran(pages, "succeeded", "complete", {"for_staff": FOR_STAFF})
+    assert ATTENTION in pages.client.get("/tasks/manage").text
+
+
+@pytest.mark.parametrize("for_staff", [3, [{"patient": 3}], [{"href": "javascript:alert(1)"}],
+                                       [{"patient": "Fake A"}, {"problem": "Fake"}]])
+def test_a_malformed_list_for_staff_is_refused_when_a_task_returns(for_staff: object) -> None:
+    with pytest.raises(ValidationError):
+        scripts.Result.model_validate({"summary": "Synthetic", "coverage": "complete",
+                                       "detail": {"for_staff": for_staff}})

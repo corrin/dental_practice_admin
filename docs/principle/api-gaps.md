@@ -60,6 +60,14 @@ Requests to Principle:
    appointment Open Dental marks "Created from Web Sched" has no `appointmentRequestRef` in
    Principle, so at least that migrated booking lost it.
    *Request:* the booking source, or the appointment request ID, on `Appointment`.
+6. **Category colour.** A timeline card is filled with its treatment category's colour.
+   `Appointment.treatmentCategory` is a `NamedReference` (ID and name) only, and no endpoint
+   lists categories. Firestore has `treatmentCategories/{id}.colour`. *Request:* `colour` on
+   the category reference, or a categories endpoint.
+7. **Short treatment names.** Open Dental printed abbreviations ("Hyg-Std", "PBWs"). Principle
+   has none: `treatmentConfigurations` carries `name` and search `keyword`s only. The day
+   sheet keeps its own table mapping each name to Open Dental's `AbbrDesc`. *Request:* a short
+   name on each treatment.
 
 # What bank reconciliation found in the payments API
 
@@ -99,10 +107,13 @@ block an otherwise good read; the client works around the first and third:
    validates without the discriminator (`principle._validator`).
 2. **Patients whose record breaks the specification.** `ContactNumber.number` must match
    `^\+?\d{6,15}$`, so numbers like `021 123 4567` fail, and `email` must be a valid address.
-   The client reads `getPatient` before every patient-scoped call, so none of that patient's
-   invoices can be read. On 2026-10-10, 19 of the 287 production patients with an unpaid
-   invoice or a recent payment failed: 18 on a phone number, 1 on an email address. On staging,
-   5 in 60. The reconcile page shows such a patient as unreadable and carries on.
+   The client raises `RecordError` naming such patients, with the response as received, from
+   any call that returns patients (`getPatient`, `searchPatients`, `updatePatient`). Its
+   pre-read before other patient-scoped calls tolerates it, so the patient's invoices can
+   still be read. On 2026-10-10, 19 of the 287
+   production patients with an unpaid invoice or a recent payment failed: 18 on a phone number,
+   1 on an email address. On staging, 5 in 60. The reconcile page shows such a patient as
+   unreadable and carries on.
    - It also stopped the day sheet for every practitioner: 1 of the 15 patients booked on
      2026-11-16. The day sheet takes that patient's name from the timeline card instead and
      marks the sheet partial. Remove that fallback, the `getPatient` handler in admin_scripts'

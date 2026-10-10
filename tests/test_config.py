@@ -24,6 +24,7 @@ from dental_practice_admin.config import (
 from dental_practice_admin.principle import PrincipleClient
 from tests.fake import FakeStore
 from tests.settings import API_URLS, fake_settings, use_fake_environment
+from tests.test_auth_boundary import configured
 
 
 @pytest.fixture(autouse=True)
@@ -363,3 +364,14 @@ async def test_fake_server_accepts_its_synthetic_uuid(fake_client: PrincipleClie
 
     assert str(UUID(FAKE_API_KEY)) == FAKE_API_KEY
     assert (await fake_client.get("listPractices"))["data"]
+
+
+def test_automation_against_principle_needs_the_maps_key(tmp_path: Path) -> None:
+    playwright = tmp_path / "cli.js"
+    playwright.write_text("")
+    complete = configured(tmp_path, Environment.STAGING).model_copy(
+        update={"playwright_mcp_path": playwright})
+    complete.require_automation_configured()
+    without = complete.model_copy(update={"google_maps_api_key": SecretStr("")})
+    with pytest.raises(ConfigurationError):
+        without.require_automation_configured()

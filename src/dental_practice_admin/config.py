@@ -133,6 +133,9 @@ class Settings(BaseSettings):
     # Where reviewed tasks are exported for review (README, task review).
     task_repository: str = ""
     github_token: SecretStr = SecretStr("")
+    # Looks up patient addresses with Google's Geocoding API, which the key needs enabled, for the
+    # contact-details clean-up. Only the address string is sent to Google.
+    google_maps_api_key: SecretStr = SecretStr("")
 
     # Staff sign-in. Google holds the credentials; this application holds only the list of
     # people allowed in, so there is no password store to leak or reset.
@@ -389,6 +392,8 @@ class Settings(BaseSettings):
                    for name in ENVIRONMENT_FIELDS[3:] if not getattr(self, name)]
         if missing:
             raise ConfigurationError(f"Automation needs {', '.join(missing)}")
+        if not self.google_maps_api_key.get_secret_value():
+            raise ConfigurationError("Automation needs ADMIN_GOOGLE_MAPS_API_KEY")
         staging = self.environment is Environment.STAGING
         if (self.firebase_project == "principle-staging") != staging:
             raise ConfigurationError("Firebase project and environment disagree")

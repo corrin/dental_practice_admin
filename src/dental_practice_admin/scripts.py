@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 import httpx2 as httpx
 import portalocker
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, field_validator
 
 from dental_practice_admin import browser
 from dental_practice_admin.audit import Audit, recording
@@ -43,6 +43,21 @@ class Result(BaseModel):
     summary: str
     detail: dict[str, Any]
     coverage: Coverage
+
+    @field_validator("detail")
+    @classmethod
+    def _for_staff(cls, detail: dict[str, Any]) -> dict[str, Any]:
+        """Every staff page shows `for_staff`, so a malformed list is refused here instead."""
+        rows = detail.get("for_staff", [])
+        if not isinstance(rows, list) or not all(
+                isinstance(row, dict) and all(isinstance(v, str) for v in row.values())
+                for row in rows):
+            raise ValueError("detail.for_staff must be a list of objects with string values")
+        if any(row.keys() != rows[0].keys() for row in rows):
+            raise ValueError("detail.for_staff rows must all have the same keys")
+        if not all(re.match(r"https?://|/", row.get("href", "/")) for row in rows):
+            raise ValueError("detail.for_staff links must be http(s) or relative")
+        return detail
 
 
 def save_draft(settings: Settings, script: Script) -> str:
@@ -89,6 +104,22 @@ class Services:
         await self.firestore.aclose()
 
 
+def load_source(source: str, filename: str = "<workflow>") -> dict[str, Any]:
+    """A Python task's source, executed into a fresh namespace holding its `run`.
+
+    `filename` is what tracebacks name: a file path when the source came from one.
+    """
+    namespace: dict[str, Any] = {}
+    exec(compile(source, filename, "exec"), namespace)
+    return namespace
+
+
+async def run_loaded(namespace: dict[str, Any], services: Services,
+                     inputs: dict[str, Any]) -> Result:
+    """Run a loaded task and hold its answer to the result contract."""
+    return Result.model_validate(await namespace["run"](services, inputs))
+
+
 async def execute(settings: Settings, script: Script) -> Result:
     """Execute source without involving a model."""
     services = Services(settings)
@@ -100,9 +131,7 @@ async def execute(settings: Settings, script: Script) -> Result:
         shared = str(settings.data_dir / "installed" / script.task_id / script.revision / "shared")
         sys.path.insert(0, shared)
         try:
-            namespace: dict[str, Any] = {}
-            exec(compile(script.source, "<workflow>", "exec"), namespace)
-            return Result.model_validate(await namespace["run"](services, script.inputs))
+            return await run_loaded(load_source(script.source), services, script.inputs)
         finally:
             sys.path.remove(shared)
     finally:

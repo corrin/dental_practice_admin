@@ -38,6 +38,7 @@ def credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         ui_email="fake@fake.invalid", ui_password=SecretStr("fake-password"),
         firebase_key="fake-key", firebase_project="principle-staging",
         firestore_root="organisations/fake/brands/fake", workspace="Synthetic workspace",
+        google_maps_api_key=SecretStr("fake-maps-key"),
         workspace_slug="fake")
     # The other environments' sections, which a .env holds beside the selected one.
     for name, value in {
