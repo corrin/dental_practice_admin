@@ -359,8 +359,11 @@ class Settings(BaseSettings):
         """Validate automation settings once before accepting real work."""
         if self.environment is Environment.FAKE:
             return
-        if any(not getattr(self, name) for name in ENVIRONMENT_FIELDS[3:]):
-            raise ConfigurationError("Automation needs scoped credentials and workspace settings")
+        suffix = environment_suffix(self.environment)
+        missing = [f"PRINCIPLE_{name.upper()}_{suffix}" for name in ENVIRONMENT_FIELDS[3:]
+                   if not getattr(self, name)]
+        if missing:
+            raise ConfigurationError(f"Automation needs {', '.join(missing)}")
         staging = self.environment is Environment.STAGING
         if (self.firebase_project == "principle-staging") != staging:
             raise ConfigurationError("Firebase project and environment disagree")
