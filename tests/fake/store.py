@@ -371,7 +371,8 @@ class FakeStore:
              "phone": numbers[0]["number"] if numbers else None, "at": canonical(at),
              "gender": body["gender"], "email": body["email"],
              # create_patient.json: Principle answers a string when no address was sent. The
-             # anonymiser hides which, so the fake sends an empty one.
+             # anonymiser hides which, so the fake sends an empty one; to confirm, create a
+             # patient on staging without an address and read it back with getPatient.
              "address": body.get("address", ""), "dob": body["dateOfBirth"]})
         self.db.commit()
         created = self.patient(ident)

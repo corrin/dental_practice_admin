@@ -506,6 +506,8 @@ async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Path
         refused = await raw.get("/v1/practices", headers={"X-API-Key": ""})
     if refused.is_success:
         raise SystemExit("unauthorised: an empty key was answered; nothing to record")
+    if "json" not in refused.headers.get("content-type", ""):
+        raise SystemExit(f"unauthorised: the refusal is not JSON ({refused.status_code})")
     written.append(write("unauthorised", refused.status_code, refused.json(), names,
                          refusal=True))
 
