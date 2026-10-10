@@ -199,7 +199,10 @@ against 22 production days, 15/09 to 16/11 (see "Design" below).
 ### Design
 
 Each fact is encoded once: by position, text, icon or colour, never two of them. The
-starting point is what Open Dental printed.
+starting point is what Open Dental printed. This replaces the earlier black-text plan (type as
+text, times on line 1, 0.5 pt borders). On 2026-10-10 the owner asked for colour and icons, and
+confirmed that the surgery printer prints in colour. On a black-and-white printer the
+categories, and with them the new-patient flag, would not show.
 
 | Fact | Open Dental | Day sheet |
 |---|---|---|
@@ -228,6 +231,7 @@ starting point is what Open Dental printed.
   below, inside a dashed outline. Then it is cut at a whole line ending in "…". Notes are
   never dropped silently.
 - **Empty day.** One page saying nobody is booked.
+- **Partial coverage.** A red INCOMPLETE line under the header names each gap.
 
 **Measured on production (2026-10-10 proofs):** every one of 22 days printed exactly one page
 per practitioner, and no card was clipped. About one card a week is cut with "…". These
@@ -238,7 +242,7 @@ with headless Chromium and compared every card's laid-out height with its slot.
 - the 15/09 and 16/11 sheets print on the surgery printer,
 - they're checked side by side with `OD.png`,
 - they're readable at arm's length, and
-- nothing is clipped.
+- nothing is clipped silently: a card cut short ends in "…".
 
 ## Risks
 
