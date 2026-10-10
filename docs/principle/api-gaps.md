@@ -64,6 +64,12 @@ history under `scripts/spikes/`.
   invoice's share as `amount`. A row's identity is (`id`, `invoiceId`).
 - Insurer payments carry no batch or remittance number: `reference` is Principle's own id and
   `description` is usually empty.
+- How reception records payments, from bank deposits 1 September to 9 October 2026: Credit Card
+  payments are what Smartpay settles the next day, and EFTPOS what Paymark settles the same day,
+  gross. Southern Cross payments are recorded the day before Southern Cross pays them. ACC
+  payments are often recorded after ACC's deposit arrives. Almost every bank transfer is
+  recorded as a Direct Deposit payment (or WINZ), usually the same day. Verified by
+  `scripts/spikes/card_days.py` and `transfers.py`.
 - `Patient` has no balance. What a patient owes is the sum over their `issued` invoices of
   `total` less the allocations in `transactionAllocations`.
 

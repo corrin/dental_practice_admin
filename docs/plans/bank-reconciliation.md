@@ -65,7 +65,7 @@ What we copy, with sources:
     unmatched.
 
   Like Odoo and ERPNext, the page only ever reverses payments it created itself.
-- **A label on every match saying how it was made:** Rule, Sum, Remembered, Suggested or Manual.
+- **A label on every match saying how it was made:** Rule, Sum, Suggested or Manual.
   Hovering shows the reasoning. Xero's automatic reconciliation (JAX) and MYOB both do this. It
   is what lets a wrong match be noticed in a review list, rather than a week later.
 - **Plain confidence tiers, not percentages.** QuickBooks hides low-confidence suggestions; we
@@ -94,7 +94,7 @@ SQLite tables in `storage.py`:
 - Columns: `akahu_id` (primary key), `date`, `amount_cents`, `payer_name`, `particulars`, `code`, `reference`, `kind` (`batch`/`individual`), `status`, `method`,
   `decided_by`, `decided_at`, `note`.
 - `status` is one of `open`, `recording`, `matched`, `check` or `excluded`.
-- `method` is one of `rule`, `sum`, `remembered`, `suggested` or `manual`.
+- `method` is one of `rule`, `sum`, `suggested` or `manual`.
 
 **`bank_matches`**
 - Columns: `akahu_id`, `principle_transaction_id`, `patient_id`, `invoice_id`,
@@ -203,8 +203,8 @@ Illustrative data only:
 12 Oct  $185.00   J & M SMITH
         Particulars: SMITH   Code: DENTAL   Ref: LILY
 ──────────────────────────────────────────────────────────────────────
-Lily Smith (9)                owes $185.00              [Remembered]
-  "Reference says LILY; this account has paid Lily's invoices before."
+Lily Smith (9)                owes $185.00              [Suggested]
+  "Reference says LILY; this payer has paid Lily's invoices before."
   Invoice 28 Sep · Dr A · Exam, 2 fillings · $185.00
   Family: Jane Smith ($0), Tom Smith (12, owes $90)
   This payer has paid for: Lily ×2, Tom ×1
@@ -236,7 +236,7 @@ Principle"** until someone ticks it done. This gap is also listed in
 ### Page layout (`/reconcile`, Jinja, minimal JS)
 - Header: "Bank data as of …", and **Fetch now**.
 - Tabs, as in Xero:
-  - **To reconcile:** grouped into Batch deposits, Ready (a remembered or likely match), and
+  - **To reconcile:** grouped into Batch deposits, Ready (a likely match), and
     Needs a person.
   - **Reconciled:** recent matches with method labels and reasons, plus Unreconcile and
     Remove & redo.
@@ -263,7 +263,7 @@ The steps are:
 
 **Remove & redo** reverses only payments with `created_here` set. It uses `updateTransaction`
 to void them; Phase 3 verifies on staging that this is possible and what Principle shows
-afterwards. If it cannot, Phase 0's fallback for risk 1 applies. The deposit returns to `open`. If the match was labelled **Remembered**, the
+afterwards. If it cannot, Phase 0's fallback for risk 1 applies. The deposit returns to `open`. If `payer_links` links the payer to that patient, the
 confirmation asks "Forget that this payer pays for <patient>?" so a wrong link is dealt with
 at the moment it is found.
 
@@ -372,7 +372,7 @@ Build:
    - a card day that adds up, and one that is short;
    - a settlement days late still matches its day;
    - a queue item more than a week old is shown in red;
-   - a remembered payer skips the LLM;
+   - a remembered payer reaches the LLM as a reason, and is never matched without it;
    - a failed model call shows the candidates unranked.
 
 **Milestone 2:** for a week, the suggestions and the card slips are compared with what reception

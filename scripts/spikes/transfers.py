@@ -12,6 +12,7 @@ import collections
 import re
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 from scripts.spikes.card_days import CHANNELS, cents
 from scripts.spikes.common import day, latest, payment_method, settings
@@ -43,7 +44,7 @@ def main() -> None:
           "paying more than once", sum(n > 1 for n in payers.values()),
           "deposits from repeat payers", sum(n for n in payers.values() if n > 1))
 
-    direct = [{"day": day(p["createdAt"]), "cents": cents(p["amount"]), "method": payment_method(p),
+    direct: list[dict[str, Any]] = [{"day": day(p["createdAt"]), "cents": cents(p["amount"]), "method": payment_method(p),
                "used": False} for p in payments]
     outcomes: collections.Counter[str] = collections.Counter()
     lags: collections.Counter[int] = collections.Counter()
