@@ -48,9 +48,8 @@ C:\ProgramData\DentalPracticeAdmin\
   directory is replaced on every deploy and the service definition must not be. That makes two
   copies of each definition, the installed one and the release's `deploy\` copy, chosen
   because WinSW and Task Scheduler hold their own. Every deploy compares them (step 5) and
-  refuses on a difference, so they cannot drift apart unnoticed. An edit to the installed copy
-  between deploys is found at the next deploy, or by `verify.ps1`, which already compares the
-  registered task runner's action with what it expects.
+  refuses on a difference, and `verify.ps1` compares both installed definitions with the live
+  release's copies too, so an edit between deploys is found the next time either runs.
 - `.env` lives once, in `shared\`, as Capistrano's linked files: one copy, so releases cannot
   disagree about settings.
 
@@ -62,7 +61,10 @@ running release is untouched.
 1. Refuse unless `<commit>` is a commit of `main` itself (`git rev-list --first-parent
    origin/main`), not one from inside a merged branch, and its own `hermetic` run on `main`
    succeeded. CI runs on every push to `main`, and the repository is public, so GitHub's
-   check-runs API answers without credentials: the host needs `git` and nothing signed in.
+   check-runs API answers without credentials: the host needs `git` and nothing signed in. An
+   unreachable API, or a run still pending, refuses the deploy and says which. A commit whose
+   directory is already in `releases\` passed this when it was installed, so going back to the
+   previous release skips it and does not depend on GitHub.
 2. Clone that commit into `releases\<commit>`, unless that directory already holds it: going
    back to the previous release is the same command with its commit, and reuses its directory.
 3. `uv sync --locked`, `npm ci`, and the locked Playwright browser, in the release.
@@ -74,7 +76,9 @@ running release is untouched.
      step applies first.
 
    The old release is still serving.
-6. Disable the task runner and wait for any run in progress to finish, so no scheduled task is
+6. Write `deploy-in-progress` under `C:\Program Files\DentalPracticeAdmin\`, recording where
+   `current` points; step 9 or the end of a successful run removes it. Disable the task runner
+   and wait for any run in progress to finish, so no scheduled task is
    writing to Principle while its code is switched underneath it. A run still going after ten
    minutes is a failure like any other in steps 6–8 (step 9): the deploy exits with failure,
    printing the stuck task's name to the person running it, who is watching. Then stop the
@@ -96,6 +100,10 @@ running release is untouched.
    left stopped, and the message says first that the practice now has no working release, then
    which step failed in each. The person running the deploy is the one who tells the practice,
    and staff see the sign-in page fail to load until a release is reinstated.
+
+   A `finally` does not run if the window is closed or the process killed. That case leaves
+   `deploy-in-progress` behind: `install.ps1` and `verify.ps1` both refuse while it exists and
+   say so, and `install.ps1 -Recover` puts back the release it records, as step 9 would have.
 10. Delete releases other than `current` and the one it replaced.
 
 The first install is the same command after a one-off bootstrap, written as its own checklist
@@ -105,9 +113,14 @@ and Caddy. Those happen once and need a person's judgement, so they are not scri
 ## Verifying the script itself
 
 - A rehearsal on this development machine against a temporary install root, with WinSW and the
-  task runner registered under test names: a good release, a release with a setting missing
-  (stops at step 5, old release still answering), and a release whose service fails to start
-  (rolls back at step 9).
+  task runner registered under test names, one case for each path:
+  - a good release;
+  - a setting missing: stops at step 5, the old release still answering;
+  - a scheduled run that does not finish: stops at step 6, the service never stopped;
+  - a release whose service fails to start: rolls back at step 9;
+  - a rollback whose own `verify.ps1` fails: the task runner stays disabled and the message
+    says there is no working release;
+  - the window closed between steps 6 and 8: `verify.ps1` refuses, and `-Recover` restores.
 - The existing acceptance items, "Reinstate the previous release" among them, now run through
   `install.ps1` rather than by hand.
 
