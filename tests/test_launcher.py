@@ -25,6 +25,7 @@ PUBLIC_ORIGIN = "https://admin.fake.invalid"
 
 @pytest.fixture
 def credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    (tmp_path / "data").mkdir()
     """A complete .env, as a developer's holds one, through the environment."""
     for suffix, project in (("STAGING", "principle-staging"), ("PROD", "principle")):
         for name, value in {
@@ -56,7 +57,7 @@ def credentials(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "PRINCIPLE_PRACTICE_ID_FAKE": FAKE_PRACTICE_ID,
         "ADMIN_SIGN_IN": "google",
         "OPENAI_BASE_URL": "https://api.openai.com/v1",
-        "ADMIN_AGENT_MODEL": "gpt-6.1-sol",
+        "ADMIN_AGENT_MODEL": "fake-model",
         "AKAHU_BASE_URL": "https://api.akahu.io/v1",
         "ADMIN_PLAYWRIGHT_MCP_PATH": "node_modules/@playwright/mcp/cli.js",
         "ADMIN_DATA_ROOT": str(tmp_path / "data"),

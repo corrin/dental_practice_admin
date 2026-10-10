@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -63,6 +64,19 @@ def test_a_setting_without_a_value_is_refused(
     complete.pop(name)
     with pytest.raises(ValidationError):
         load_settings(**complete)
+
+
+def test_settings_are_only_built_through_load_settings() -> None:
+    """One way in, so every caller gets the same sources and the same checks."""
+    repository = Path(__file__).resolve().parent.parent
+    direct = [f"{path.relative_to(repository)}:{number}"
+              for folder in ("src", "scripts", "tests")
+              for path in (repository / folder).rglob("*.py")
+              for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+              if not line.lstrip().startswith("#")
+              and re.search(r"(?<![\w.`])Settings\(", line)
+              and not re.search(r"class Settings\(|return Settings\(\*\*overrides\)", line)]
+    assert not direct
 
 
 def test_no_setting_has_a_value_written_in_the_code() -> None:

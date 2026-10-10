@@ -40,7 +40,7 @@ FAKE_SETTINGS: dict[str, Any] = {
     "sign_in": SignIn.DEVELOPER,
     "openai_api_key": SecretStr(FAKE_AI_KEY),
     "openai_base_url": "https://fake-ai.invalid/v1",
-    "agent_model": "gpt-6.1-sol",
+    "agent_model": "fake-model",
     "akahu_base_url": "https://fake-akahu.invalid/v1",
     "chatkit_domain_key": "domain_pk_localhost",
     "public_base_url": "",
@@ -49,7 +49,8 @@ FAKE_SETTINGS: dict[str, Any] = {
 
 
 def fake_settings(data_root: Path, **overrides: Any) -> Settings:
-    """The fake environment's settings, with runtime data under `data_root`."""
+    """The fake environment's settings, with runtime data under `data_root`, which is created."""
+    data_root.mkdir(parents=True, exist_ok=True)
     return load_settings(**(FAKE_SETTINGS | {"data_root": data_root} | overrides))
 
 

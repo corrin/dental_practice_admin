@@ -121,8 +121,8 @@ CLI selections override `.env` and the shell. For settings not selected on the c
 shell variables override `.env`. No setting has a default in the code: every one is set in
 `.env` or the environment, and a missing one fails startup. `PRINCIPLE_ENVIRONMENT` selects
 Principle. Group its endpoint, key and practice ID under matching `_FAKE`, `_STAGING`, and
-`_PROD` settings in `.env` (`PRINCIPLE_API_BASE_URL_STAGING=https://api.staging.principle.dental`).
-Shared, unscoped Principle credentials are not used.
+`_PROD` settings in `.env`, such as `PRINCIPLE_API_BASE_URL_STAGING`. Shared, unscoped Principle
+credentials are not used.
 `--principle` overrides `--preset`, which overrides the configured environment.
 `ADMIN_SIGN_IN` configures authentication; `OPENAI_BASE_URL` (`https://api.openai.com/v1` for
 the real model), `OPENAI_API_KEY`, and `ADMIN_AGENT_MODEL` configure AI. Use only the
@@ -212,7 +212,8 @@ Shared packages survive private draft cleanup. Back them up with the runtime dat
 Maintainers publish reviewed source, its input contract and synthetic tests using
 `task_files.publish`, then install merged revisions with `task_files.install_existing`.
 Configure `ADMIN_TASK_REPOSITORY` as `owner/private-repository` and `ADMIN_GITHUB_TOKEN` with
-access to its contents and pull requests. The repository must already have a default branch.
+access to its contents and pull requests. Startup refuses to run without them, as for every
+other setting, so a host cannot discover the gap only when someone first asks for a review. The repository must already have a default branch.
 Only `task.json`, `source.txt` and `test_task.py` are exported; local history and audits stay
 on the host. Repository setup and review are outside the staff interface.
 

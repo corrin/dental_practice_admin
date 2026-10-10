@@ -299,6 +299,13 @@ class Settings(BaseSettings):
             raise ConfigurationError(f"sign_in=google needs {', '.join(missing)}")
 
     @model_validator(mode="after")
+    def _data_root_exists(self) -> Settings:
+        """Refuse a data folder that is not there, rather than start an empty database."""
+        if not self.data_root.is_dir():
+            raise ConfigurationError(f"ADMIN_DATA_ROOT {self.data_root} is not an existing folder")
+        return self
+
+    @model_validator(mode="after")
     def _environment_matches_host(self) -> Settings:
         """Refuse config whose declared environment disagrees with its host."""
         if not self.api_base_url:
