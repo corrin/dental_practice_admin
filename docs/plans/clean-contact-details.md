@@ -86,10 +86,12 @@ Taken by the owner on 2026-10-10, from a read of every production patient.
 - **Phones** are stored as `+64` and the number without its leading 0. Seven digits with no
   area code are Auckland (`+649…`), as the Open Dental cleaner did. Placeholders such as
   `N/A` and `-` are removed. A note or extension typed after a number moves into the label.
-  Labels are lower case; a blank label is inferred from the number.
+  Labels are lower case. A blank label is inferred from the number: `+642…` is `mobile`,
+  a landline is `home`, and `+64800…` or `+64508…` is `work`.
 - **Addresses** use the layout Principle's verified-address picker saves, which is NZ Post
   order (town or city, then postcode). They may be matched with Google geocoding, restricted
-  to New Zealand. Overseas addresses are left alone.
+  to New Zealand. Only the address string is sent: no name, identifier or other detail.
+  Overseas addresses are left alone.
 - **Staff** hear through this application's pages, and only about active patients whose
   details can't be fixed from evidence. Reception's list stays as short as possible.
 - **The daily check** applies the approved rules without waiting. The first clean-up waits for
@@ -101,16 +103,23 @@ Taken by the owner on 2026-10-10, from a read of every production patient.
 - A response that breaks the specification only inside named patient records raises an error
   naming them, instead of rejecting the whole response. The scope check and the pre-read
   before a write both tolerate it, so the cleaner can fix exactly the records that break.
-  The break is still recorded as an interface warning.
+  The break is still recorded as an interface warning. A write replaces only the target field
+  of the record as read, and only if that field still holds the value the change was computed
+  from.
 - A task result can carry a list for staff. The run page shows it as a table, and every page
   shows a banner while the latest run of a scheduled task has such a list, failed, or is
-  overdue.
-- A required Google Maps key setting.
+  overdue. The failed and overdue cases are requirement 6; they apply to every scheduled task
+  because nothing makes this one different.
+- A required Google Maps key setting. A missing key stops the application at startup. A
+  rejected key or exhausted quota leaves addresses unchanged and makes the run partial, which
+  the banner shows.
 
 **`admin_scripts`.**
 - The day sheet names the patient whose record could not be read.
 - A `clean_contact_details` task reads every patient from Firestore, applies the rules, and
   either lists the changes (dry run) or writes each through `updatePatient` and reads it back.
+  A read-back that doesn't match, or a write that fails, is listed and makes the run partial,
+  which the banner shows. It is not counted as done.
 
 **Rollout.** Prove on staging that a write changes only its field and contacts nobody. Run a
 production dry run for the owner's approval. Apply to five patients and check nothing was
