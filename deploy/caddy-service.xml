@@ -4,8 +4,9 @@
   `caddy-service.exe install`. Caddy's own documentation offers this or sc.exe; one wrapper for
   both services means one way to start, stop and read logs.
 
-  Windows services cannot be reloaded: after changing the Caddyfile, run caddy reload with the
-  same config and adapter options as the arguments below.
+  Caddy's administration endpoint is off (see the Caddyfile), so a changed Caddyfile takes
+  effect by restarting this service. Set its Log On to Local Service: it needs only its data
+  under C:\ProgramData\Caddy, and it faces the internet.
 -->
 <service>
   <id>caddy</id>
@@ -27,11 +28,10 @@
 
   <startmode>Automatic</startmode>
 
-  <log mode="roll-by-size-time">
+  <!-- keepFiles works only in roll-by-size mode (WinSW 2.x documentation): 8 files of 10 MB. -->
+  <log mode="roll-by-size">
     <sizeThreshold>10240</sizeThreshold>
-    <pattern>yyyyMMdd</pattern>
-    <autoRollAtTime>00:00:00</autoRollAtTime>
-    <keepFiles>30</keepFiles>
+    <keepFiles>8</keepFiles>
   </log>
   <logpath>C:\ProgramData\Caddy\logs</logpath>
 </service>

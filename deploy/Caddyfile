@@ -31,6 +31,10 @@
 	servers {
 		trusted_proxies static private_ranges
 	}
+
+	# No administration endpoint. It would let any local process rewrite this configuration,
+	# for example to serve files from the disk. A changed Caddyfile takes effect on restart.
+	admin off
 }
 
 # ---------------------------------------------------------------------------
