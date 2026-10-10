@@ -21,6 +21,29 @@ permissions, which let every local user read them.
 
 The commands below use `massey-admin` for the service account; substitute your choice.
 
+## SMS go-live, before the first release
+
+SMS_Bridge runs on reception, behind reception's own Caddy
+(`C:\Program Files\Caddy\Caddyfile`: `office.massey-smiles.co.nz { reverse_proxy localhost:5170 }`).
+Secure it before Principle switches SMS on, and before step 8 moves `office` to the server.
+
+1. Deploy SMS_Bridge's API-key fix (corrin/SMS_Bridge#3) to reception. It requires the key on
+   every `/smsgateway` route except the webhooks, and listens on `127.0.0.1:5170` only.
+2. In `C:\ProgramData\SMS_Bridge\install-settings.json`, which overrides the repository's
+   defaults, set `SmsSettings.EnableDebugMode` to `false` and `BRIDGE_API_KEY` to a new random
+   string, then restart the bridge. With debug mode on, every patient text goes to the test
+   phone and `/smsgateway/test/test-patient-lookup` returns patient identifiers. Principle's
+   webhook signs with `WEBHOOK_SECRET`, so the new key changes nothing for Principle.
+3. Point Principle's webhook at `https://office.massey-smiles.co.nz/smsgateway/webhooks/principle`.
+4. Arrange an alarm for the bridge's phone status. Nothing provides one yet, and texts that stop
+   going out fail silently: until one exists, someone checks Call Centre's connection daily.
+
+**Check, without sending an SMS:** from outside the practice network,
+`https://office.massey-smiles.co.nz/smsgateway/debug-status` answers 401 without the key, and 200
+with `isDebugMode` false given `X-API-Key: <the new key>`. A 502 means Caddy can't reach the
+bridge: read the log of whichever Caddy fronts `office`. Never probe `/smsgateway/test/check-send-sms`; it sends a real
+SMS. A real test message is the owner's call.
+
 ## First release
 
 ### 1. Decide and gather
@@ -31,6 +54,9 @@ The commands below use `massey-admin` for the service account; substitute your c
   the OpenAI platform (ChatKit domains), GitHub (`massey-reception-coder/admin_scripts`), and
   Akahu (the bank feed).
 - **A quiet hour** for step 8, which moves both public names from reception to the server.
+- **SMS go-live done**, above. Step 8 carries live SMS traffic.
+- **Reception's LAN address.** Give reception a DHCP reservation for `192.168.192.125`: the
+  server's Caddy forwards SMS to it, and a renumbered machine silently stops SMS arriving.
 
 ### 2. Prepare the release on the development machine
 
@@ -141,10 +167,10 @@ prints `production C:\ProgramData\DentalPracticeAdmin\production`.
 
 ### 8. Caddy, DNS and the router
 
-This moves both public names from reception's own Caddy to the server's. Do it in the quiet
-hour. The SMS bridge is dormant, so `office` answers 503 until [Reactivating SMS](#reactivating-sms)
-is done. Caddy can obtain certificates only once the router sends ports 80 and 443 to it, so it
-starts after the switch, not before: a failed attempt backs off, and staff would wait on its
+This moves both public names from reception's own Caddy to the server's, whose `office` site
+forwards to the bridge on reception over the LAN. Do it in the quiet hour, after SMS go-live.
+Caddy can obtain certificates only once the router sends ports 80 and 443 to it, so it starts
+after the switch, not before: a failed attempt backs off, and inbound SMS would wait on its
 retry.
 
 1. Copy [Caddyfile](Caddyfile) to `C:\ProgramData\Caddy\Caddyfile`. Check it with
@@ -158,24 +184,26 @@ retry.
    sc.exe config caddy obj= "NT SERVICE\caddy"
    icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'NT SERVICE\caddy:(OI)(CI)M'
    ```
-3. Server firewall: allow inbound TCP 80 and 443.
+3. Server firewall: allow inbound TCP 80 and 443. Reception's firewall: allow inbound TCP 5170
+   from the server's address only, and disable any program-level allow rule for the bridge,
+   which would otherwise open 5170 to the whole LAN.
 4. DNS: an A record `admin.massey-smiles.co.nz` for the practice's public address, the same
    address `office.massey-smiles.co.nz` already uses.
 5. Together, with nothing in between: stop and disable Caddy on reception
    (`sc.exe stop caddy`, then `sc.exe config caddy start= disabled`; in PowerShell `sc` means
-   `Set-Content`), switch the router's forward for TCP 80 and 443 to the server, and start the
-   server's `caddy` service. Watch `C:\ProgramData\Caddy\logs` until it has obtained both
+   `Set-Content`); in reception's `install-settings.json` set `Hosting:ListenUrl` to
+   `http://192.168.192.125:5170` and restart the bridge; switch the router's forward for TCP 80
+   and 443 to the server; and start the server's `caddy` service. Watch `C:\ProgramData\Caddy\logs` until it has obtained both
    certificates. Leave reception's Caddyfile and certificates in place for the undo.
 
 **Check:** from outside the practice network (a phone off Wi-Fi),
-`https://admin.massey-smiles.co.nz` shows the Google sign-in and
-`https://office.massey-smiles.co.nz` answers "SMS gateway inactive", both with valid
-certificates. On reception, `sc.exe qc caddy` shows `DISABLED` and `sc.exe query caddy` shows
-`STOPPED`. **To undo:** point the router back at reception, set
-reception's Caddy service back to Automatic (a disabled service can't be started), and start
-it. Reception's Caddy forwards `office` to the bridge, which with debug mode on serves patient
-identifiers, so first confirm on reception that `netstat -ano | findstr :5170` prints nothing.
-If it prints a listener, stop the bridge before starting Caddy.
+`https://admin.massey-smiles.co.nz` shows the Google sign-in, and the SMS go-live check passes
+again through the server, both with valid certificates. From another LAN machine, port 5170 on
+reception times out. On reception, `sc.exe qc caddy` shows `DISABLED` and `sc.exe query caddy`
+shows `STOPPED`. **To undo:** point the router back at reception; on reception set
+`Hosting:ListenUrl` back to `http://127.0.0.1:5170` and restart the bridge, which reception's
+Caddy reaches as `localhost:5170`; then set reception's Caddy service back to Automatic (a
+disabled service can't be started) and start it.
 
 ### 9. The launcher
 
@@ -245,36 +273,6 @@ from outside, and the restore drill. Record the release in its table.
     apply the previous release's versions the same way. Start, enable, verify.
 
 Installed practice tasks and their schedules live in the data directory and survive a release.
-
-## Reactivating SMS
-
-The SMS bridge is dormant, waiting on Principle's API, and `office` answers 503 meanwhile.
-Before it carries traffic again:
-
-1. Deploy SMS_Bridge's API-key fix, which requires the key on every `/smsgateway` route
-   (corrin/SMS_Bridge#3).
-2. Turn debug mode off in `C:\ProgramData\SMS_Bridge\install-settings.json`. While it is on,
-   `/smsgateway/test/test-patient-lookup` returns patient identifiers to anyone, and
-   `/smsgateway/test/check-send-sms` sends a real SMS. Never probe that one to test.
-3. Decide where the bridge runs. JustRemotePhone lists "Windows Vista or newer" and says nothing of Windows Server, so
-   before choosing the server, pair the phone with Call Centre there and leave it connected for
-   a day.
-   - **Reception.** Give it a DHCP reservation (192.168.192.125), since a renumbered machine
-     silently stops SMS. Allow inbound TCP 5170 from the server's address only, and disable any
-     program-level allow rule for the bridge, which would otherwise open 5170 to the whole LAN.
-     The `office` upstream is `192.168.192.125:5170`.
-   - **The server.** Call Centre is a desktop program the SDK drives, so the server needs a
-     signed-in session at boot: automatic sign-in to a dedicated account, Call Centre started at
-     logon, and the phone paired from there. Bind the bridge to `http://127.0.0.1:5170` (a
-     change in SMS_Bridge's `Program.cs`). The `office` upstream is `127.0.0.1:5170`.
-4. In [Caddyfile](Caddyfile), replace the `office` site's `respond` line with
-   `reverse_proxy <upstream>`, carrying the same `header_up` as the `admin` site, and apply it as
-   in Later releases step 8.
-5. Add an alarm for the bridge's phone status. Texts that stop going out fail silently wherever
-   the bridge runs.
-
-**Check:** `https://office.massey-smiles.co.nz/smsgateway/gateway-status` with the API key
-answers with SMS_Bridge's build, and a message sent from Principle to a staff mobile arrives.
 
 ## Back up
 
