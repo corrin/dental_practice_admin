@@ -9,7 +9,30 @@ on:
   pull_request:
 
 jobs:
+  # Changes only to deployment, documentation or the server install script can't affect the
+  # tests, so they skip them. A job skipped by its condition counts as passed for the required
+  # `hermetic` check.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          predicate-quantifier: every
+          filters: |
+            app:
+              - '**'
+              - '!deploy/**'
+              - '!docs/**'
+              - '!**/*.md'
+              - '!scripts/install_server.ps1'
+
   hermetic:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
