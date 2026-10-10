@@ -120,8 +120,8 @@ def participants(staff: sqlite3.Row) -> Fields:
 def patients(store: FakeStore, _parent: re.Match[str]) -> Iterator[tuple[str, Fields]]:
     for row in store.db.execute("SELECT * FROM patients ORDER BY id"):
         fields: Fields = {"name": row["name"], "gender": row["gender"],
-                          "email": row["email"] or f"{row['id']}@fake.invalid",
-                          "address": row["address"] or "1 Fake Street", "status": "active",
+                          "email": row["email"], "address": row["address"],
+                          "status": "active",
                           "deleted": False, "createdAt": Stamp(row["created_at"]),
                           "updatedAt": Stamp(row["updated_at"]),
                           "ref": Ref(f"patients/{row['id']}")}

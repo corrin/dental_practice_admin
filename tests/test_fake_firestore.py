@@ -11,7 +11,7 @@ from dental_practice_admin.config import Settings
 from dental_practice_admin.scripts import Services
 from tests.fake import FakeStore, transport
 from tests.fake.firestore import ROOT, FirestoreUnhandledError
-from tests.fake.server import FakeRefusalNotRecordedError
+from tests.fake.server import REFUSALS_DIR, FakeRefusalNotRecordedError
 from tests.fake.store import FAKE_PRACTICE_ID
 
 ADA, BO = "fake-practitioner-01", "fake-practitioner-02"
@@ -149,12 +149,14 @@ async def test_a_query_the_fake_cannot_apply_is_refused(services: Services,
 
 
 async def test_a_missing_document_refuses_in_recorded_words_only(services: Services) -> None:
-    """Firestore's 404 wording comes from a recording, never from the fake."""
-    try:
+    """A missing document is refused in Firestore's recorded words, or not at all.
+
+    With the 404 recorded the client sees the status; without it the fake refuses to invent
+    the wording. Either way nothing is answered.
+    """
+    recorded = (REFUSALS_DIR / "firestore_not_found.json").exists()
+    expected = RuntimeError if recorded else FakeRefusalNotRecordedError
+    with pytest.raises(expected) as refused:
         await services.firestore.read("patients/nobody")
-    except FakeRefusalNotRecordedError:
-        pytest.skip("firestore_not_found is not recorded yet: run the recorder")
-    except RuntimeError as refused:
-        assert "404" in str(refused)
-    else:
-        pytest.fail("a missing document was answered")
+    if recorded:
+        assert "404" in str(refused.value)

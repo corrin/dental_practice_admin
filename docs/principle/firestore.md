@@ -115,6 +115,11 @@ Query by `day` (`YYYY-MM-DD` string). These are copies Principle maintains for t
 | `events[].metadata.treatmentPlanName`, `treatmentStepName` | The linked plan and step. |
 | `gaps[]` | Free `from`/`to` windows in the practitioner's day. |
 
+Unknown: whether a cancelled appointment stays in its day's summary. No production day from
+2026-09-15 to 2026-11-16 had a cancellation to check; the fake Principle leaves them out
+(`tests/fake/firestore.py`). To settle it, cancel a staging appointment and read that day's
+summary.
+
 ### Roster schedules
 
 Recurring blocks for one staff member, at `staff/{staffId}/rosterSchedules/{id}`.

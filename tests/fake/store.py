@@ -61,7 +61,7 @@ CREATE TABLE patients (
     created_at    TEXT NOT NULL,
     updated_at    TEXT NOT NULL,
     gender        TEXT NOT NULL DEFAULT 'notSpecified',
-    email         TEXT,
+    email         TEXT NOT NULL,
     address       TEXT,
     date_of_birth TEXT
 );
@@ -350,10 +350,10 @@ class FakeStore:
     def add_patient(self, ident: str, practice_id: str, name: str, at: str,
                     phone: str | None = None, notes: tuple[str, ...] = ()) -> None:
         self.db.execute(
-            "INSERT INTO patients (id, practice_id, name, phone, created_at, updated_at)"
-            " VALUES (:id, :practice_id, :name, :phone, :at, :at)",
+            "INSERT INTO patients (id, practice_id, name, phone, created_at, updated_at, email,"
+            " address) VALUES (:id, :practice_id, :name, :phone, :at, :at, :email, :address)",
             {"id": ident, "practice_id": practice_id, "name": name, "phone": phone,
-             "at": canonical(at)},
+             "at": canonical(at), "email": f"{ident}@fake.invalid", "address": "1 Fake Street"},
         )
         self.db.executemany("INSERT INTO patient_notes VALUES (?, ?, ?)",
                             [(ident, n, text) for n, text in enumerate(notes)])
@@ -370,7 +370,9 @@ class FakeStore:
             {"id": ident, "practice": body["practiceId"], "name": body["name"],
              "phone": numbers[0]["number"] if numbers else None, "at": canonical(at),
              "gender": body["gender"], "email": body["email"],
-             "address": body.get("address"), "dob": body["dateOfBirth"]})
+             # create_patient.json: Principle answers a string when no address was sent. The
+             # anonymiser hides which, so the fake sends an empty one.
+             "address": body.get("address", ""), "dob": body["dateOfBirth"]})
         self.db.commit()
         created = self.patient(ident)
         assert created is not None
@@ -521,8 +523,7 @@ def _render_patient(row: sqlite3.Row) -> dict[str, object]:
     """
     patient: dict[str, object] = {
         "id": row["id"], "name": row["name"], "gender": row["gender"],
-        "email": row["email"] or f"{row['id']}@fake.invalid",
-        "address": row["address"] or "1 Fake Street",
+        "email": row["email"], "address": row["address"],
         "contactNumbers": ([{"label": "mobile", "number": row["phone"]}]
                            if row["phone"] is not None else []),
         "tags": [],

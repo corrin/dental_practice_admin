@@ -6,7 +6,7 @@ test time -- a stored answer stops being true the moment the state changes.
 
 Run against staging only:
 
-    uv run python scripts/record_principle_wire.py
+    uv run python scripts/record_principle_wire.py [--create-patient]
 
 Two rules this enforces:
 
@@ -31,20 +31,22 @@ Firestore documents are recorded as shapes only: each field's name and value typ
 several documents, with no value at all. The shape is all tests/test_fake_conformance.py
 compares, and a value that is never written cannot leak.
 
-Creating a patient is the one write: a `[TEST]` patient on staging per run, so the fake's
-`POST /v1/patients` is checked against what Principle answers.
+Creating a patient is the one write, and only with --create-patient: a `[TEST]` patient on
+staging, which the API cannot delete, so the fake's `POST /v1/patients` is checked against what
+Principle answers.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from pydantic import SecretStr
+import httpx2 as httpx
 
 from dental_practice_admin.config import (
     ConfigurationError,
@@ -53,7 +55,7 @@ from dental_practice_admin.config import (
     is_production_host,
 )
 from dental_practice_admin.firestore import Firestore
-from dental_practice_admin.principle import PrincipleClient, PrincipleError
+from dental_practice_admin.principle import PrincipleClient
 
 RECORDINGS = Path(__file__).resolve().parent.parent / "tests" / "recordings"
 
@@ -303,7 +305,7 @@ def covers(recorded: Any, fake: Any, where: str = "") -> list[str]:
             return []
         return covers(recorded[0], fake[0], f"{where}[]")
     kinds = set(str(recorded).strip("<>").split("|"))
-    if not set(str(fake).strip("<>").split("|")) <= kinds | {"null"}:
+    if not set(str(fake).strip("<>").split("|")) <= kinds:
         return [f"{where}: the fake sends {fake}, Principle {recorded}"]
     return []
 
@@ -437,19 +439,26 @@ async def record_firestore_refusals(settings: Settings) -> list[Path]:
 
 
 async def record_patient(client: PrincipleClient, practice_id: str, names: Pseudonymiser,
-                         appointment: dict[str, Any]) -> list[Path]:
-    """getPatient, searchPatients and createPatient: the fake's patient round trip."""
+                         appointment: dict[str, Any], create: bool) -> list[Path]:
+    """getPatient, searchPatients and, when asked, createPatient.
+
+    Creating writes a `[TEST]` patient to staging that the API cannot delete, so it runs only
+    with --create-patient: when the fake's createPatient changes, not on every re-record.
+    """
     patient = await client.get("getPatient", path_params={"patientId": appointment["patientId"]})
     search = await client.get("searchPatients", query={"name": patient["name"]})
     created = await client.call("createPatient", {
         "practiceId": practice_id, "name": f"[TEST] Recording {date.today()}",
         "dateOfBirth": "1970-01-01", "gender": "notSpecified",
-        "email": "recording@example.invalid"})
+        "email": "recording@example.invalid"}) if create else None
     for document in (patient, search, created):
         names.observe(document)
     names.freeze()
-    return [write("patient", 200, patient, names), write("search_patients", 200, search, names),
-            write("create_patient", 201, created, names)]
+    written = [write("patient", 200, patient, names),
+               write("search_patients", 200, search, names)]
+    if created is not None:
+        written.append(write("create_patient", 201, created, names))
+    return written
 
 
 async def record_successes(
@@ -491,9 +500,14 @@ async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Path
     """Provoke each error the fake needs to be able to speak, and save what was said."""
     written: list[Path] = []
 
-    no_key = settings.model_copy(update={"api_key": SecretStr("")})
-    async with PrincipleClient(no_key) as client:
-        written.append(await _provoke(client, "unauthorised", "listPractices", names))
+    # The client's PrincipleError carries no response body, by design, so refusals are read
+    # from the raw response: the recording is Principle's own words or nothing.
+    async with httpx.AsyncClient(base_url=settings.api_base_url, timeout=60) as raw:
+        refused = await raw.get("/v1/practices", headers={"X-API-Key": ""})
+    if refused.is_success:
+        raise SystemExit("unauthorised: an empty key was answered; nothing to record")
+    written.append(write("unauthorised", refused.status_code, refused.json(), names,
+                         refusal=True))
 
     # Deliberately not provoked: an unplaceable offsetId, a missing required parameter, and
     # an out-of-range limit. The first is not a refusal at all -- Principle ignores it and
@@ -502,33 +516,18 @@ async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Path
     return written
 
 
-async def _provoke(
-    client: PrincipleClient,
-    name: str,
-    call: str,
-    names: Pseudonymiser,
-    query: dict[str, Any] | None = None,
-) -> Path:
-    try:
-        envelope = await client.get(call, query=query)
-    except PrincipleError as refused:
-        return write(name, refused.status, refused.body, names, refusal=True)
-    raise SystemExit(
-        f"{name}: expected {call} to be refused but it answered {json.dumps(envelope)[:200]}; "
-        "the fake must not be given a refusal the API does not actually produce"
-    )
-
 
 async def main() -> None:
     """Capture every recording the fake needs, successes and refusals alike."""
     settings = staging_settings()
     print(f"recording from {settings.api_base_url}")
-    names = Pseudonymiser()
+    names, patient_names = Pseudonymiser(), Pseudonymiser()
     async with PrincipleClient(settings) as client:
         written = await record_successes(client, settings.practice_id, names)
         appointment = await first_appointment(client, settings.practice_id)
-        written += await record_patient(client, settings.practice_id, Pseudonymiser(),
-                                        appointment)
+        written += await record_patient(client, settings.practice_id, patient_names,
+                                        appointment, "--create-patient" in sys.argv)
+    names.unrecognised |= patient_names.unrecognised
     written += await record_refusals(settings, names)
     written += await record_firestore(settings, appointment)
     written += await record_firestore_refusals(settings)
