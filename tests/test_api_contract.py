@@ -156,6 +156,25 @@ async def test_access_and_service_failures_do_not_claim_an_interface_change(
         store.close()
 
 
+async def test_a_documented_not_found_does_not_claim_an_interface_change(tmp_path: Path) -> None:
+    """getPatient documents 404 for an unknown patient; a mistyped ID is not a changed API."""
+    settings = _production(tmp_path)
+    async with PrincipleClient(
+        settings,
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(404, json={"message": "fake not found"})
+        ),
+    ) as client:
+        with pytest.raises(PrincipleError) as error:
+            await client.get("getPatient", path_params={"patientId": "fake-missing"})
+    assert error.value.status == 404
+    store = Storage(settings.database_path)
+    try:
+        assert not store.interface_warnings()
+    finally:
+        store.close()
+
+
 async def test_extra_response_fields_do_not_trigger_an_incompatibility(tmp_path: Path) -> None:
     settings = _production(tmp_path)
     async with PrincipleClient(

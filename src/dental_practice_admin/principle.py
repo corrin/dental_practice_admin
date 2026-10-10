@@ -85,6 +85,7 @@ class Call:
     method: str
     path: str
     parameters: list[dict[str, Any]]
+    documented: frozenset[int]
 
     @property
     def paginated(self) -> bool:
@@ -93,7 +94,8 @@ class Call:
 
 CATALOGUE = tuple(
     Call(op["operationId"], method.upper(), path,
-         item.get("parameters", []) + op.get("parameters", []))
+         item.get("parameters", []) + op.get("parameters", []),
+         frozenset(int(status) for status in op.get("responses", {}) if status.isdigit()))
     for path, item in RESOLVED["paths"].items()
     for method, op in item.items() if method in {"get", "post", "put", "patch", "delete"}
     and not path.startswith(("/v1/oauth", "/v1/webhooks", "/v1/notifications"))
@@ -248,7 +250,10 @@ class PrincipleClient:
         request = response.request
         call = next(c for c in CATALOGUE if c.method == request.method
                     and re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", c.path), request.url.path))
-        if response.status_code in {404, 405, 410, 422}:
+        # A status the operation documents is an answer, such as getPatient's 404 for an unknown
+        # patient. Recording it would raise a warning no later success clears.
+        if (response.status_code in {404, 405, 410, 422}
+                and response.status_code not in call.documented):
             raise self._incompatible(call, f"http_{response.status_code}")
         if response.status_code >= 400:
             raise PrincipleError(response.status_code, call.method, call.path, "upstream_failure")
