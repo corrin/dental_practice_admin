@@ -16,7 +16,7 @@ $account = 'practice-app'
 $password = $null
 $service = Get-CimInstance Win32_Service -Filter "Name='dental-practice-admin'"
 if (-not (Get-LocalUser $account -ErrorAction SilentlyContinue) -or -not $service -or $service.StartName -ne ".\$account") {
-    $password = Read-Host "Password for the $account account (the first install creates it with this)"
+    $password = Read-Host "Password for the $account account (a new one creates it; otherwise its existing password)"
     if (-not $password) { throw 'No password entered.' }
 }
 # The app's own account: not an administrator, so a fault in it can't reach the rest of the server.
