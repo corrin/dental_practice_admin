@@ -121,7 +121,7 @@ class Review(BaseModel):
 
 
 def repository(settings: Settings) -> Any:
-    """Publication credentials are used only by explicit review and installation actions."""
+    """Publication credentials are used only by explicit review and by installing merged tasks."""
     if not settings.task_repository or not settings.github_token.get_secret_value():
         raise ValueError("Configure the private task repository and GitHub token for review")
     repo = Github(auth=Auth.Token(settings.github_token.get_secret_value())).get_repo(
@@ -160,49 +160,54 @@ def publish(settings: Settings, review: Review, owner: str) -> str:
         return str(pr.html_url)
 
 
-def install(settings: Settings, task_id: str, owner: str) -> str:
-    """Install only the merged PR's files, then retire its local development branch."""
-    from git import Repo
-    folder = folder_for(settings, task_id)
-    metadata = json.loads((folder / "draft.json").read_text(encoding="utf-8"))
-    if metadata["owner"] != owner:
-        raise FileNotFoundError("Draft unavailable")
-    review = json.loads((folder / "review.json").read_text(encoding="utf-8"))
-    revision = install_existing(settings, review["name"], review["number"])
-    (folder / "installed").write_text(revision, encoding="utf-8")
-    with Repo(folder) as local:
-        local.head.reference = local.head.commit
-        if "draft" in local.heads:
-            local.delete_head("draft", force=True)
-    with suppress(UnknownObjectException):
-        repository(settings).get_git_ref("heads/review/" + task_id).delete()
-    return str(revision)
+def current(settings: Settings, name: str) -> str:
+    """The installed revision of a task on the practice repository's default branch."""
+    if not re.fullmatch(NAME, name):
+        raise FileNotFoundError("Installed task unavailable")
+    return (settings.data_dir / "installed" / name / "current").read_text(encoding="utf-8")
 
 
-def install_existing(settings: Settings, name: str, number: int) -> str:
-    """Install an existing merged review without requiring a local development draft."""
-    if not re.fullmatch(NAME, name) or number < 1:
-        raise ValueError("A valid task name and positive PR number are required")
+def sync(settings: Settings) -> None:
+    """Install every task on the practice repository's default branch; a merge is the approval.
+
+    Each task installs at the branch's head commit into its own immutable folder, and `current`
+    names it, so a run already under way keeps its files. A task removed from the branch stops
+    being offered; its folders stay as execution evidence. Nothing changes unless every task
+    reads and validates.
+    """
+    root = settings.data_dir / "installed"
     repo = repository(settings)
-    pr = repo.get_pull(number)
-    if not pr.merged or pr.base.repo.full_name != settings.task_repository:
-        raise ValueError("Task PR has not been merged into the configured repository")
-    revision = pr.merge_commit_sha
-    target = settings.data_dir / "installed" / name / revision
-    files = {filename: repo.get_contents(f"tasks/{name}/{filename}", ref=revision).decoded_content
-             for filename in ("task.json", "source.txt", "test_task.py")}
-    definition = Definition.model_validate_json(files["task.json"])
-    if definition.name != name:
-        raise ValueError("Merged task name disagrees with its installation path")
-    if not target.exists():
-        staging = target.with_name("install-" + uuid.uuid4().hex)
-        (staging / "shared").mkdir(parents=True)
-        for name, content in files.items():
-            (staging / name).write_bytes(content)
-        # The practice repository's shared/ modules at the same revision, importable by every task.
-        with suppress(UnknownObjectException):
-            for item in repo.get_contents("shared", ref=revision):
-                if item.type == "file" and item.name.endswith(".py"):
-                    (staging / "shared" / item.name).write_bytes(item.decoded_content)
-        staging.rename(target)
-    return str(revision)
+    revision = repo.get_branch(repo.default_branch).commit.sha
+    synced = root / "synced"
+    if synced.is_file() and synced.read_text(encoding="utf-8") == revision:
+        return
+    shared = {}
+    with suppress(UnknownObjectException):
+        shared = {item.name: item.decoded_content
+                  for item in repo.get_contents("shared", ref=revision)
+                  if item.type == "file" and item.name.endswith(".py")}
+    tasks = {}
+    for item in repo.get_contents("tasks", ref=revision):
+        if item.type != "dir":
+            continue
+        files = {filename: repo.get_contents(f"tasks/{item.name}/{filename}",
+                                             ref=revision).decoded_content
+                 for filename in ("task.json", "source.txt", "test_task.py")}
+        if Definition.model_validate_json(files["task.json"]).name != item.name:
+            raise ValueError(f"tasks/{item.name}/task.json names a different task")
+        tasks[item.name] = files
+    for name, files in tasks.items():
+        target = root / name / revision
+        if not target.exists():
+            staging = target.with_name("install-" + uuid.uuid4().hex)
+            (staging / "shared").mkdir(parents=True)
+            for filename, content in files.items():
+                (staging / filename).write_bytes(content)
+            for filename, content in shared.items():
+                (staging / "shared" / filename).write_bytes(content)
+            staging.rename(target)
+        (root / name / "current").write_text(revision, encoding="utf-8")
+    for pointer in root.glob("*/current"):
+        if pointer.parent.name not in tasks:
+            pointer.unlink()
+    synced.write_text(revision, encoding="utf-8")

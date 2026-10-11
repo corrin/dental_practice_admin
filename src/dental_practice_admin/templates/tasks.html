@@ -123,7 +123,8 @@ if(tasks.length) {
   el('schedule-form').onsubmit = event => {
     event.preventDefault();
     try {
-      const data = {...taskInputs(), at:el('at').value, weekdays:el('weekdays').value, minutes:Number(el('minutes').value)};
+      const {revision, ...chosen} = taskInputs();
+      const data = {...chosen, at:el('at').value, weekdays:el('weekdays').value, minutes:Number(el('minutes').value)};
       if(el('schedule-id').value) {
         data.id=el('schedule-id').value;
         data.paused=jobs.find(j => j.id === data.id).next === 'Paused';
@@ -134,7 +135,7 @@ if(tasks.length) {
 }
 function editSchedule(index) {
   const job=jobs[index];
-  el('task').value=tasks.findIndex(t => t.name === job.name && t.revision === job.revision);
+  el('task').value=tasks.findIndex(t => t.name === job.name && t.reviewed);
   showInputs(job.inputs);
   el('schedule-id').value=job.id;
   el('at').value=job.at; el('minutes').value=job.minutes; el('weekdays').value=job.weekdays;

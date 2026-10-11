@@ -119,8 +119,8 @@ def test_staff_flow_and_server_schedule_guard(tmp_path: Path) -> None:
         installed_source = (configured.data_dir / "installed" / DEFINITION.name
                             / reviewed / "source.txt")
         installed_source.write_text(SOURCE, encoding="utf-8", newline="\n")
-        assert client.post("/tasks/schedule", json={**payload,
-            "revision": reviewed}).status_code == 200
+        (installed_source.parent.parent / "current").write_text(reviewed, encoding="utf-8")
+        assert client.post("/tasks/schedule", json=payload).status_code == 200
         assert path.parent.name not in client.get("/tasks/manage").text
 
 

@@ -66,6 +66,15 @@ def launcher_checked(settings: Settings) -> datetime | None:
     return datetime.fromtimestamp(modified, UTC)
 
 
+def tasks_synced(settings: Settings) -> datetime | None:
+    """When the launcher last brought installed tasks up to date with the practice repository."""
+    try:
+        modified = (settings.data_dir / "audits" / "task-sync.jsonl").stat().st_mtime
+    except FileNotFoundError:
+        return None
+    return datetime.fromtimestamp(modified, UTC)
+
+
 def launcher_recent(checked: datetime | None) -> bool:
     """False once the launcher has missed two checks."""
     return checked is not None and (
@@ -86,8 +95,12 @@ def attention(settings: Settings, store: Storage) -> list[dict[str, str]]:
                - datetime.fromisoformat(run.started_at) < RUN_LIMIT + timedelta(
                    seconds=POLL_SECONDS) for run in automatic)
     notes = []
-    if automatic and not busy and not launcher_recent(launcher_checked(settings)):
+    checked = launcher_checked(settings)
+    if automatic and not busy and not launcher_recent(checked):
         notes.append({"text": "Automatic runs have stopped", "href": "/tasks/manage"})
+    if launcher_recent(checked) and not launcher_recent(tasks_synced(settings)):
+        notes.append({"text": "New and changed reports can't be fetched; ask your administrator",
+                      "href": "/tasks/manage"})
     scheduled = {run.task for run in automatic}
     for run in store.latest_runs_by_task():
         if run.task not in scheduled:
@@ -103,11 +116,10 @@ def attention(settings: Settings, store: Storage) -> list[dict[str, str]]:
 
 
 class Schedule(BaseModel):
-    """A pinned local task, explicit inputs, and one library-owned trigger."""
+    """An installed task, explicit inputs, and one library-owned trigger."""
 
     id: str = Field(default_factory=lambda: uuid.uuid4().hex, pattern=r"^[0-9a-f]{32}$")
     name: str = Field(pattern="^" + task_files.NAME + "$")
-    revision: str = Field(pattern=r"^[0-9a-f]{40,64}$")
     inputs: dict[str, Any] = Field(default_factory=dict)
     minutes: int = Field(default=0, ge=0)
     at: str = Field(default="16:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -130,21 +142,22 @@ class Schedule(BaseModel):
         return CronTrigger(hour=int(hour), minute=int(minute), day_of_week=self.weekdays)
 
 
-def scheduled_task(name: str, revision: str, inputs: dict[str, Any]) -> None:
+def scheduled_task(name: str, inputs: dict[str, Any]) -> None:
     """The serializable APScheduler callable; execution uses only installed files."""
     settings = Settings()
-    asyncio.run(scripts.run(settings, task_files.load(settings, name, revision, inputs,
-                                                     "scheduler"), name))
+    asyncio.run(scripts.run(settings, task_files.load(
+        settings, name, task_files.current(settings, name), inputs, "scheduler"), name))
 
 
 def save(settings: Settings, schedule: Schedule, owner: str) -> None:
     """Validate the installed version and audit a staff schedule edit before saving it."""
-    task_files.load(settings, schedule.name, schedule.revision, schedule.inputs, owner)
+    task_files.load(settings, schedule.name, task_files.current(settings, schedule.name),
+                    schedule.inputs, owner)
     with open_schedules(settings) as scheduler:
         Audit(settings, "schedules").write("schedule_edit", initiator=owner,
                                            schedule=schedule.model_dump())
         job = scheduler.add_job(scheduled_task, schedule.trigger(), id=schedule.id,
-            name=schedule.name, args=[schedule.name, schedule.revision, schedule.inputs],
+            name=schedule.name, args=[schedule.name, schedule.inputs],
             replace_existing=True, misfire_grace_time=POLL_SECONDS, coalesce=False)
         if schedule.paused:
             job.pause()
@@ -198,8 +211,9 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
                                      "Execution window passed while another task was running")
                     failed += 1
                     continue
-                script = task_files.load(settings, job.args[0], job.args[1],
-                                         job.args[2], "scheduler")
+                name, inputs = job.args
+                script = task_files.load(settings, name, task_files.current(settings, name),
+                                         inputs, "scheduler")
                 await scripts.recorded(settings, script, job.name,
                     partial(scripts.worker_run, settings, script), identifier)
                 result = store.run(identifier)
@@ -217,10 +231,18 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
 
 
 def main() -> int:
-    """Check due tasks once for the Windows launcher."""
+    """Bring installed tasks up to date, then check due tasks once, for the Windows launcher.
+
+    Tasks already installed keep running when GitHub can't be reached; staff pages say so.
+    """
     settings = Settings()
     settings.require_data_root()
     settings.require_credentials()
+    try:
+        task_files.sync(settings)
+        Audit(settings, "task-sync").write("synced")
+    except Exception as error:
+        Audit(settings, "task-sync-failed").write("failed", error=repr(error))
     return asyncio.run(run_due(settings))
 
 

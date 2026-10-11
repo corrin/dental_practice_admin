@@ -86,10 +86,12 @@ permitted actions come from configuration and the signed-in user, not from model
 
 Chat can run trusted Python and Playwright scripts under the service account. Drafts are
 immutable and owner-scoped. Working source is promoted through a reviewed pull request to the
-practice's private repository, with an input contract and synthetic tests, then installed
-locally; installed tasks run without GitHub. See ADR 0005.
+practice's private repository, with an input contract and synthetic tests. Merging is the
+approval: every five minutes the launcher installs what is on the repository's default branch,
+and runs use only installed files, so tasks keep running when GitHub can't be reached. See
+ADR 0005.
 
-The task page manages schedules, inputs, pause and resume, and explicit revision updates.
+The task page manages schedules, inputs, pause and resume. Schedules run the installed task.
 APScheduler calculates triggers in the server's time zone. Due occurrences are claimed before
 execution, old ones are marked missed, and interrupted runs are never replayed. Execution source,
 inputs, calls and outcomes go to local JSONL audit files without credentials; SQLite indexes

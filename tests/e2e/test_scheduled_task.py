@@ -28,8 +28,7 @@ def completed_run(spine: dict[str, str]) -> str:
 """
     (folder / "source.txt").write_text(
         source, encoding="utf-8")
-    schedule = schedules.Schedule(name="scheduled_report", revision=REVISION,
-                                  inputs={"numbers": []})
+    schedule = schedules.Schedule(name="scheduled_report", inputs={"numbers": []})
     schedules.save(configured, schedule, "fake-staff")
     with schedules.open_schedules(configured) as scheduler:
         scheduler.get_job(schedule.id).modify(
