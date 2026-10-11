@@ -5,7 +5,7 @@
     <URI>\Dental Practice Admin\Task runner</URI></RegistrationInfo>
   <Triggers><TimeTrigger><Repetition><Interval>PT5M</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition>
     <StartBoundary>2026-10-03T00:00:00</StartBoundary><Enabled>true</Enabled></TimeTrigger></Triggers>
-  <Principals><Principal id="Author"><LogonType>S4U</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+  <Principals><Principal id="Author"><UserId>practice-app</UserId><LogonType>S4U</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
   <Settings>
     <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>

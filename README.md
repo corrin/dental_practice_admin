@@ -432,7 +432,8 @@ Invoke-WebRequest https://raw.githubusercontent.com/corrin/dental_practice_admin
 ```
 
 The first run asks for a password for `practice-app`, the account the application runs as, and
-creates the account; later runs ask nothing. It installs Git, uv, Node.js
+creates the account; upgrades ask nothing. (If the service is ever missing, the run asks again:
+enter the same password, from where you keep it.) It installs Git, uv, Node.js
 and Caddy, the application, its service and its five-minute launcher, and Caddy for `ADMIN_HOST`.
 It stops at the first problem and says what it needs; run it again once that is fixed. The same
 command upgrades, and installs only the libraries that changed. `-Ref <commit>` installs an
