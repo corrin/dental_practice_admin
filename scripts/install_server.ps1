@@ -1,5 +1,5 @@
 # Installs or upgrades the admin app on the server, in an elevated PowerShell:
-#   Invoke-WebRequest https://raw.githubusercontent.com/corrin/dental_practice_admin/main/scripts/install_server.ps1 -OutFile $env:TEMP\install_server.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\install_server.ps1
+#   Invoke-WebRequest https://raw.githubusercontent.com/corrin/dental_practice_admin/main/scripts/install_server.ps1 -OutFile $env:TEMP\install_server.ps1; Set-ExecutionPolicy Bypass -Scope Process -Force; & $env:TEMP\install_server.ps1
 # Third-party libraries install only when they changed. Safe to re-run, including after a failure;
 # it stops at the first error and says what it needs. -Ref <commit> installs that commit instead
 # of main, for example to roll back.
@@ -10,7 +10,9 @@ $ErrorActionPreference = 'Stop'
 function Run { $ErrorActionPreference = 'Continue'; & $args[0] @($args | Select-Object -Skip 1); if ($LASTEXITCODE) { throw "failed (exit $LASTEXITCODE): $args" } }
 $root = 'C:\Program Files\DentalPracticeAdmin'
 $account = 'practice-app'
+# Read-Host gets nothing in a second powershell inside a remote session, hence & above.
 $password = Read-Host "$account password (from 1Password)"
+if (-not $password) { throw 'No password entered.' }
 # The app's own account: not an administrator, so a fault in it can't reach the rest of the server.
 if (-not (Get-LocalUser $account -ErrorAction SilentlyContinue)) {
     New-LocalUser $account -Password (ConvertTo-SecureString $password -AsPlainText -Force) -PasswordNeverExpires -AccountNeverExpires | Out-Null
