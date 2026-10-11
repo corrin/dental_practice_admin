@@ -3,7 +3,7 @@
 Automated checks cover what a machine can check. These are the ones a person signs off,
 because they need a reboot, a second account, or a deliberate act of destruction.
 
-Release with [RELEASE.md](RELEASE.md), then run `scripts\verify.ps1`; it must pass before any
+Install with `scripts\install_server.ps1`, then run `scripts\verify.ps1`; it must pass before any
 of this is worth doing.
 
 ## Before staff use it
@@ -35,8 +35,8 @@ of this is worth doing.
       run is back. A backup nobody has restored is a hypothesis.
 - [ ] **Restore task files.** Restore installed revisions, local draft repositories, immutable
       source snapshots and audit files alongside the database. Verify a restored schedule runs.
-- [ ] **Reinstate the previous release.** Roll back as [RELEASE.md](RELEASE.md)'s later
-      releases describe, then run `verify.ps1`. Confirm runtime data under
+- [ ] **Reinstate the previous release.** Run `install_server.ps1 -Release <previous tag>`,
+      then `verify.ps1`. Confirm runtime data under
       `C:\ProgramData\DentalPracticeAdmin` survived the swap untouched.
 
 ## Repeat quarterly

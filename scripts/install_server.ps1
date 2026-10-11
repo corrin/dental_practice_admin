@@ -1,5 +1,9 @@
-# Installs or upgrades the admin app on the server from a prebuilt release; deploy\RELEASE.md says
-# when and how to run it. Safe to re-run, including after a failure. Stops at the first error.
+# Installs or upgrades the admin app on the server from a prebuilt release. Run it in an elevated
+# PowerShell from your home folder, not from inside the release folder, which it swaps:
+#   cd ~; powershell -ExecutionPolicy Bypass -File .\install_server.ps1 [-Release <tag>]
+# A first install gets this script from the latest release's downloads on GitHub; later, the copy
+# in C:\Program Files\DentalPracticeAdmin\scripts works too. Safe to re-run, including after a
+# failure; it stops at the first error and says what it needs. -Release <older tag> rolls back.
 param(
     # A release tag to install instead of the latest, for example to roll back.
     [string]$Release
@@ -11,8 +15,11 @@ function Run { $ErrorActionPreference = 'Continue'; & $args[0] @($args | Select-
 $repo = 'corrin/dental_practice_admin'
 $root = 'C:\Program Files\DentalPracticeAdmin'
 $account = 'practice-app'
-if (-not (Test-Path "$root\.env")) { throw ".env is missing: create $root\.env from the template in deploy\RELEASE.md, then run this again" }
 $password = Read-Host "$account password (from 1Password)"
+# The app's own account: not an administrator, so a fault in it can't reach the rest of the server.
+if (-not (Get-LocalUser $account -ErrorAction SilentlyContinue)) {
+    New-LocalUser $account -Password (ConvertTo-SecureString $password -AsPlainText -Force) -PasswordNeverExpires -AccountNeverExpires | Out-Null
+}
 
 # Tools the app runs at runtime, each at its latest version: Git (chat saves task drafts), Node.js
 # (the browser server) and Caddy. 1641 and 3010: installed, restart needed.
@@ -47,6 +54,16 @@ if ($tag -ne $installed) {
     if (Test-Path "$root-new") { Remove-Item -Recurse -Force "$root-new" }
     Expand-Archive $env:TEMP\dental-practice-admin.zip "$root-new"
     Remove-Item $env:TEMP\dental-practice-admin.zip
+    if (-not (Test-Path "$root\.env")) {
+        New-Item -ItemType Directory -Force $root | Out-Null
+        Copy-Item "$root-new\deploy\production.env.example" "$root\.env"
+        Remove-Item -Recurse -Force "$root-new"
+        throw "Fill in every '...' in $root\.env (its comments say what each is), then run this again."
+    }
+    if (Select-String -Path "$root\.env" -Pattern '^[A-Z_]+=.*\.\.\.' -Quiet) {
+        Remove-Item -Recurse -Force "$root-new"
+        throw "$root\.env still has a '...' value: fill it in, then run this again."
+    }
     Copy-Item "$root\.env" "$root-new\.env"
 
     # Stopping the app ends any run mid-write: pause the launcher, and refuse while a run is in

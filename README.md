@@ -53,7 +53,7 @@ Python 3.14 is required. Run `uv sync --locked` once, then use
 [`pyproject.toml`](pyproject.toml) and recreates an incompatible project virtual environment; it
 can download Python when needed. After upgrading Python, run `uv sync --locked` again in each
 development directory before starting the application. The server runs a prebuilt release
-instead ([`deploy/RELEASE.md`](deploy/RELEASE.md)).
+instead, which [`scripts/install_server.ps1`](scripts/install_server.ps1) installs.
 
 The ordinary setup is Principle staging, Google login, real OpenAI, and ngrok at
 `https://massey-admin-dev.ngrok-free.app`. The command is
@@ -378,13 +378,16 @@ docs/principle/          what tasks have learned about Principle's website and F
 
 ## Deployment
 
-[`deploy/RELEASE.md`](deploy/RELEASE.md) is the step-by-step release, first time and after.
+Before merging to `main`, run `scripts\release_gate.ps1` in this development checkout; it must end
+"Release checks passed" (its staging tier needs the recordings in `tests\recordings`). CI then
+builds a release ([`scripts/build_release.ps1`](scripts/build_release.ps1): the app, its own
+Python with every package, `node_modules` and the browser) and publishes it on GitHub.
+[`scripts/install_server.ps1`](scripts/install_server.ps1), run on the server, installs or upgrades
+to it and says anything it needs.
 
-Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher.
-The service invokes `dental_practice_admin.app:create_app --factory`; install the package with
-`uv sync --locked` in the release directory before starting it. Runtime configuration lives in
-the release directory's `.env`, which the service and the scheduled launcher both read, separately
-from the development checkout.
+Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher,
+both as the `practice-app` account. Runtime configuration lives in the release folder's `.env`,
+which the service and the scheduled launcher both read; the script carries it forward on upgrade.
 
 [`scripts/verify.ps1`](scripts/verify.ps1) is the gate — service identity, data directory outside
 the release, health endpoint naming its configured Principle, scheduled task registered without
@@ -392,9 +395,8 @@ interactive logon, the launcher interval, and recent application schedule-check 
 [`deploy/ACCEPTANCE.md`](deploy/ACCEPTANCE.md) holds what only a person can sign off:
 the reboot, the unattended run and the restore drill.
 
-Installing the services, the launcher and practice tasks is in
-[`deploy/RELEASE.md`](deploy/RELEASE.md). Reboot verification must include a due approved task,
-not just an empty poll.
+Practice tasks are installed through the app's Reports & scripts page. Reboot verification must
+include a due approved task, not just an empty poll.
 
 Caddy fronts the application; [`deploy/Caddyfile`](deploy/Caddyfile) is the configuration it runs.
 Access is open to the internet so staff can work from home, which makes the Google sign-in
