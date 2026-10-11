@@ -81,6 +81,37 @@ jobs:
       - name: Code size
         run: uv run python -m scripts.code_size
 
+  # Every change to main that passes becomes a release the server installs with
+  # scripts/install_server.ps1 (deploy/RELEASE.md). Nothing is built on the server.
+  release:
+    needs: [changes, hermetic]
+    if: ${{ github.event_name == 'push' && !cancelled() && needs.hermetic.result != 'failure' }}
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Build
+        shell: powershell
+        run: scripts\build_release.ps1
+
+      - name: Publish
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = (Get-Content build\release\RELEASE -Raw).Trim()
+          gh release create $tag build\dental-practice-admin.zip scripts\install_server.ps1 --target $env:GITHUB_SHA --title "Release $tag" --notes "Commit $env:GITHUB_SHA" --latest
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
 # The integration tier is deliberately absent: it needs staging credentials, and CI stays
 # hermetic. It is a release gate, run from a machine that holds them
 # (scripts/run_integration_tests.ps1).
