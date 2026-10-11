@@ -119,8 +119,13 @@ def test_staff_flow_and_server_schedule_guard(tmp_path: Path,
         submitted = {**payload, "checked_for_patient_data": True}
         assert client.post("/tasks/submit", json=submitted).json() == {
             "review_url": "https://github.com/fake/practice/pull/3"}
+        repo.get_pull.return_value = SimpleNamespace(merged=False, state="open")
         assert client.post("/tasks/submit", json=submitted).status_code == 400
         assert repo.create_pull.call_count == 1
+        repo.get_pull.return_value = SimpleNamespace(merged=False, state="closed")
+        assert client.post("/tasks/submit", json=submitted).status_code == 200
+        assert repo.create_pull.call_count == 2
+        repo.get_git_ref.return_value.delete.assert_called_once()
         assert "https://github.com/fake/practice/pull/3" in client.get("/tasks/manage").text
         with closing(Storage(configured.database_path)) as store:
             assert len(store.recent_runs()) == 1
