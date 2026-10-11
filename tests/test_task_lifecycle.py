@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
 from git import Repo
@@ -149,7 +150,9 @@ def test_invalid_inputs_or_uninstalled_revision_cannot_be_scheduled(tmp_path: Pa
         assert not scheduler.get_jobs()
 
 
-def test_library_trigger_keeps_local_time_across_dst() -> None:
+def test_library_trigger_keeps_local_time_across_dst(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("apscheduler.triggers.cron.get_localzone",
+                        lambda: ZoneInfo("Pacific/Auckland"))
     trigger = schedules.Schedule(name="fake_report", revision=REVISION,
                                  at="16:00", weekdays="*").trigger()
     before = trigger.get_next_fire_time(None, datetime(2026, 9, 26, tzinfo=UTC))
