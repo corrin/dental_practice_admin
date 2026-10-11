@@ -1,6 +1,5 @@
-# Installs or upgrades the admin app on the server from a prebuilt release. Run it in an elevated
-# PowerShell from your home folder, not from inside the release folder, which it swaps:
-#   cd ~; powershell -ExecutionPolicy Bypass -File .\install_server.ps1 [-Release <tag>]
+# Installs or upgrades the admin app on the server from a prebuilt release, in an elevated
+# PowerShell: powershell -ExecutionPolicy Bypass -File install_server.ps1 [-Release <tag>]
 # A first install gets this script from the latest release's downloads on GitHub; later, the copy
 # in C:\Program Files\DentalPracticeAdmin\scripts works too. Safe to re-run, including after a
 # failure; it stops at the first error and says what it needs. -Release <older tag> rolls back.
@@ -85,7 +84,7 @@ if ($tag -ne $installed) {
         if (-not (Test-Path $root) -and (Test-Path "$root-old")) { Rename-Item "$root-old" $root }
         if (Get-Service dental-practice-admin -ErrorAction SilentlyContinue) { Start-Service dental-practice-admin }
         if ($launcher) { $launcher | Enable-ScheduledTask | Out-Null }
-        throw "couldn't swap in release $tag (is a file in $root open?): $_"
+        throw "couldn't swap in release ${tag}: close any window or program open in $root, then run this again. ($_)"
     }
 }
 Run icacls "$root\.env" /inheritance:r /grant:r 'SYSTEM:F' 'Administrators:F' "$($account):R"
