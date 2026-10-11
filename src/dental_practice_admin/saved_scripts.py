@@ -132,8 +132,8 @@ def load(settings: Settings, name: str, revision: str, inputs: dict[str, Any],
 
 
 def publish_review(settings: Settings, name: str, revision: str,
-                   checked_for_patient_data: Literal[True]) -> str:
-    """Maintainer export uses shared files and the original private source provenance."""
+                   checked_for_patient_data: Literal[True], initiator: str) -> str:
+    """Open the approval PR for a saved script, from its files and private source provenance."""
     path = folder(settings, name, revision)
     provenance = json.loads((path / "provenance.json").read_text(encoding="utf-8"))
     review = task_files.Review(draft_id=provenance["draft_id"],
@@ -141,4 +141,9 @@ def publish_review(settings: Settings, name: str, revision: str,
             (path / "task.json").read_text(encoding="utf-8")),
         tests=(path / "test_task.py").read_text(encoding="utf-8"),
         checked_for_patient_data=checked_for_patient_data)
-    return task_files.publish(settings, review, provenance["owner"])
+    url = task_files.publish(settings, review, provenance["owner"])
+    (path / "review.json").write_text(json.dumps({"url": url, "initiator": initiator}),
+                                      encoding="utf-8")
+    Audit(settings, "saved-scripts").write("submitted", name=name, revision=revision, url=url,
+                                          initiator=initiator)
+    return url

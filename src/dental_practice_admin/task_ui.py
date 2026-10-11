@@ -1,7 +1,7 @@
 """Staff controls for local drafts, approved tasks, reviews and schedules."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import json
 from typing import Any
 
 from apscheduler.triggers.interval import IntervalTrigger
@@ -38,9 +38,10 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
                     encoding="utf-8")
                and task_files.Definition.model_validate(task) == definition for task in installed):
             continue
+        review = path.parent / "review.json"
         installed.append({**definition.model_dump(), "revision": path.parent.name,
-                          "reviewed": False,
-                          "requested": (path.parent / "review-request.json").exists()})
+                          "reviewed": False, "review_url": json.loads(review.read_text(
+                              encoding="utf-8"))["url"] if review.exists() else ""})
     titles = {task["name"]: task["title"] for task in installed}
     with schedules.open_schedules(settings) as scheduler:
         jobs = []
@@ -83,12 +84,11 @@ async def act(action: str, payload: dict[str, Any], request: Request, staff: Cur
             script.inputs = payload["inputs"]
             await scripts.run(settings, script, "draft:" + payload["draft_id"])
             return {"url": "/tasks/prepare/" + payload["draft_id"]}
-        if action == "request-review":
-            import json
-            path = saved_scripts.folder(settings, payload["name"], payload["revision"])
-            (path / "review-request.json").write_text(json.dumps({"initiator": staff.email,
-                "at": datetime.now(UTC).isoformat()}), encoding="utf-8")
-            return {"saved": True}
+        if action == "submit":
+            if payload.get("checked_for_patient_data") is not True:
+                raise ValueError("Confirm the script contains no patient data")
+            return {"review_url": await asyncio.to_thread(saved_scripts.publish_review, settings,
+                payload["name"], payload["revision"], True, staff.email)}
         if action == "review":
             return {"url": await asyncio.to_thread(task_files.publish, settings,
                      task_files.Review.model_validate(payload), staff.email)}
