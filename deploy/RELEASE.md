@@ -155,10 +155,13 @@ is needed. No value may still read `...`.
 In an elevated PowerShell on the server:
 
 ```powershell
-Invoke-WebRequest https://github.com/corrin/dental_practice_admin/releases/latest/download/install_server.ps1 -OutFile $env:TEMP\install_server.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\install_server.ps1
+cd ~; Invoke-WebRequest https://github.com/corrin/dental_practice_admin/releases/latest/download/install_server.ps1 -OutFile install_server.ps1
+powershell -ExecutionPolicy Bypass -File .\install_server.ps1
 ```
 
-It asks for `practice-app`'s password, then installs the tools (Chocolatey: Git, Node.js, Caddy;
+The first line downloads the script to your home folder, where you can read it before running
+it; start there, because Windows won't swap the release folder while a window is open in it. It
+asks for `practice-app`'s password, then installs the tools (Chocolatey: Git, Node.js, Caddy;
 WinSW), grants the account its logon rights, creates the data folder with its permissions,
 installs the latest release, checks `.env`, installs and starts the application service as
 `practice-app`, installs Caddy without starting it, opens the firewall (80 and 443 from anywhere;
@@ -269,7 +272,7 @@ from outside, and the restore drill. Record the release in its table.
 5. Wait five minutes, then run `scripts\verify.ps1`.
 
 **To roll back:** run the script with `-Release <tag>`, the previous release's tag from GitHub's
-Releases page: `powershell -ExecutionPolicy Bypass -File $env:TEMP\install_server.ps1 -Release <tag>`.
+Releases page: `powershell -ExecutionPolicy Bypass -File .\install_server.ps1 -Release <tag>`.
 
 Installed practice tasks and their schedules live in the data directory and survive a release.
 
