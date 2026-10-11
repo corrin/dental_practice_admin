@@ -35,7 +35,7 @@ of this is worth doing.
       run is back. A backup nobody has restored is a hypothesis.
 - [ ] **Restore task files.** Restore installed revisions, local draft repositories, immutable
       source snapshots and audit files alongside the database. Verify a restored schedule runs.
-- [ ] **Reinstate the previous release.** Run `install_server.ps1 -Release <previous tag>`,
+- [ ] **Reinstate the previous release.** Run `install_server.ps1 -Ref <previous commit>`,
       then `verify.ps1`. Confirm runtime data under
       `C:\ProgramData\DentalPracticeAdmin` survived the swap untouched.
 

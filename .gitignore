@@ -46,5 +46,5 @@ tests/recordings/firestore/
 # commit (scripts/refresh_spec.py).
 tests/spec/principle-api.yml
 
-# scripts/build_release.ps1 output
-build/
+# The browser beside the app on the server (scripts/install_server.ps1)
+ms-playwright/
