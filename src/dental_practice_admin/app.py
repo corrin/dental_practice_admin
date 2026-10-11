@@ -67,7 +67,7 @@ def create_app(configured: Settings | None = None) -> FastAPI:
     """Resolve one configuration and protect all routes before accepting requests."""
     configured = configured if configured is not None else Settings()
     configured.require_web_configured()
-    app = FastAPI(title="Massey Smiles Admin")
+    app = FastAPI(title="Dental Practice Admin")
     app.state.settings = configured
     app.add_middleware(AccessControl, settings=configured)
     if configured.sign_in is SignIn.GOOGLE:

@@ -10,8 +10,8 @@ named records and operations; this skill does not authorise patient edits by its
 
 ## Configuration and browser setup
 
-- Staging UI origin: `https://staging.principle.dental`. The workspace is
-  **Massey Smiles Dental**. Do not infer the UI environment from API credentials.
+- Staging UI origin: `https://staging.principle.dental`. The workspace is the one named by
+  `PRINCIPLE_WORKSPACE_STAGING`. Do not infer the UI environment from API credentials.
 - Browser login uses `PRINCIPLE_UI_EMAIL_STAGING` and `PRINCIPLE_UI_PASSWORD_STAGING` in this repo's
   ignored `.env`. Do not depend on a sibling repository's configuration.
 - Reuse `dental_practice_admin.browser.session` and `browser.code`. The session owns
@@ -19,7 +19,7 @@ named records and operations; this skill does not authorise patient edits by its
   password field to disappear before taking screenshots or sending page text to an LLM.
 - Workspace selection is a dropdown. Its option text is not visible until it is opened.
   Several workspace names are similar. Match both the display name and the option's
-  `massey-smiles-dental` identifier on the full option element. Verify the configured
+  identifier on the full option element. Verify the configured
   workspace prefix after login; a different workspace must fail before the workflow starts.
 - Browser launch reporting a missing executable can mean sandbox access is denied to
   the installed Playwright browser directory. Check the actual error before installing
@@ -31,10 +31,10 @@ named records and operations; this skill does not authorise patient edits by its
   Increasing a timeout does not correct a bad route or a closed dropdown.
 - Workspace selection can produce the duplicated path
   `/principle-platform/principle-platform/schedule/timeline` or
-  `/massey-smiles/massey-smiles/schedule/timeline`. The rendered Patients/person sidebar
-  link for Massey Smiles uses `/massey-smiles/patients`. If the header says Principle
+  `/<slug>/<slug>/schedule/timeline`, where the slug is `PRINCIPLE_WORKSPACE_SLUG_STAGING`. The
+  rendered Patients/person sidebar link uses `/<slug>/patients`. If the header says Principle
   Platform and links start `/principle-platform/`, do not search or edit in that workspace:
-  navigate to the verified Massey Smiles route and confirm the patient identity there.
+  navigate to the configured workspace's route and confirm the patient identity there.
   Do not construct a route from the duplicated timeline URL. The global quick-search dialog
   returned no matches in these browser experiments; use the Patients page to investigate.
 - Search results can contain multiple patients with the same name. Bind the chosen

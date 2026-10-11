@@ -140,7 +140,7 @@ async def build_agent(deps: ChatDeps) -> Agent[AgentContext[StaffUser]]:
     """The agent for one turn. `deps.model` is the injection point tests use."""
     knowledge = distribution("dental-practice-admin").locate_file("dental_practice_admin/knowledge")
     return Agent[AgentContext[StaffUser]](
-        name="Massey Smiles Admin assistant",
+        name="Dental Practice Admin assistant",
         instructions=INSTRUCTIONS + "\n" + "\n".join(
             (knowledge / name).read_text(encoding="utf-8")
             for name in ("README.md", "website.md", "firestore.md")),

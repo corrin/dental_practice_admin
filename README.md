@@ -1,12 +1,13 @@
-# Massey Smiles Admin
+# Dental Practice Admin
 
-Administrative tooling for one dental practice, over [Principle
+Admin scripts and a staff chat for dental practices that use [Principle
 Dental](https://principle.dental), the patient management system. Staff get a small web page of task
 results and a chat interface; the application owns schedules and Windows launches its runner.
 
-Published in case it is useful to someone, not offered as a product. It is specific to how this
-practice works and deeply tied to Principle; there is no abstraction over the patient management
-system and none is wanted.
+Developed for and by Massey Smiles, and released to the world. It is deeply tied to Principle;
+there is no abstraction over the patient management system and none is wanted.
+[Installing at a practice](#installing-at-a-practice) takes a practice from a clean Windows Server
+to a working installation.
 
 It is small on purpose, judged by Greybeard's Simplicity First rather than a fixed line cap,
 because a tool one practice has to maintain should be a tool one person can read. The counter
@@ -55,8 +56,8 @@ can download Python when needed. After upgrading Python, run `uv sync --locked` 
 development directory before starting the application. On the server,
 [`scripts/install_server.ps1`](scripts/install_server.ps1) does this.
 
-The ordinary setup is Principle staging, Google login, real OpenAI, and ngrok at
-`https://massey-admin-dev.ngrok-free.app`. The command is
+The ordinary setup is Principle staging, Google login, real OpenAI, and your ngrok address. The
+command is
 `uv run python scripts/run.py --preset staging --sign-in google`.
 Stop it with Ctrl+C; the launcher stops its child processes. Only one local run can hold port
 8080: the launcher refuses to start while something else already has it.
@@ -64,7 +65,7 @@ Stop it with Ctrl+C; the launcher stops its child processes. Only one local run 
 Keep every setting in the gitignored `.env`. The fields of `Settings` in
 [`config.py`](src/dental_practice_admin/config.py) are the complete list, and startup names any
 that is missing; nothing falls back to a value in the code. Register the Google callback
-`https://massey-admin-dev.ngrok-free.app/auth/callback` and configure
+`https://<your ngrok address>/auth/callback` and configure
 `ADMIN_CHATKIT_DOMAIN_KEY` for that hostname. Install ngrok and authenticate it through its own
 configuration. Fake Principle credentials are accepted only by the simulation, not staging.
 
@@ -104,8 +105,8 @@ bodies and tokens remain in memory; callers must keep them out of logs and versi
 To run one practice task by hand and see what it produced:
 
 ```powershell
-uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet date=2026-09-28
-uv run python -m scripts.try_task ../admin_scripts/tasks/day_sheet --environment staging --real
+uv run python -m scripts.try_task ../your-tasks/tasks/day_sheet date=2026-09-28
+uv run python -m scripts.try_task ../your-tasks/tasks/day_sheet --environment staging --real
 ```
 
 It runs against the fake Principle, whose seeded day is 2026-09-28, saves the result, and
@@ -376,26 +377,83 @@ docs/adr/                rules for changing this codebase
 docs/principle/          what tasks have learned about Principle's website and Firestore
 ```
 
-## Deployment
+## Installing at a practice
 
-Before merging to `main`, run `scripts\release_gate.ps1` in this development checkout; it must end
-"Release checks passed" (its staging tier needs the recordings in `tests\recordings`). The server
-installs `main` with [`scripts/install_server.ps1`](scripts/install_server.ps1) (its header has
-the one command): the code from git, and each third-party library layer only when it changed.
+### What the practice needs
 
-Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher,
-both as the `practice-app` account. Runtime configuration lives in the server checkout's `.env`,
-which the service and the scheduled launcher both read.
+- An always-on **Windows Server 2019 or later** (Playwright's minimum) with internet access, and an
+  administrator account on it. The install script installs everything else.
+- A **hostname** for staff, such as `admin.your-practice.co.nz`: a DNS A record pointing at the
+  practice's public address, and the router forwarding TCP 80 and 443 to the server. Nothing else
+  on the server may use ports 80 or 443 (for example IIS).
+- A **Principle Dental** workspace: an API key, and a staff login the automation can use.
+- A **Google** account to own the sign-in client and the Maps key, and Google accounts for the
+  staff who will sign in.
+- An **OpenAI** API account.
+- An **Akahu** personal app on the practice's bank account. Akahu is New Zealand open banking;
+  the bank reconciliation page needs it.
+- A **private GitHub repository** for the practice's own tasks, with at least one commit.
 
-[`scripts/verify.ps1`](scripts/verify.ps1) is the gate — service identity, data directory outside
-the release, health endpoint naming its configured Principle, scheduled task registered without
-interactive logon, the launcher interval, and recent application schedule-check evidence.
-[`deploy/ACCEPTANCE.md`](deploy/ACCEPTANCE.md) holds what only a person can sign off:
-the reboot, the unattended run and the restore drill.
+Every setting is required: the application refuses to start with any missing.
 
-Practice tasks are installed through the app's Reports & scripts page. Reboot verification must
-include a due approved task, not just an empty poll.
+### Settings
 
-Caddy fronts the application; [`deploy/Caddyfile`](deploy/Caddyfile) is the configuration it runs.
-Access is open to the internet so staff can work from home, which makes the Google sign-in
-allowlist the only access control.
+The first run of the install script writes `C:\Program Files\DentalPracticeAdmin\.env` from
+[`deploy/production.env.example`](deploy/production.env.example) and stops. Fill in each `...`:
+
+| Setting | Where it comes from |
+| --- | --- |
+| `ADMIN_HOST` | The hostname above. |
+| `ADMIN_GOOGLE_CLIENT_ID`, `ADMIN_GOOGLE_CLIENT_SECRET` | Google Cloud console, APIs & Services, Credentials: create an OAuth client ID of type *Web application*, with authorised redirect URI `https://<ADMIN_HOST>/auth/callback`. Set up the OAuth consent screen first if asked. |
+| `ADMIN_SESSION_SECRET` | Any long random string, for example from `[guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')` in PowerShell. |
+| `ADMIN_STAFF_EMAILS`, `ADMIN_STAFF_DOMAIN` | Who may sign in: Google addresses separated by commas, a Google Workspace domain, or both. Set the one not used to `""`. |
+| `OPENAI_API_KEY` | platform.openai.com, API keys. |
+| `ADMIN_CHATKIT_DOMAIN_KEY` | The OpenAI platform's domain allowlist: add `ADMIN_HOST`; it shows the domain's public key. |
+| `ADMIN_AGENT_MODEL` | A model name the key can use (`GET https://api.openai.com/v1/models` lists them). |
+| `PRINCIPLE_API_KEY_PROD` | Principle issues workspace API keys; ask Principle if the workspace has none. |
+| `PRINCIPLE_PRACTICE_ID_PROD` | `(Invoke-RestMethod https://api.principle.dental/v1/practices -Headers @{ 'X-API-Key' = '<API key>' }).data \| Select-Object id, name` |
+| `PRINCIPLE_UI_EMAIL_PROD`, `PRINCIPLE_UI_PASSWORD_PROD` | The Principle staff login for automation. |
+| `PRINCIPLE_FIRESTORE_ROOT_PROD` | Sign in at app.principle.dental in Chrome with that login and open the workspace. In DevTools (F12), Network, filter `firestore`: request paths contain `documents/organisations/<org>/brands/<brand>/`. The setting is `organisations/<org>/brands/<brand>`. |
+| `PRINCIPLE_WORKSPACE_PROD`, `PRINCIPLE_WORKSPACE_SLUG_PROD` | The workspace's name exactly as Principle's workspace list shows it, and the segment after `app.principle.dental/` in its page addresses. |
+| `AKAHU_APP_TOKEN`, `AKAHU_USER_TOKEN` | my.akahu.nz/developers: create a personal app and connect the practice's account; it shows both tokens. |
+| `ADMIN_GOOGLE_MAPS_API_KEY` | Google Cloud console: enable the Geocoding API and create an API key. |
+| `ADMIN_TASK_REPOSITORY` | `owner/repository`, the private task repository. |
+| `ADMIN_GITHUB_TOKEN` | GitHub, Settings, Developer settings, fine-grained token for that repository with read and write on Contents and Pull requests. |
+
+The template already holds the values that are the same for every practice, including
+Principle's public web-app Firebase settings.
+
+### Install and upgrade
+
+In an elevated PowerShell on the server, from any folder but the installation's own:
+
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/corrin/dental_practice_admin/main/scripts/install_server.ps1 -OutFile $env:TEMP\install_server.ps1; Set-ExecutionPolicy Bypass -Scope Process -Force; & $env:TEMP\install_server.ps1
+```
+
+It asks for a password for `practice-app`, the account the application runs as, and creates the
+account on the first run. Keep the password: every run asks for it. It installs Git, uv, Node.js
+and Caddy, the application, its service and its five-minute launcher, and Caddy for `ADMIN_HOST`.
+It stops at the first problem and says what it needs; run it again once that is fixed. The same
+command upgrades, and installs only the libraries that changed. `-Ref <commit>` installs an
+earlier commit, to roll back.
+
+Then run `C:\Program Files\DentalPracticeAdmin\scripts\verify.ps1`, open `https://<ADMIN_HOST>`
+and sign in. [`deploy/ACCEPTANCE.md`](deploy/ACCEPTANCE.md) holds what only a person can sign
+off: the reboot, the unattended run and the restore drill. Back up `C:\ProgramData\DentalPracticeAdmin`.
+
+Tasks come from the practice's private repository, installed through the app's Reports & scripts
+page.
+
+### How it runs
+
+One Uvicorn process under WinSW and one five-minute Task Scheduler launcher, both as
+`practice-app`, reading the installation's `.env`. Caddy fronts the application with HTTPS
+([`deploy/Caddyfile`](deploy/Caddyfile)); other services on the same server add their own site
+files to `C:\ProgramData\Caddy\sites`. Access is open to the internet so staff can work from
+home, which makes the Google sign-in allowlist the only access control.
+
+## Releasing
+
+Before merging to `main`, run `scripts\release_gate.ps1` in a development checkout; it must end
+"Release checks passed" (its staging tier needs the recordings in `tests\recordings`).

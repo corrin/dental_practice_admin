@@ -1,6 +1,6 @@
 """Staging only: the address the website's verified-address picker saves.
 
-    uv run python -m scripts.address_picker_probe PATIENT_ID "575 Don Buck Road, Massey"
+    uv run python -m scripts.address_picker_probe PATIENT_ID "BUSINESS ADDRESS"
 
 Types the address into a staging patient's edit dialog, picks the first suggestion, saves, and
 prints the address the API then holds and the names of any other fields the save changed,
@@ -11,14 +11,12 @@ docs/principle/patient-writes.md records what it showed.
 from __future__ import annotations
 
 import argparse
-import re
 
 import httpx2 as httpx
 from scripts.check_staging import UI_URL, staging_browser
 
 from dental_practice_admin.config import Environment, Settings
 
-WORKSPACE = re.compile(r"^\s*Massey Smiles Dental\s*massey-smiles-dental\s*$")
 REQUIRED = ("name", "dateOfBirth", "gender", "email")
 
 
@@ -39,8 +37,8 @@ def main() -> int:
                 target = f"/{settings.workspace_slug}/patients/{args.patient_id}"
                 session.login(settings.ui_email, settings.ui_password.get_secret_value(),
                               target)
-                page.get_by_placeholder("Search Workspaces").press_sequentially("Massey")
-                page.get_by_role("option", name=WORKSPACE).click()
+                page.get_by_placeholder("Search Workspaces").press_sequentially(settings.workspace)
+                page.get_by_role("option", name=settings.workspace).first.click()
                 page.wait_for_url(lambda url: "/login" not in url, timeout=60000)
                 page.goto(UI_URL + target)
                 page.locator("pr-patient-address").wait_for(timeout=60000)

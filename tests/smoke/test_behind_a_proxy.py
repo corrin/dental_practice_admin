@@ -1,7 +1,7 @@
 """The application must know its own public origin when Caddy is in front of it.
 
 Behind a reverse proxy the socket says `127.0.0.1:8080` and the browser says
-`https://admin.massey-smiles.co.nz`. Anything the application builds from the former is wrong, and
+`https://admin.example.test`. Anything the application builds from the former is wrong, and
 the Google OAuth redirect is exact-match: a redirect naming the internal host is refused by Google
 and sign-in fails for everyone.
 
@@ -16,7 +16,7 @@ import pytest
 
 pytestmark = pytest.mark.smoke
 
-PUBLIC_HOST = "admin.massey-smiles.co.nz"
+PUBLIC_HOST = "admin.example.test"
 
 # What Caddy puts on every proxied request.
 CADDY_HEADERS = {

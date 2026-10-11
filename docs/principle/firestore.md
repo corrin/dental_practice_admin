@@ -34,7 +34,7 @@ patient ID the API and web URLs use.
 build `main.ecfbec0077a05029.js`.
 
 The staging login reaches more than one organisation and brand holding patients. Only one
-pair belongs to the Massey Smiles Dental workspace; the others return different patients or
+pair belongs to the practice's workspace; the others return different patients or
 none. A document path built from the wrong pair returns 404, not an error about permissions.
 
 ## Patient documents
@@ -87,7 +87,7 @@ the month before had a step charted to a tooth. Shapes that need those come from
 
 ## Production
 
-**What:** production's Massey Smiles workspace uses the same organisation and brand IDs as
+**What:** a practice's production workspace uses the same organisation and brand IDs as
 staging, because staging is a copy of production. The root is `PRINCIPLE_FIRESTORE_ROOT_PROD`.
 **Verified:** document paths observed while the production timeline loaded, then a document
 read under the root. Production, 2026-10-10, build `main.8e7a8bfa2c5bf44c.js`.
@@ -158,7 +158,7 @@ date. Production, 2026-10-10, build `main.8e7a8bfa2c5bf44c.js`.
 roster item's `delete` modifier and creates a `calendarEvents` document with the roster's
 `event.type` (`break`), its `title`, the edited `event.from`/`to`, the staff member in
 `event.participantRefs`, and `scheduleRef` pointing back to the roster item.
-**Verified:** Andrea's 2026-10-12 lunch, edited on 2026-09-28. Production, 2026-10-10, build
+**Verified:** a staff member's 2026-10-12 lunch break, edited on 2026-09-28. Production, 2026-10-10, build
 `main.8e7a8bfa2c5bf44c.js`.
 
 An `appointmentRequest` (an online booking not yet accepted) has `isBlocking: true` and the

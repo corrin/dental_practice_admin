@@ -10,11 +10,11 @@
 <service>
   <id>caddy</id>
   <name>Caddy</name>
-  <description>HTTPS for admin.massey-smiles.co.nz and office.massey-smiles.co.nz.</description>
+  <description>HTTPS for the admin application and any other sites in C:\ProgramData\Caddy\sites.</description>
 
   <!-- Chocolatey's copy, which scripts\install_server.ps1 installs and upgrades. -->
   <executable>C:\ProgramData\chocolatey\lib\caddy\tools\caddy.exe</executable>
-  <arguments>run --config C:\ProgramData\Caddy\Caddyfile --adapter caddyfile</arguments>
+  <arguments>run --config C:\ProgramData\Caddy\Caddyfile --adapter caddyfile --envfile C:\ProgramData\Caddy\caddy.env</arguments>
 
   <!-- Certificates and account keys go here rather than the service account's %AppData%, so
        backups of C:\ProgramData find them. -->

@@ -114,12 +114,9 @@ block an otherwise good read; the client works around the first and third:
    production patients with an unpaid invoice or a recent payment failed: 18 on a phone number,
    1 on an email address. On staging, 5 in 60. The reconcile page shows such a patient as
    unreadable and carries on.
-   - It also stopped the day sheet for every practitioner: 1 of the 15 patients booked on
-     2026-11-16. The day sheet takes that patient's name from the timeline card instead and
-     marks the sheet partial. Remove that fallback, the `getPatient` handler in admin_scripts'
-     `tasks/day_sheet/source.txt`, once Principle fixes this.
-   - The practice's own data is being cleaned: see
-     [the contact details plan](../plans/clean-contact-details.md).
+   - A task that reads every booked patient stops on one such patient (1 of 15 booked on one
+     production day). It can take the name from the timeline card instead and mark its result
+     partial until Principle fixes this.
    - *Request to Principle:* reject contact numbers and email addresses on entry that the
      specification doesn't allow, in the website and the API, or correct the specification to
      match what is stored.
