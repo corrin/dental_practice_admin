@@ -431,8 +431,9 @@ In an elevated PowerShell on the server, from any folder but the installation's 
 Invoke-WebRequest https://raw.githubusercontent.com/corrin/dental_practice_admin/main/scripts/install_server.ps1 -OutFile $env:TEMP\install_server.ps1; Set-ExecutionPolicy Bypass -Scope Process -Force; & $env:TEMP\install_server.ps1
 ```
 
-It asks for a password for `practice-app`, the account the application runs as, and creates the
-account on the first run. Keep the password: every run asks for it. It installs Git, uv, Node.js
+The first run asks for a password for `practice-app`, the account the application runs as, and
+creates the account; upgrades ask nothing. (If the service is ever missing, the run asks again:
+enter the same password, from where you keep it.) It installs Git, uv, Node.js
 and Caddy, the application, its service and its five-minute launcher, and Caddy for `ADMIN_HOST`.
 It stops at the first problem and says what it needs; run it again once that is fixed. The same
 command upgrades, and installs only the libraries that changed. `-Ref <commit>` installs an

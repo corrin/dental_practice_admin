@@ -10,9 +10,15 @@ $ErrorActionPreference = 'Stop'
 function Run { $ErrorActionPreference = 'Continue'; & $args[0] @($args | Select-Object -Skip 1); if ($LASTEXITCODE) { throw "failed (exit $LASTEXITCODE): $args" } }
 $root = 'C:\Program Files\DentalPracticeAdmin'
 $account = 'practice-app'
-# Read-Host gets nothing in a second powershell inside a remote session, hence & above.
-$password = Read-Host "Password for the $account account (the first install creates it with this)"
-if (-not $password) { throw 'No password entered.' }
+# Only a run that creates the account or sets up the service needs the password: Windows keeps it
+# for the service, and the launcher runs without one. Read-Host gets nothing in a second powershell
+# inside a remote session, hence & above.
+$password = $null
+$service = Get-CimInstance Win32_Service -Filter "Name='dental-practice-admin'"
+if (-not (Get-LocalUser $account -ErrorAction SilentlyContinue) -or -not $service -or $service.StartName -ne ".\$account") {
+    $password = Read-Host "Password for the $account account (a new one creates it; otherwise its existing password)"
+    if (-not $password) { throw 'No password entered.' }
+}
 # The app's own account: not an administrator, so a fault in it can't reach the rest of the server.
 if (-not (Get-LocalUser $account -ErrorAction SilentlyContinue)) {
     New-LocalUser $account -Password (ConvertTo-SecureString $password -AsPlainText -Force) -PasswordNeverExpires -AccountNeverExpires | Out-Null
@@ -99,7 +105,7 @@ try {
         Copy-Item $env:TEMP\winsw.exe dental-practice-admin.exe
         Run .\dental-practice-admin.exe install
     }
-    Run sc.exe config dental-practice-admin obj= ".\$account" password= $password
+    if ($password) { Run sc.exe config dental-practice-admin obj= ".\$account" password= $password }
     Start-Service dental-practice-admin
     $health = $null; $deadline = (Get-Date).AddMinutes(2)
     while (-not $health -and (Get-Date) -lt $deadline) { Start-Sleep 5; try { $health = Invoke-RestMethod http://127.0.0.1:8080/health } catch { } }
@@ -129,7 +135,9 @@ Run icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Admi
 if ($caddyfileChanged -and (Get-Service caddy).Status -eq 'Running') { Restart-Service caddy }
 Start-Service caddy
 if (-not (Get-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -Direction Inbound -Protocol TCP -LocalPort 80, 443 -Action Allow -Profile Any | Out-Null }
-Register-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner' -Xml (Get-Content deploy\task-runner.xml -Raw) -User $account -Password $password -Force | Out-Null
+# S4U: runs whether or not anyone is signed in, with no stored password; registering it for
+# another account needs an administrator, which this script is.
+Register-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner' -Xml (Get-Content deploy\task-runner.xml -Raw) -Force | Out-Null
 Remove-Item $env:TEMP\winsw.exe
 Remove-Item -Recurse -Force $env:TEMP\chocolatey -ErrorAction SilentlyContinue
 Write-Host "Done: $(git rev-parse --short HEAD)." -ForegroundColor Green
