@@ -140,7 +140,7 @@ if (-not (Get-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -ErrorAction S
 # stores no password, is refused here: Access is denied, even to an administrator.
 $registered = 'C:\ProgramData\DentalPracticeAdmin\task-runner.registered'
 $definition = (Get-FileHash deploy\task-runner.xml).Hash
-if (-not $launcher -or ((Test-Path $registered) -and (Get-Content $registered) -ne $definition)) {
+if (-not $launcher -or $launcher.Principal.LogonType -ne 'Password' -or ((Test-Path $registered) -and (Get-Content $registered) -ne $definition)) {
     if (-not $password) { $password = Read-Host "Password for the $account account (its existing password)" }
     if (-not $password) { throw 'No password entered; the scheduled launcher stays paused.' }
     Register-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner' -Xml (Get-Content deploy\task-runner.xml -Raw) -User $account -Password $password -Force | Out-Null
