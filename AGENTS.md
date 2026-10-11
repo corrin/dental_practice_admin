@@ -49,12 +49,14 @@ Patient privacy and unintended patient-facing actions are high-consequence failu
 existing access controls, and be especially careful with changes that send messages or modify the
 patient-management system.
 
-## One file of production install steps
+## Installing is one script
 
-[`deploy/RELEASE.md`](deploy/RELEASE.md) is the only place production install and release steps
-live, for every workstream. Work that needs something done on the production host (a setting, a
-service, a scheduled task, a one-off step) adds it there in the same pull request. Plans and
-READMEs link to it rather than repeat its steps.
+The production host installs and upgrades with [`scripts/install_server.ps1`](scripts/install_server.ps1)
+and nothing else; there is no runbook to follow. Work that needs something on the production host
+(a setting, a service, a scheduled task) makes the script do it, or say what it needs, in the same
+pull request; a new setting goes in [`deploy/production.env.example`](deploy/production.env.example).
+What each practice computer has, and how to rebuild it, is the practice's computer setup guide in
+Google Docs, whose link stays out of this public repository.
 
 ## Keep work in a pull request
 

@@ -82,7 +82,7 @@ jobs:
         run: uv run python -m scripts.code_size
 
   # Every change to main that passes becomes a release the server installs with
-  # scripts/install_server.ps1 (deploy/RELEASE.md). Nothing is built on the server.
+  # scripts/install_server.ps1. Nothing is built on the server.
   release:
     needs: [changes, hermetic]
     if: ${{ github.event_name == 'push' && !cancelled() && needs.hermetic.result != 'failure' }}

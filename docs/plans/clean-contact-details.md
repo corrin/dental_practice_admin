@@ -135,6 +135,5 @@ Still to do: the day sheet naming the patient whose record could not be read.
 
 **Rollout.** Done: the staging proof that a write changes only its field and contacts nobody
 ([patient-writes.md](../principle/patient-writes.md)), and a production dry run. Next: install
-on the production host ([deploy/RELEASE.md](../../deploy/RELEASE.md), "Practice tasks and
-schedules"), apply to five
+on the production host through Reports & scripts, apply to five
 patients and check nothing was sent, then the rest in batches, then schedule daily.

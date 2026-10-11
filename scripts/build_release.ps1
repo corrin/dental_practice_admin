@@ -1,4 +1,4 @@
-# Builds the self-contained release the server installs (deploy\RELEASE.md): this commit's files,
+# Builds the self-contained release scripts\install_server.ps1 installs: this commit's files,
 # a standalone Python with every runtime package installed, node_modules and the browser.
 # Nothing is built or downloaded on the server. Output: build\dental-practice-admin.zip.
 $ErrorActionPreference = 'Stop'

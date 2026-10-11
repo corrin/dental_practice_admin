@@ -4,7 +4,7 @@
   runs `caddy-service.exe install`. Caddy's own documentation offers this or sc.exe; one wrapper for
   both services means one way to start, stop and read logs.
 
-  It runs as its own virtual account, NT SERVICE\caddy: see deploy/RELEASE.md. The
+  It runs as its own virtual account, NT SERVICE\caddy, which install_server.ps1 sets. The
   Caddyfile says how a change to it takes effect.
 -->
 <service>

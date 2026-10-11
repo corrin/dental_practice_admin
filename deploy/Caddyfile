@@ -105,7 +105,7 @@ office.massey-smiles.co.nz {
 		-Server
 	}
 
-	# SMS_Bridge runs on this server, installed in RELEASE.md's "Caddy, DNS and the router" step.
+	# SMS_Bridge runs on this server; its PRODUCTION.md says how it is installed.
 	reverse_proxy 127.0.0.1:5170 {
 		header_up X-Real-IP {remote_host}
 	}
