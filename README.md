@@ -384,7 +384,7 @@ installs `main` with [`scripts/install_server.ps1`](scripts/install_server.ps1) 
 the one command): the code from git, and each third-party library layer only when it changed.
 
 Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher,
-both as the `practice-app` account. Runtime configuration lives in the release folder's `.env`,
+both as the `practice-app` account. Runtime configuration lives in the server checkout's `.env`,
 which the service and the scheduled launcher both read.
 
 [`scripts/verify.ps1`](scripts/verify.ps1) is the gate — service identity, data directory outside

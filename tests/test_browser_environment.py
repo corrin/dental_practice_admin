@@ -7,7 +7,7 @@ from dental_practice_admin import browser
 from tests.settings import fake_settings
 
 
-def test_a_release_runs_the_browser_it_carries(
+def test_the_server_runs_the_browser_beside_the_app(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """On the server, the install puts the browser in ms-playwright beside the app."""
