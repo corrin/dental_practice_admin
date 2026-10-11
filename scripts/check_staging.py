@@ -138,13 +138,16 @@ def staging_browser(headed: bool = False) -> Iterator[StagingBrowser]:
             browser.close()
 
 
-def check_browser(env_file: Path, workspace: str, headed: bool) -> dict[str, Any]:
+def check_browser(env_file: Path, workspace: str | None, headed: bool) -> dict[str, Any]:
     """Check workspace access and at most three observed Firestore document references."""
     values = {**dotenv_values(env_file), **os.environ}
     email = values.get("PRINCIPLE_UI_EMAIL")
     password = values.get("PRINCIPLE_UI_PASSWORD")
     if not email or not password:
         raise ValueError("PRINCIPLE_UI_EMAIL and PRINCIPLE_UI_PASSWORD are required")
+    workspace = workspace or values.get("PRINCIPLE_WORKSPACE_STAGING")
+    if not workspace:
+        raise ValueError("--workspace or PRINCIPLE_WORKSPACE_STAGING is required")
     with staging_browser(headed) as session:
         session.login(email, password)
         page = session.page
@@ -185,7 +188,7 @@ def main() -> int:
     parser.add_argument(
         "--ui-env-file", type=Path, help="Explicit separate browser credentials file"
     )
-    parser.add_argument("--workspace", default="Massey Smiles")
+    parser.add_argument("--workspace", help="default: PRINCIPLE_WORKSPACE_STAGING")
     parser.add_argument("--headed", action="store_true")
     args = parser.parse_args()
     results: dict[str, Any] = {}

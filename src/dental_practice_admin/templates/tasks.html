@@ -32,7 +32,7 @@ Running… Your results will open here when ready.</div>
 <input id="schedule-id" type="hidden">
 <div class="row g-3"><div class="col-sm-6"><label for="weekdays" class="form-label">Days</label>
 <select id="weekdays" class="form-select">{% for value, label in days.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
-<div class="col-sm-6"><label for="at" class="form-label">Time (Auckland)</label><input id="at" class="form-control" type="time" value="16:00" required></div></div>
+<div class="col-sm-6"><label for="at" class="form-label">Time</label><input id="at" class="form-control" type="time" value="16:00" required></div></div>
 <label for="minutes" class="form-label mt-3">Frequency</label>
 <select id="minutes" class="form-select"><option value="0">Once on the selected days</option>
 {% for minutes in [5, 10, 15, 30, 60, 120] %}<option value="{{ minutes }}">Every {{ minutes }} minutes, every day</option>{% endfor %}</select>

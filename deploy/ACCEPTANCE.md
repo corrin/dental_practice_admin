@@ -19,7 +19,7 @@ of this is worth doing.
 - [ ] **Clean review.** Create a synthetic task PR in the private practice repository. Confirm
       it contains only source, input contract and synthetic tests, then merge and install it.
 - [ ] **Launcher migration.** Remove the old per-diary Windows task. Register `task-runner.xml`
-      as `Massey Smiles Admin\Task runner` and verify its five-minute repetition.
+      as `Dental Practice Admin\Task runner` and verify its five-minute repetition.
 - [ ] **The service account, not yours.** Confirm `verify.ps1` reports a designated account.
       Check the data directory permissions for that account and complete an actual scheduled run;
       an operator being able to write there does not prove the service account can.

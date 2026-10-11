@@ -17,7 +17,7 @@ such as `mat-input-42` change between visits.
 
 **What:** after the email and password form, a workspace picker appears. Type into its search
 box first; options appear only after typing. The staging login has several workspaces whose
-names start "Massey Smiles", so match the exact option, not a substring.
+names are similar, so match the exact option, not a substring.
 **Verified:** [the staging address round-trip experiment](https://github.com/corrin/dental_practice_admin/blob/84daa1a/scripts/address_via_browser.py). Staging, 2026-10-01, build
 `main.ecfbec0077a05029.js`.
 
@@ -100,8 +100,8 @@ The disabled list is inside a collapsible container following its heading, where
 list is directly beside its heading. Selecting only the immediate sibling for both lists
 does not select the disabled navigation list.
 
-Verified on staging, 2026-10-03, by the private practice task
-[`count_staff_user_accounts`](https://github.com/massey-reception-coder/admin_scripts/pull/4).
+Verified on staging, 2026-10-03, by a practice's private task,
+`count_staff_user_accounts`.
 Its source owns the selectors and synthetic tests. The corrected candidate passed an explicit
 test run, was saved without another execution, and then ran from Reports & scripts with
 matching account totals. Runtime inputs, account identities and audits remain on the host.

@@ -49,7 +49,7 @@ Check 'Service opens its database and reports production' {
     'production readiness confirmed under the running service identity'
 }
 Check 'Application schedule launcher is configured for unattended execution' {
-    $task = Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner'
+    $task = Get-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner'
     if ($task.State -eq 'Disabled') { throw 'task is disabled' }
     if ($task.Principal.LogonType -ne 'Password') { throw 'task needs an unattended Password logon' }
     if ($task.Actions.Count -ne 1) { throw 'expected one launcher action' }

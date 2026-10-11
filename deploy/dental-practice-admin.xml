@@ -7,7 +7,7 @@
 -->
 <service>
   <id>dental-practice-admin</id>
-  <name>Massey Smiles Admin</name>
+  <name>Dental Practice Admin</name>
   <description>Staff pages and run history for the practice, over Principle Dental.</description>
 
   <executable>%BASE%\.venv\Scripts\python.exe</executable>

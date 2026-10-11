@@ -16,15 +16,23 @@ can recognise every patient, so real data has no place here at all.
 
 - Staging holds the same real patients as production; it is only disconnected from the practice.
   Everything here about production data applies to staging data too.
-- Production reads, captures and reports go under `ADMIN_DATA_ROOT`, or into the private practice
-  repository `massey-reception-coder/admin_scripts`. Never into this checkout.
+- Production reads, captures and reports go under `ADMIN_DATA_ROOT`, or into the practice's
+  private task repository (`ADMIN_TASK_REPOSITORY`). Never into this checkout.
 - Findings from production enter `docs/` as counts and shapes ("19 of 287 patients break the
   specification"), never as records, names or identifiers.
 - Test data is invented, and every invented person carries the `Fake` marker in their name.
 
+## For any practice on Principle
+
+This repository is for any dental practice that uses Principle and wants admin scripts. It was
+developed for and by Massey Smiles, which the README says, but nothing in it may assume one
+practice: no hostnames, addresses, account names, people, workspaces or IDs. Those come from the
+practice's `.env`, its private task repository, or its own records. `scripts/scan_for_leaks.py`
+refuses any value from `.env` that isn't public by nature.
+
 ## Minimise ongoing maintenance
 
-This is an internal application for one six-person dental practice. Scale is not a concern.
+Each installation serves one small practice. Scale is not a concern.
 
 Judge engineering decisions by their ongoing maintenance cost, not their implementation effort.
 
@@ -54,9 +62,9 @@ patient-management system.
 The production host installs and upgrades with [`scripts/install_server.ps1`](scripts/install_server.ps1)
 and nothing else; there is no runbook to follow. Work that needs something on the production host
 (a setting, a service, a scheduled task) makes the script do it, or say what it needs, in the same
-pull request; a new setting goes in [`deploy/production.env.example`](deploy/production.env.example).
-What each practice computer has, and how to rebuild it, is the practice's computer setup guide in
-Google Docs, whose link stays out of this public repository.
+pull request; a new setting goes in [`deploy/production.env.example`](deploy/production.env.example),
+and the README's setup section says where its value comes from. A practice following the README
+from a clean Windows Server must end with a working installation.
 
 ## Keep work in a pull request
 

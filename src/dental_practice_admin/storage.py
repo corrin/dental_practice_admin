@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS interface_warnings (
     last_seen TEXT NOT NULL
 );
 
--- Bank reconciliation (docs/plans/bank-reconciliation.md). A deposit is kept by its Akahu id
+-- Bank reconciliation (docs/bank-reconciliation.md). A deposit is kept by its Akahu id
 -- with a status, so an unfinished visit to the page never loses one.
 CREATE TABLE IF NOT EXISTS bank_deposits (
     akahu_id     TEXT PRIMARY KEY,

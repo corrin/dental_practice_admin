@@ -22,7 +22,6 @@ from dental_practice_admin.config import Settings
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 
 POLL_SECONDS = 300
-TIMEZONE = "Pacific/Auckland"
 
 
 class ScheduleStore(BaseScheduler):  # type: ignore[misc]
@@ -45,7 +44,7 @@ def open_schedules(settings: Settings) -> Iterator[Any]:
     """Serialize APScheduler job-store access across web and launcher processes."""
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     with portalocker.Lock(str(settings.data_dir / "schedules.lock"), timeout=30):
-        scheduler = ScheduleStore(timezone=TIMEZONE, jobstores={"default":
+        scheduler = ScheduleStore(jobstores={"default":
             SQLAlchemyJobStore(url="sqlite:///" + settings.database_path.as_posix())})
         scheduler.start(paused=True)
         try:
@@ -124,12 +123,11 @@ class Schedule(BaseModel):
         return self
 
     def trigger(self) -> Any:
-        """Let APScheduler own intervals, weekdays and daylight-saving calculations."""
+        """APScheduler owns intervals, weekdays and daylight saving, in the server's zone."""
         if self.minutes:
-            return IntervalTrigger(minutes=self.minutes, timezone=TIMEZONE)
+            return IntervalTrigger(minutes=self.minutes)
         hour, minute = self.at.split(":")
-        return CronTrigger(hour=int(hour), minute=int(minute), day_of_week=self.weekdays,
-                           timezone=TIMEZONE)
+        return CronTrigger(hour=int(hour), minute=int(minute), day_of_week=self.weekdays)
 
 
 def scheduled_task(name: str, revision: str, inputs: dict[str, Any]) -> None:

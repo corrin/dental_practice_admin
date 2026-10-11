@@ -11,7 +11,7 @@ function Run { $ErrorActionPreference = 'Continue'; & $args[0] @($args | Select-
 $root = 'C:\Program Files\DentalPracticeAdmin'
 $account = 'practice-app'
 # Read-Host gets nothing in a second powershell inside a remote session, hence & above.
-$password = Read-Host "$account password (from 1Password)"
+$password = Read-Host "Password for the $account account (the first install creates it with this)"
 if (-not $password) { throw 'No password entered.' }
 # The app's own account: not an administrator, so a fault in it can't reach the rest of the server.
 if (-not (Get-LocalUser $account -ErrorAction SilentlyContinue)) {
@@ -55,11 +55,13 @@ if (-not (Test-Path .env)) {
     throw "Fill in every '...' in $root\.env (its comments say what each is), then run this again."
 }
 if (Select-String -Path .env -Pattern '^[A-Z_]+=.*\.\.\.' -Quiet) { throw "$root\.env still has a '...' value: fill it in, then run this again." }
+$adminHost = (Get-Content .env | Where-Object { $_ -match '^ADMIN_HOST=' }) -replace '^ADMIN_HOST=' -replace '"'
+if (-not $adminHost) { throw "Add ADMIN_HOST=<the public hostname> to $root\.env (deploy\production.env.example says more), then run this again." }
 Run icacls .env /inheritance:r /grant:r 'SYSTEM:F' 'Administrators:F' "$($account):R"
 
 # Stopping the app ends any run mid-write: pause the launcher, and refuse while a run is in progress.
-$launcher = Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner' -ErrorAction SilentlyContinue
-if ($launcher) { $launcher | Disable-ScheduledTask | Out-Null; while ((Get-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner').State -eq 'Running') { Start-Sleep 5 } }
+$launcher = Get-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner' -ErrorAction SilentlyContinue
+if ($launcher) { $launcher | Disable-ScheduledTask | Out-Null; while ((Get-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner').State -eq 'Running') { Start-Sleep 5 } }
 try {
     $running = 0
     if ((Get-Service dental-practice-admin -ErrorAction SilentlyContinue) -and (Test-Path .venv\Scripts\python.exe)) {
@@ -107,10 +109,15 @@ try {
     throw
 }
 
-# Caddy (installed here, first started at the switch), firewall, launcher
-$caddyfileChanged = -not (Test-Path C:\ProgramData\Caddy\Caddyfile) -or (Get-FileHash deploy\Caddyfile).Hash -ne (Get-FileHash C:\ProgramData\Caddy\Caddyfile).Hash
+# Caddy, firewall, launcher. The Caddyfile reads ADMIN_HOST from caddy.env; other services on this
+# server add their own sites to C:\ProgramData\Caddy\sites.
+$caddyConfig = { (Get-Content C:\ProgramData\Caddy\Caddyfile, C:\ProgramData\Caddy\caddy.env -Raw -ErrorAction SilentlyContinue) -join '' }
+$before = & $caddyConfig
+New-Item -ItemType Directory -Force C:\ProgramData\Caddy\sites | Out-Null
 Copy-Item deploy\Caddyfile C:\ProgramData\Caddy\Caddyfile
-Run caddy validate --config C:\ProgramData\Caddy\Caddyfile --adapter caddyfile
+Set-Content C:\ProgramData\Caddy\caddy.env "ADMIN_HOST=$adminHost"
+$caddyfileChanged = (& $caddyConfig) -ne $before
+Run caddy validate --config C:\ProgramData\Caddy\Caddyfile --adapter caddyfile --envfile C:\ProgramData\Caddy\caddy.env
 New-Item -ItemType Directory -Force 'C:\Program Files\Caddy' | Out-Null
 Copy-Item deploy\caddy-service.xml 'C:\Program Files\Caddy'
 if (-not (Get-Service caddy -ErrorAction SilentlyContinue)) {
@@ -120,8 +127,9 @@ if (-not (Get-Service caddy -ErrorAction SilentlyContinue)) {
 }
 Run icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' 'NT SERVICE\caddy:(OI)(CI)M'
 if ($caddyfileChanged -and (Get-Service caddy).Status -eq 'Running') { Restart-Service caddy }
+Start-Service caddy
 if (-not (Get-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -Direction Inbound -Protocol TCP -LocalPort 80, 443 -Action Allow -Profile Any | Out-Null }
-Register-ScheduledTask -TaskPath '\Massey Smiles Admin\' -TaskName 'Task runner' -Xml (Get-Content deploy\task-runner.xml -Raw) -User $account -Password $password -Force | Out-Null
+Register-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner' -Xml (Get-Content deploy\task-runner.xml -Raw) -User $account -Password $password -Force | Out-Null
 Remove-Item $env:TEMP\winsw.exe
 Remove-Item -Recurse -Force $env:TEMP\chocolatey -ErrorAction SilentlyContinue
 Write-Host "Done: $(git rev-parse --short HEAD)." -ForegroundColor Green

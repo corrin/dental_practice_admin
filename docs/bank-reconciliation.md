@@ -145,8 +145,8 @@ individual. A rule-classified deposit is labelled **Rule**.
 
 ### Batch deposits: deposit slip against a clearing queue
 Copied from:
-- [Open Dental's deposit slip](https://www.opendental.com/manual/depositslip.html), the system
-  this practice used before Principle;
+- [Open Dental's deposit slip](https://www.opendental.com/manual/depositslip.html), a dental system
+  many practices used before Principle;
 - the clearing account per card channel that
   [Cliniko](https://help.cliniko.com/en/articles/1023944-reconcile-in-xero-when-using-the-cliniko-integration)
   and Core Practice recommend;

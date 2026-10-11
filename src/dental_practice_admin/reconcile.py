@@ -1,4 +1,4 @@
-"""Bank reconciliation, Phase 1: every deposit, matched by hand (docs/plans/bank-reconciliation.md).
+"""Bank reconciliation, Phase 1: every deposit, matched by hand (docs/bank-reconciliation.md).
 
 Showing the page reads only this app's database. Fetch now reads Akahu and Principle into it.
 Principle is never written: a match records which payments or invoices a deposit was for, and

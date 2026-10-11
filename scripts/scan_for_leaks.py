@@ -35,8 +35,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Values in .env that are not secret, and which do legitimately appear in tracked files: the
-# practice's own domain in a Caddyfile, a localhost URL in documentation, a model name.
+# Values in .env that are not secret, and which do legitimately appear in tracked files: a
+# localhost URL in documentation, a model name. A practice's own values (its domain, workspace,
+# task repository) are not here: this repository is for any practice, so they never belong in it.
 PUBLIC_SETTINGS = frozenset(
     {
         "PRINCIPLE_ENVIRONMENT",
@@ -47,17 +48,17 @@ PUBLIC_SETTINGS = frozenset(
         "ADMIN_SIGN_IN",
         "ADMIN_DATA_ROOT",
         "ADMIN_AGENT_MODEL",
-        "ADMIN_STAFF_DOMAIN",
-        # The workspace's URL segment, also the practice's public hostname.
-        "PRINCIPLE_WORKSPACE_SLUG_STAGING",
-        "PRINCIPLE_WORKSPACE_SLUG_PROD",
         # Rendered into the chat page by design; public by construction.
         "ADMIN_CHATKIT_DOMAIN_KEY",
         "OPENAI_BASE_URL",
         "AKAHU_BASE_URL",
         "ADMIN_PUBLIC_BASE_URL",
-        "ADMIN_TASK_REPOSITORY",
         "ADMIN_PLAYWRIGHT_MCP_PATH",
+        # Principle's own web app settings, the same for every practice: public in its web app.
+        "PRINCIPLE_FIREBASE_KEY_STAGING",
+        "PRINCIPLE_FIREBASE_PROJECT_STAGING",
+        "PRINCIPLE_FIREBASE_KEY_PROD",
+        "PRINCIPLE_FIREBASE_PROJECT_PROD",
     }
 )
 

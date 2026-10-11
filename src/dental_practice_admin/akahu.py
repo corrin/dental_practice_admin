@@ -3,7 +3,7 @@
 Requests follow a working daily sync (github.com/corrin/akahu_to_budget,
 modules/transaction_handler.py): the user token as bearer, the app token as `X-Akahu-ID`,
 and transactions paged by `cursor.next`. Field meanings were checked against the practice's
-account in Phase 0 of docs/plans/bank-reconciliation.md.
+account in Phase 0 of docs/bank-reconciliation.md.
 """
 from __future__ import annotations
 

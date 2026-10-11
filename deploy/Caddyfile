@@ -1,32 +1,21 @@
-# Caddy, on the server, fronting both practice services on one public IP.
+# Caddy, on the server: HTTPS for the admin application on the practice's public address.
 #
-#                        router :80/:443  ->  server
-#                                |
-#                           Caddy (this file)
-#                                |
-#          +---------------------+--------------------------+
-#          |                                                |
-#   admin.massey-smiles.co.nz                 office.massey-smiles.co.nz
-#   -> 127.0.0.1:8080  (this machine)         -> 127.0.0.1:5170  (this machine)
-#      dental_practice_admin                           SMS_Bridge, /smsgateway/*
+#   router :80/:443  ->  this server  ->  Caddy (this file)  ->  127.0.0.1:8080, the application
 #
-# Both names are A records pointing at the SAME public IP. Caddy tells them apart by the Host
-# header, and obtains a separate certificate for each, so one port forward serves both services.
+# ADMIN_HOST, the public hostname, comes from the server's .env: install_server.ps1 copies it to
+# C:\ProgramData\Caddy\caddy.env, which the service passes to Caddy with --envfile. Its DNS A
+# record points at the practice's public address.
 #
-# A subdomain rather than a path for the admin application is deliberate: no path prefix means the
-# application needs no URL rewriting, and its session cookie stays scoped to its own host instead
-# of being sent to SMS_Bridge on every request.
+# Other services on the same server and address add their own site files to
+# C:\ProgramData\Caddy\sites. Caddy tells sites apart by the Host header and obtains a certificate
+# for each, so one port forward serves them all.
 #
-# Stock Caddy runs this file as written. Nothing here needs a plugin or a custom build, so Caddy
-# keeps updating itself.
+# Stock Caddy runs this file as written. Nothing here needs a plugin or a custom build.
 #
 # Access is open to the internet by decision: the Google sign-in allowlist is the gate, so staff
 # can work from home without a VPN.
 
 {
-	# Let's Encrypt registration. A real address, because expiry warnings go here.
-	email corrin@morrissheetmetal.co.nz
-
 	servers {
 		trusted_proxies static private_ranges
 	}
@@ -42,7 +31,7 @@
 # The Google sign-in allowlist is the only access control. Nothing in this file restricts who may
 # reach the sign-in page.
 # ---------------------------------------------------------------------------
-admin.massey-smiles.co.nz {
+{$ADMIN_HOST} {
 	encode zstd gzip
 
 	log {
@@ -81,32 +70,5 @@ admin.massey-smiles.co.nz {
 	}
 }
 
-# ---------------------------------------------------------------------------
-# SMS_Bridge -- the address Principle's webhook is registered against.
-#
-# The webhook points at https://office.massey-smiles.co.nz/smsgateway/webhooks/principle. Serving
-# the name here keeps that URL and its certificate alive wherever the bridge itself runs, and SMS
-# ingress depends on this server being up.
-# ---------------------------------------------------------------------------
-office.massey-smiles.co.nz {
-	encode zstd gzip
-
-	log {
-		output file C:/ProgramData/Caddy/logs/office-access.log {
-			roll_size 10mb
-			roll_keep 30
-		}
-		format json
-	}
-
-	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options "nosniff"
-		-Server
-	}
-
-	# SMS_Bridge runs on this server; its PRODUCTION.md says how it is installed.
-	reverse_proxy 127.0.0.1:5170 {
-		header_up X-Real-IP {remote_host}
-	}
-}
+# Other services' sites. None is a warning, not an error.
+import C:/ProgramData/Caddy/sites/*
