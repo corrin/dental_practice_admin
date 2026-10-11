@@ -52,8 +52,8 @@ Python 3.14 is required. Run `uv sync --locked` once, then use
 **Terminal > Run Task > Run** in VS Code. uv selects a compatible interpreter from
 [`pyproject.toml`](pyproject.toml) and recreates an incompatible project virtual environment; it
 can download Python when needed. After upgrading Python, run `uv sync --locked` again in each
-development directory before starting the application. The server runs a prebuilt release
-instead, which [`scripts/install_server.ps1`](scripts/install_server.ps1) installs.
+development directory before starting the application. On the server,
+[`scripts/install_server.ps1`](scripts/install_server.ps1) does this.
 
 The ordinary setup is Principle staging, Google login, real OpenAI, and ngrok at
 `https://massey-admin-dev.ngrok-free.app`. The command is
@@ -379,15 +379,13 @@ docs/principle/          what tasks have learned about Principle's website and F
 ## Deployment
 
 Before merging to `main`, run `scripts\release_gate.ps1` in this development checkout; it must end
-"Release checks passed" (its staging tier needs the recordings in `tests\recordings`). CI then
-builds a release ([`scripts/build_release.ps1`](scripts/build_release.ps1): the app, its own
-Python with every package, `node_modules` and the browser) and publishes it on GitHub.
-[`scripts/install_server.ps1`](scripts/install_server.ps1), run on the server, installs or upgrades
-to it and says anything it needs.
+"Release checks passed" (its staging tier needs the recordings in `tests\recordings`). The server
+installs `main` with [`scripts/install_server.ps1`](scripts/install_server.ps1) (its header has
+the one command): the code from git, and each third-party library layer only when it changed.
 
 Windows, natively: one Uvicorn process under WinSW and one five-minute Task Scheduler launcher,
 both as the `practice-app` account. Runtime configuration lives in the release folder's `.env`,
-which the service and the scheduled launcher both read; the script carries it forward on upgrade.
+which the service and the scheduled launcher both read.
 
 [`scripts/verify.ps1`](scripts/verify.ps1) is the gate — service identity, data directory outside
 the release, health endpoint naming its configured Principle, scheduled task registered without

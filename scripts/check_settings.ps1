@@ -12,9 +12,9 @@
 param([string]$ReleaseRoot = 'C:\Program Files\DentalPracticeAdmin')
 $ErrorActionPreference = 'Stop'
 
-$python = Join-Path $ReleaseRoot 'python\python.exe'
+$python = Join-Path $ReleaseRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $python)) {
-    [Console]::Error.WriteLine("Not ready: no interpreter at $python; install the release with scripts\install_server.ps1.")
+    [Console]::Error.WriteLine("Not ready: no interpreter at $python; run scripts\install_server.ps1.")
     exit 1
 }
 $previous = @{}

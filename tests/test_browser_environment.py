@@ -10,7 +10,7 @@ from tests.settings import fake_settings
 def test_a_release_runs_the_browser_it_carries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The server has no browser of its own: the release brings one in ms-playwright."""
+    """On the server, the install puts the browser in ms-playwright beside the app."""
     (tmp_path / "ms-playwright").mkdir()
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("PLAYWRIGHT_BROWSERS_PATH", raising=False)

@@ -50,7 +50,7 @@ def server_environment(settings: Settings) -> dict[str, str]:
     env = {key: value for key, value in os.environ.items()
            if key.upper() in {"PATH", "SYSTEMROOT", "TEMP", "TMP",
                               "USERPROFILE", "LOCALAPPDATA", "PLAYWRIGHT_BROWSERS_PATH"}}
-    # A release carries its browser in ms-playwright beside the app (scripts/build_release.ps1).
+    # The server keeps the browser in ms-playwright beside the app (scripts/install_server.ps1).
     bundled = Path("ms-playwright")
     if not any(key.upper() == "PLAYWRIGHT_BROWSERS_PATH" for key in env) and bundled.is_dir():
         env["PLAYWRIGHT_BROWSERS_PATH"] = str(bundled.resolve())
