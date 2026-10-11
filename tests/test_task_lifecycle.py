@@ -294,6 +294,7 @@ def fake_repository(revision: str, tasks: dict[str, dict[str, bytes]]) -> MagicM
     repo = MagicMock()
     repo.default_branch = "main"
     repo.get_branch.return_value.commit.sha = revision
+    repo.get_commit.return_value.get_pulls.return_value = [SimpleNamespace(merged=True)]
 
     def contents(path: str, ref: str) -> Any:
         assert ref == revision
@@ -345,6 +346,19 @@ def test_tasks_follow_the_default_branch(tmp_path: Path, monkeypatch: pytest.Mon
     removed.get_contents.reset_mock()
     task_files.sync(configured)
     removed.get_contents.assert_not_called()
+
+
+def test_a_head_no_merged_pr_made_installs_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    pushed = fake_repository("5" * 40, {"fake_report": task("fake_report", "changed")})
+    pushed.get_commit.return_value.get_pulls.return_value = [SimpleNamespace(merged=False)]
+    monkeypatch.setattr(task_files, "repository", lambda _: pushed)
+    with pytest.raises(ValueError, match="no merged PR"):
+        task_files.sync(configured)
+    assert task_files.current(configured, "fake_report") == REVISION
 
 
 def test_one_invalid_task_changes_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

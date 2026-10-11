@@ -170,10 +170,10 @@ def current(settings: Settings, name: str) -> str:
 def sync(settings: Settings) -> None:
     """Install every task on the practice repository's default branch; a merge is the approval.
 
-    Each task installs at the branch's head commit into its own immutable folder, and `current`
-    names it, so a run already under way keeps its files. A task removed from the branch stops
-    being offered; its folders stay as execution evidence. Nothing changes unless every task
-    reads and validates.
+    Only a head commit made by merging a PR installs. Each task installs at it into its own
+    immutable folder, and `current` names it, so a run already under way keeps its files. A task
+    removed from the branch stops being offered; its folders stay as execution evidence. Nothing
+    changes unless every task reads and validates.
     """
     root = settings.data_dir / "installed"
     repo = repository(settings)
@@ -181,6 +181,9 @@ def sync(settings: Settings) -> None:
     synced = root / "synced"
     if synced.is_file() and synced.read_text(encoding="utf-8") == revision:
         return
+    # A private repository on GitHub's free plan can't require pull requests, so this does.
+    if not any(pull.merged for pull in repo.get_commit(revision).get_pulls()):
+        raise ValueError(f"{repo.default_branch} is at {revision}, which no merged PR made")
     shared = {}
     with suppress(UnknownObjectException):
         shared = {item.name: item.decoded_content

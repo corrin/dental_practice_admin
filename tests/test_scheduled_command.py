@@ -74,3 +74,27 @@ def test_unreachable_repository_keeps_installed_tasks_running_and_tells_staff(
         assert schedules.attention(configured, store) == []
     finally:
         store.close()
+
+
+def saved_with_a_revision(name: str, revision: str, inputs: dict[str, object]) -> None:
+    """The shape of schedules saved while each pinned a revision; the launcher reads only args."""
+
+
+def test_a_schedule_saved_with_a_revision_runs_the_installed_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    with schedules.open_schedules(configured) as scheduler:
+        scheduler.add_job(saved_with_a_revision, "interval", minutes=5, id="f" * 32,
+                          name="fake_report", args=["fake_report", "e" * 40, {"numbers": [7]}],
+                          next_run_time=datetime.now(UTC) - timedelta(seconds=1))
+    monkeypatch.setattr(schedules, "Settings", lambda: configured)
+    monkeypatch.setattr(task_files, "sync", lambda _: None)
+    assert schedules.main() == 0
+    store = Storage(configured.database_path)
+    try:
+        [result] = store.recent_runs()
+        assert result.outcome is Outcome.SUCCEEDED
+    finally:
+        store.close()

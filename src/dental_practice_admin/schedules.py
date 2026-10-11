@@ -211,7 +211,8 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
                                      "Execution window passed while another task was running")
                     failed += 1
                     continue
-                name, inputs = job.args
+                # Schedules saved before tasks followed the default branch also carry a revision.
+                name, inputs = job.args[0], job.args[-1]
                 script = task_files.load(settings, name, task_files.current(settings, name),
                                          inputs, "scheduler")
                 await scripts.recorded(settings, script, job.name,

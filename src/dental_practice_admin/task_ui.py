@@ -47,8 +47,8 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
         for j in scheduler.get_jobs():
             interval = isinstance(j.trigger, IntervalTrigger)
             fields = {} if interval else {f.name: str(f) for f in j.trigger.fields}
-            jobs.append({"id": j.id, "name": j.name, "title": titles[j.name],
-                "inputs": j.args[1],
+            jobs.append({"id": j.id, "name": j.name, "title": titles.get(j.name, j.name),
+                "inputs": j.args[-1],
                 "next": j.next_run_time.strftime("%a %d %b, %I:%M %p")
                     if j.next_run_time else "Paused",
                 "minutes": int(j.trigger.interval.total_seconds() / 60) if interval else 0,
