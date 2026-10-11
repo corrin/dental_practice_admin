@@ -96,13 +96,13 @@ function showInputs(value={}) {
   el('description').textContent = task.description;
   el('schedule-editor').hidden = !task.reviewed;
   el('review-controls').hidden = task.reviewed;
-  el('review-status').textContent = task.review_url ? 'Waiting for approval. You can still run this script now. ' : 'Available to run. Approval is required before scheduling.';
+  el('review-status').textContent = task.review_url ? 'Submitted for approval; if the request is closed without approval, submit again. You can still run this script now. ' : 'Available to run. Approval is required before scheduling.';
   if(task.review_url) {
     const link = document.createElement('a');
     link.href = task.review_url; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'See the approval request';
     el('review-status').append(link);
   }
-  el('submit-controls').hidden = !!task.review_url;
+  el('submit-review').textContent = task.review_url ? 'Submit again' : 'Submit for approval';
   el('no-patient-data').checked = false;
   el('submit-review').disabled = true;
   el('no-patient-data').onchange = () => { el('submit-review').disabled = !el('no-patient-data').checked; };

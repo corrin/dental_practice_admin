@@ -144,14 +144,21 @@ def publish(settings: Settings, review: Review, owner: str) -> str:
         raise ValueError("Review files contain a configured credential")
     folder = folder_for(settings, script.task_id)
     with portalocker.Lock(str(folder / "edit.lock"), timeout=30):
-        if (folder / "review.json").exists():
-            raise ValueError("This draft already has a review; check its existing PR")
         repo = repository(settings)
+        branch = "review/" + script.task_id
+        if (folder / "review.json").exists():
+            previous = repo.get_pull(json.loads((folder / "review.json").read_text(
+                encoding="utf-8"))["number"])
+            if previous.merged or previous.state == "open":
+                raise ValueError("This script is already waiting for approval or approved; "
+                                 "see its pull request")
+            # Closed without merging: submitting again opens a new PR from a fresh branch.
+            with suppress(UnknownObjectException):
+                repo.get_git_ref("heads/" + branch).delete()
         base = repo.get_git_commit(repo.get_branch(repo.default_branch).commit.sha)
         tree = repo.create_git_tree([InputGitTreeElement(f"tasks/{review.definition.name}/{name}",
             "100644", "blob", content=content) for name, content in files.items()], base.tree)
         commit = repo.create_git_commit(f"Review task {review.definition.name}", tree, [base])
-        branch = "review/" + script.task_id
         repo.create_git_ref("refs/heads/" + branch, commit.sha)
         pr = repo.create_pull(title=review.definition.title, body=review.definition.description,
                               head=branch, base=repo.default_branch)
