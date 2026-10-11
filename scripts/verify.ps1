@@ -54,7 +54,7 @@ Check 'Application schedule launcher is configured for unattended execution' {
     if ($task.Principal.LogonType -ne 'Password') { throw 'task needs an unattended Password logon' }
     if ($task.Actions.Count -ne 1) { throw 'expected one launcher action' }
     $action = $task.Actions[0]
-    $expected = Join-Path $InstallRoot '.venv\Scripts\python.exe'
+    $expected = Join-Path $InstallRoot 'python\python.exe'
     if ($action.Execute -ne $expected -or -not (Test-Path -LiteralPath $expected)) {
         throw 'task does not use the installed interpreter'
     }
@@ -73,7 +73,7 @@ Check 'Application schedule launcher is configured for unattended execution' {
     'registered action and last scheduler outcome verified'
 }
 Check 'Application has checked its schedules recently' {
-    $python = Join-Path $InstallRoot '.venv\Scripts\python.exe'
+    $python = Join-Path $InstallRoot 'python\python.exe'
     $audit = Join-Path $DataRoot 'production\audits\launcher.jsonl'
     & $python "$PSScriptRoot\check_runner.py" $audit
     if ($LASTEXITCODE -ne 0) { throw 'no recent successful scheduler check' }

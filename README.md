@@ -52,8 +52,8 @@ Python 3.14 is required. Run `uv sync --locked` once, then use
 **Terminal > Run Task > Run** in VS Code. uv selects a compatible interpreter from
 [`pyproject.toml`](pyproject.toml) and recreates an incompatible project virtual environment; it
 can download Python when needed. After upgrading Python, run `uv sync --locked` again in each
-development or release directory before starting the application. Service and scheduled-task
-paths still point to `.venv\Scripts\python.exe`.
+development directory before starting the application. The server runs a prebuilt release
+instead ([`deploy/RELEASE.md`](deploy/RELEASE.md)).
 
 The ordinary setup is Principle staging, Google login, real OpenAI, and ngrok at
 `https://massey-admin-dev.ngrok-free.app`. The command is

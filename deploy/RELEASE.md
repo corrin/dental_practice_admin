@@ -15,16 +15,20 @@ The server runs two Windows services and one scheduled task:
 
 | What | Where | Runs as |
 | --- | --- | --- |
-| `dental-practice-admin` service: uvicorn on `127.0.0.1:8080`, [dental-practice-admin.xml](dental-practice-admin.xml) | `C:\Program Files\DentalPracticeAdmin`, a git checkout of this repository | `practice-app` |
+| `dental-practice-admin` service: uvicorn on `127.0.0.1:8080`, [dental-practice-admin.xml](dental-practice-admin.xml) | `C:\Program Files\DentalPracticeAdmin`, a release built by CI | `practice-app` |
 | `caddy` service: HTTPS for both public names, [caddy-service.xml](caddy-service.xml), [Caddyfile](Caddyfile) | `C:\Program Files\Caddy`; `caddy.exe` from Chocolatey | its own virtual account, `NT SERVICE\caddy` |
 | `\Massey Smiles Admin\Task runner`: the five-minute launcher, [task-runner.xml](task-runner.xml) | Task Scheduler | `practice-app` |
 
-[scripts/install_server.ps1](../scripts/install_server.ps1) installs and upgrades all three, and
-the tools they need, through Chocolatey. It is safe to run again at any time, including after it
-fails part way; it stops at the first error.
+Every change merged to `main` that passes CI becomes a GitHub release: a zip built by
+[scripts/build_release.ps1](../scripts/build_release.ps1) holding the app, its own Python with
+every package installed, `node_modules` and the browser. Nothing is built on the server.
+[scripts/install_server.ps1](../scripts/install_server.ps1), published with each release, installs
+or upgrades to it, along with the tools the app runs (Git, Node.js and Caddy, through
+Chocolatey). It is safe to run again at any time, including after it fails part way; it stops at
+the first error. The server keeps one release on disk.
 
 Runtime data lives in `C:\ProgramData\DentalPracticeAdmin` and `C:\ProgramData\Caddy`, never in
-the checkout. Both hold secrets (patient data, Principle's logged-in browser session, TLS keys),
+the release. Both hold secrets (patient data, Principle's logged-in browser session, TLS keys),
 so neither may inherit ProgramData's permissions, which let every local user read them.
 
 ## First release
@@ -50,7 +54,7 @@ traffic, so remove it now, on reception, one command at a time:
    `install-settings.json` may hold Principle credentials) and users' Downloads, as folders and
    zips named for SMS_Bridge, ODSMS or Open Dental SMS, and as generic `publish` folders.
    `Get-ChildItem 'C:\Program Files\SMS_Bridge*', 'C:\ProgramData\SMS_Bridge*', 'C:\Users\*\Downloads\*SMS*', 'C:\Users\*\Downloads\publish*'`
-   lists them; check a `publish` folder holds only bridge files before deleting it. Step 7.5
+   lists them; check a `publish` folder holds only bridge files before deleting it. Step 6.5
    recreates `C:\ProgramData\SMS_Bridge` for reception's SMS check.
 
 **Check:** on reception, `netstat -ano | findstr :5170` prints nothing, and the commands in
@@ -67,7 +71,7 @@ HTTP check.
 - **Access** to the DNS for `massey-smiles.co.nz`, the router, Google Cloud (the OAuth client),
   the OpenAI platform (ChatKit domains), GitHub (`massey-reception-coder/admin_scripts`), and
   Akahu (the bank feed).
-- **A quiet hour** for step 7, which moves both public names from reception to the server.
+- **A quiet hour** for step 6, which moves both public names from reception to the server.
 
 ### 2. Prepare the release on the development machine
 
@@ -82,30 +86,14 @@ On the server, in Computer Management > Local Users and Groups > Users, create `
 with its password from 1Password and **Password never expires** ticked. The install script grants
 it **Log on as a service** and **Log on as a batch job**.
 
-### 4. The code on the server
-
-Once, in an elevated PowerShell on the server: install Chocolatey, then Git, then clone. The
-install script keeps Git, like every tool it installs, at its latest version afterwards.
-
-```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force; Invoke-RestMethod https://community.chocolatey.org/install.ps1 | Invoke-Expression
-choco install git -y
-```
-
-In a new elevated PowerShell, so it finds `git`:
-
-```powershell
-git clone https://github.com/corrin/dental_practice_admin.git 'C:\Program Files\DentalPracticeAdmin'
-```
-
-### 5. Settings
+### 4. Settings
 
 1. Google Cloud, OAuth client: add the authorised redirect URI
    `https://admin.massey-smiles.co.nz/auth/callback`.
 2. OpenAI platform: register `admin.massey-smiles.co.nz` for ChatKit. Its key goes in
    `ADMIN_CHATKIT_DOMAIN_KEY` below.
-3. Create `C:\Program Files\DentalPracticeAdmin\.env`. Both the service and the launcher read
-   it, from their working directory, and nothing else configures them. `Settings` in
+3. Create the folder `C:\Program Files\DentalPracticeAdmin` and in it `.env`, which each
+   upgrade carries forward. Both the service and the launcher read it, from their working directory, and nothing else configures them. `Settings` in
    `src/dental_practice_admin/config.py` is the authority on what is required; the check below
    names anything missing.
 
@@ -162,38 +150,33 @@ git clone https://github.com/corrin/dental_practice_admin.git 'C:\Program Files\
 setting `.env` lacks. Nothing has a value in the code, so every line of the template above
 is needed. No value may still read `...`.
 
-### 6. Install
+### 5. Install
 
 In an elevated PowerShell on the server:
 
 ```powershell
-cd 'C:\Program Files\DentalPracticeAdmin'; powershell -ExecutionPolicy Bypass -File scripts\install_server.ps1
+Invoke-WebRequest https://github.com/corrin/dental_practice_admin/releases/latest/download/install_server.ps1 -OutFile $env:TEMP\install_server.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\install_server.ps1
 ```
 
-It asks for `practice-app`'s password, then installs the tools (Chocolatey: Git, uv, Node.js,
-Caddy; WinSW), sets uv's machine settings, grants the account its logon rights, creates the data
-folders with their permissions, installs the app's packages without development tools, clears
-the download caches (everything on the server is backed up by the byte), checks `.env`, installs
-and starts the application service as `practice-app`, installs Caddy without starting it, opens the
-firewall (80 and 443 from anywhere; 5170 from reception, `192.168.192.125`, only; every network
-profile, since the server sometimes comes up on Public), and registers the launcher. It ends
-"Done."; anything else names what failed. Fix that and run it again.
+It asks for `practice-app`'s password, then installs the tools (Chocolatey: Git, Node.js, Caddy;
+WinSW), grants the account its logon rights, creates the data folder with its permissions,
+installs the latest release, checks `.env`, installs and starts the application service as
+`practice-app`, installs Caddy without starting it, opens the firewall (80 and 443 from anywhere;
+5170 from reception, `192.168.192.125`, only; every network profile, since the server sometimes
+comes up on Public), and registers the launcher. It ends "Done: release <tag>."; anything else
+names what failed. Fix that and run it again.
 
 Then:
 
-1. **Restart the server once**, so services see the PATH and uv settings the installers changed.
-   It also serves Romexis and the shares; restart when those can be down for a few minutes.
-2. As `practice-app` (`runas /user:practice-app powershell`, at the server's desktop), in
-   `C:\Program Files\DentalPracticeAdmin`:
-   `node node_modules/@playwright/mcp/cli.js install-browser chrome-for-testing`. The browser
-   installs into that account's profile, which is where the automation looks for it.
-3. Disable any program-level firewall allow rule for SMS_Bridge, which would open 5170 to the
+1. **Restart the server once**, so services see the PATH the installers changed. It also serves
+   Romexis and the shares; restart when those can be down for a few minutes.
+2. Disable any program-level firewall allow rule for SMS_Bridge, which would open 5170 to the
    whole LAN.
 
 **Check:** `Invoke-RestMethod http://127.0.0.1:8080/health` reports `ok` and `production`. After
-five minutes, `scripts\verify.ps1` in the checkout passes every line.
+five minutes, `scripts\verify.ps1` in `C:\Program Files\DentalPracticeAdmin` passes every line.
 
-### 7. Caddy, DNS and the router
+### 6. Caddy, DNS and the router
 
 This moves both public names from reception's own Caddy to the server's, and puts SMS
 (SMS_Bridge, Call Centre and the paired phone) on the server. Reception's bridge is already gone,
@@ -250,7 +233,7 @@ check passes PRODUCTION.md's acceptance check for it. On reception, `sc.exe quer
 that the service does not exist, `netstat -ano | findstr ":80 :443 :5170"` shows nothing
 `LISTENING`, and `C:\ProgramData\SMS_Bridge` holds only `check-sms.ps1`.
 
-### 8. Practice tasks and schedules
+### 7. Practice tasks and schedules
 
 1. Sign in at `https://admin.massey-smiles.co.nz` and open **Reports & scripts**. Install each
    reviewed task from its merged `admin_scripts` pull request, for example the contact-details
@@ -263,36 +246,30 @@ that the service does not exist, `netstat -ano | findstr ":80 :443 :5170"` shows
    `apply` with `limit` 5, a check that nobody was messaged, the rest in batches (`limit` 500), and
    then a daily schedule with `apply`.
 
-### 9. Sign off
+### 8. Sign off
 
 Work through [ACCEPTANCE.md](ACCEPTANCE.md): the reboot, an unattended scheduled run, staff access
 from outside, and the restore drill. Record the release in its table.
 
 ## Later releases
 
-1. Run `scripts\release_gate.ps1` at the new commit, on the development machine, and merge it to
-   `main`.
+1. Run `scripts\release_gate.ps1` at the new commit, on the development machine, and merge
+   it to `main`. CI publishes the release.
 2. Read the release's pull requests for new required settings, and add them to `.env`.
-3. On the server, in an elevated PowerShell:
-
-   ```powershell
-   cd 'C:\Program Files\DentalPracticeAdmin'; git pull; powershell -ExecutionPolicy Bypass -File scripts\install_server.ps1
-   ```
-
+3. On the server, in an elevated PowerShell, the same command as the first release (step 5).
    The script pauses the launcher, refuses while a run from Reports & scripts or chat is in
    progress (the Results page shows them; run it again once they finish), stops the service,
-   updates the tools and packages, and starts everything again. A run can stay marked in
-   progress after a crash: if Task Manager shows no `python.exe` running as `practice-app` other
-   than the service itself, nothing is really running.
+   swaps in the new release, carrying `.env` forward, and starts everything again. A run can stay
+   marked in progress after a crash: if Task Manager shows no `python.exe` running as
+   `practice-app` other than the service itself, nothing is really running.
 4. If `deploy\dental-practice-admin.xml` or `deploy\caddy-service.xml` changed its start or
    failure settings, which WinSW applies only at install: stop the service, run its
-   `uninstall` (`dental-practice-admin.exe` in the checkout, `caddy-service.exe` in
+   `uninstall` (`dental-practice-admin.exe` in the release folder, `caddy-service.exe` in
    `C:\Program Files\Caddy`), and run the script again.
-5. If the release moved Playwright to a new browser, repeat step 6.2 of the first release.
-6. Wait five minutes, then run `scripts\verify.ps1`.
+5. Wait five minutes, then run `scripts\verify.ps1`.
 
-**To roll back:** `git checkout <previous commit>` in the checkout, then run the script again.
-`git checkout main` returns to following `main`.
+**To roll back:** run the script with `-Release <tag>`, the previous release's tag from GitHub's
+Releases page: `powershell -ExecutionPolicy Bypass -File $env:TEMP\install_server.ps1 -Release <tag>`.
 
 Installed practice tasks and their schedules live in the data directory and survive a release.
 

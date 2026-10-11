@@ -45,3 +45,6 @@ tests/recordings/firestore/
 # under this project's AGPL-3.0. tests/spec/fingerprint.json is the derived description we do
 # commit (scripts/refresh_spec.py).
 tests/spec/principle-api.yml
+
+# scripts/build_release.ps1 output
+build/

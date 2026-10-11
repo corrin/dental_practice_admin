@@ -14,7 +14,7 @@
     <ExecutionTimeLimit>PT30M</ExecutionTimeLimit>
   </Settings>
   <Actions Context="Author"><Exec>
-    <Command>C:\Program Files\DentalPracticeAdmin\.venv\Scripts\python.exe</Command>
+    <Command>C:\Program Files\DentalPracticeAdmin\python\python.exe</Command>
     <Arguments>-m dental_practice_admin.schedules</Arguments>
     <WorkingDirectory>C:\Program Files\DentalPracticeAdmin</WorkingDirectory>
   </Exec></Actions>

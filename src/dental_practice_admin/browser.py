@@ -45,6 +45,23 @@ async def code(server: MCPServerStdio, source: str, inputs: dict[str, Any]) -> A
     return json.JSONDecoder().raw_decode(output.split("### Result\n", 1)[1])[0]
 
 
+def server_environment(settings: Settings) -> dict[str, str]:
+    """Enough of Windows for Node to run, Principle's login, and which browser to start."""
+    env = {key: value for key, value in os.environ.items()
+           if key.upper() in {"PATH", "SYSTEMROOT", "TEMP", "TMP",
+                              "USERPROFILE", "LOCALAPPDATA", "PLAYWRIGHT_BROWSERS_PATH"}}
+    # A release carries its browser in ms-playwright beside the app (scripts/build_release.ps1).
+    bundled = Path("ms-playwright")
+    if not any(key.upper() == "PLAYWRIGHT_BROWSERS_PATH" for key in env) and bundled.is_dir():
+        env["PLAYWRIGHT_BROWSERS_PATH"] = str(bundled.resolve())
+    env.update(PRINCIPLE_UI_EMAIL=settings.ui_email,
+               PRINCIPLE_UI_PASSWORD=settings.ui_password.get_secret_value(),
+               PRINCIPLE_UI_URL=PRINCIPLE_WEB_URLS[settings.environment],
+               PRINCIPLE_WORKSPACE=settings.workspace,
+               PRINCIPLE_WORKSPACE_SLUG=settings.workspace_slug)
+    return env
+
+
 @asynccontextmanager
 async def session(settings: Settings, waiting: Callable[[], Awaitable[None]] | None = None
                   ) -> AsyncIterator[MCPServerStdio]:
@@ -63,14 +80,7 @@ async def session(settings: Settings, waiting: Callable[[], Awaitable[None]] | N
                     break
                 except portalocker.LockException:
                     continue
-        env = {key: value for key, value in os.environ.items()
-               if key.upper() in {"PATH", "SYSTEMROOT", "TEMP", "TMP",
-                                  "USERPROFILE", "LOCALAPPDATA", "PLAYWRIGHT_BROWSERS_PATH"}}
-        env.update(PRINCIPLE_UI_EMAIL=settings.ui_email,
-                   PRINCIPLE_UI_PASSWORD=settings.ui_password.get_secret_value(),
-                   PRINCIPLE_UI_URL=PRINCIPLE_WEB_URLS[settings.environment],
-                   PRINCIPLE_WORKSPACE=settings.workspace,
-                   PRINCIPLE_WORKSPACE_SLUG=settings.workspace_slug)
+        env = server_environment(settings)
         try:
             async with AuditedBrowser(
                 params={"command": sys.executable, "args": ["-m", "dental_practice_admin.processes",
