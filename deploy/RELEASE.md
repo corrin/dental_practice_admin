@@ -253,9 +253,8 @@ from outside, and the restore drill. Record the release in its table.
 
 ## Later releases
 
-1. Run `scripts
-elease_gate.ps1` at the new commit, on the development machine, and merge it to
-   `main`. CI publishes the release.
+1. Run `scripts\release_gate.ps1` at the new commit, on the development machine, and merge
+   it to `main`. CI publishes the release.
 2. Read the release's pull requests for new required settings, and add them to `.env`.
 3. On the server, in an elevated PowerShell, the same command as the first release (step 5).
    The script pauses the launcher, refuses while a run from Reports & scripts or chat is in

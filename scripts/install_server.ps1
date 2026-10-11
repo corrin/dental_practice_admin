@@ -84,8 +84,10 @@ if ((Get-Service dental-practice-admin).Status -ne 'Running') { Start-Service de
 $health = $null; $deadline = (Get-Date).AddMinutes(2)
 while (-not $health -and (Get-Date) -lt $deadline) { Start-Sleep 5; try { $health = Invoke-RestMethod http://127.0.0.1:8080/health } catch { } }
 if (-not $health -or $health.status -ne 'ok' -or $health.principle -ne 'production') {
-    $rollback = if ($installed) { " To roll back, run this script with -Release $installed; that release's files are in $root-old." } else { '' }
-    throw "unhealthy: $($health | ConvertTo-Json -Compress); see C:\ProgramData\DentalPracticeAdmin\logs. The scheduled launcher stays paused.$rollback"
+    $swapped = $tag -ne $installed
+    $rollback = if ($swapped -and $installed) { " To roll back, run this script with -Release $installed." } else { '' }
+    $paused = if ($swapped) { ' The scheduled launcher stays paused.' } else { '' }
+    throw "unhealthy: $($health | ConvertTo-Json -Compress); see C:\ProgramData\DentalPracticeAdmin\logs.$paused$rollback"
 }
 if (Test-Path "$root-old") { Remove-Item -Recurse -Force "$root-old" }
 
