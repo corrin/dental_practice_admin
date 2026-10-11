@@ -1,8 +1,9 @@
 """Saving shares immutable code without repeating a live operation."""
-import json
 import shutil
 from contextlib import closing
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -88,7 +89,8 @@ def test_preparation_rejects_broken_tests_and_foreign_evidence(tmp_path: Path) -
                               DEFINITION, TESTS)
 
 
-def test_staff_flow_and_server_schedule_guard(tmp_path: Path) -> None:
+def test_staff_flow_and_server_schedule_guard(tmp_path: Path,
+                                             monkeypatch: pytest.MonkeyPatch) -> None:
     configured = settings(tmp_path).model_copy(update={"sign_in": SignIn.DEVELOPER,
                                                      "openai_api_key": SecretStr("fake-ai"),
                                                      **FAKE_AKAHU_SETTINGS})
@@ -107,11 +109,19 @@ def test_staff_flow_and_server_schedule_guard(tmp_path: Path) -> None:
         path = next((configured.data_dir / "saved").glob("*/*/task.json"))
         payload = {"name": DEFINITION.name, "revision": path.parent.name, "inputs": inputs}
         assert client.post("/tasks/schedule", json=payload).status_code == 404
-        assert client.post("/tasks/request-review", json=payload).status_code == 200
-        assert client.post("/tasks/request-review", json=payload).status_code == 200
-        assert "My script" in client.get("/tasks/manage").text
-        request = json.loads((path.parent / "review-request.json").read_text())
-        assert request["initiator"] == FAKE_STAFF
+        assert client.post("/tasks/submit", json=payload).status_code == 400
+        repo = MagicMock()
+        repo.private = True
+        repo.get_branch.return_value.commit.sha = "c" * 40
+        repo.create_pull.return_value = SimpleNamespace(
+            number=3, html_url="https://github.com/fake/practice/pull/3")
+        monkeypatch.setattr(task_files, "repository", lambda _: repo)
+        submitted = {**payload, "checked_for_patient_data": True}
+        assert client.post("/tasks/submit", json=submitted).json() == {
+            "review_url": "https://github.com/fake/practice/pull/3"}
+        assert client.post("/tasks/submit", json=submitted).status_code == 400
+        assert repo.create_pull.call_count == 1
+        assert "https://github.com/fake/practice/pull/3" in client.get("/tasks/manage").text
         with closing(Storage(configured.database_path)) as store:
             assert len(store.recent_runs()) == 1
         reviewed = "b" * 40

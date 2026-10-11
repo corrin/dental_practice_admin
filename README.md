@@ -217,23 +217,19 @@ requires successful execution of that exact source and never repeats it. An iden
 executed draft can reuse its evidence. Saved scripts are available to all signed-in staff while
 the source conversation and draft executions remain private. Reports and scripts are one type.
 
-**Request review for scheduling** records a local request in the saved version's
-`review-request.json`. Maintainers inspect pending requests under the environment's
-`saved/*/*/` directory, including source, input contract and synthetic tests. After checking for
-patient data, `saved_scripts.publish_review(settings, name, revision, True)` exports that
-version through the existing review process. This action sends no notification. Install the
-merged version with `task_files.install_existing`; the matching saved entry then gives way to
-the reviewed version and scheduling becomes available. Existing schedules retain their pins.
+A saved script runs at once but can't be scheduled until it is approved. On Reports & scripts,
+tick "I've checked this contains no patient data" and click **Submit for approval**: the app opens
+a pull request in the practice's private repository with the script, its input contract and
+synthetic tests, and the page links to it. Approving is merging that pull request; within five
+minutes the app installs it, the approved version replaces the saved one, and it can be scheduled.
 Shared packages survive private draft cleanup. Back them up with the runtime data directory.
 
-Maintainers publish reviewed source, its input contract and synthetic tests using
-`task_files.publish`, then install merged revisions with `task_files.install_existing`.
 Configure `ADMIN_TASK_REPOSITORY` as `owner/private-repository` and `ADMIN_GITHUB_TOKEN` with
 access to its contents and pull requests. Startup refuses to run without them, as for every
 other setting (ADR 0002: a missing setting stops the whole application even if only one
 feature uses it). The repository must already have a default branch.
 Only `task.json`, `source.txt` and `test_task.py` are exported; local history and audits stay
-on the host. Repository setup and review are outside the staff interface.
+on the host. Setting up the repository, and approving, happen on GitHub.
 
 The `dental-practice-admin` command (also `python -m dental_practice_admin.schedules`) checks
 which installed tasks are due and exits with failure if any execution is missed or untrustworthy.
