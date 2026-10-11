@@ -51,8 +51,8 @@ Check 'Service opens its database and reports production' {
 Check 'Application schedule launcher is configured for unattended execution' {
     $task = Get-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner'
     if ($task.State -eq 'Disabled') { throw 'task is disabled' }
-    if ($task.Principal.LogonType -ne 'S4U') { throw 'task needs an unattended S4U logon' }
-    if ($task.Principal.UserId -ne 'practice-app') { throw "task runs as $($task.Principal.UserId), not practice-app" }
+    if ($task.Principal.LogonType -ne 'Password') { throw 'task needs an unattended Password logon' }
+    if ($task.Principal.UserId -notmatch '(^|\\)practice-app$') { throw "task runs as $($task.Principal.UserId), not practice-app" }
     if ($task.Actions.Count -ne 1) { throw 'expected one launcher action' }
     $action = $task.Actions[0]
     $expected = Join-Path $InstallRoot '.venv\Scripts\python.exe'

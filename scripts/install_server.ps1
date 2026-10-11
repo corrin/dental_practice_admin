@@ -10,9 +10,9 @@ $ErrorActionPreference = 'Stop'
 function Run { $ErrorActionPreference = 'Continue'; & $args[0] @($args | Select-Object -Skip 1); if ($LASTEXITCODE) { throw "failed (exit $LASTEXITCODE): $args" } }
 $root = 'C:\Program Files\DentalPracticeAdmin'
 $account = 'practice-app'
-# Only a run that creates the account or sets up the service needs the password: Windows keeps it
-# for the service, and the launcher runs without one. Read-Host gets nothing in a second powershell
-# inside a remote session, hence & above.
+# Only a run that creates the account, sets up the service or registers the launcher needs the
+# password: Windows keeps it for both. Read-Host gets nothing in a second powershell inside a remote
+# session, hence & above.
 $password = $null
 $service = Get-CimInstance Win32_Service -Filter "Name='dental-practice-admin'"
 if (-not (Get-LocalUser $account -ErrorAction SilentlyContinue) -or -not $service -or $service.StartName -ne ".\$account") {
@@ -135,9 +135,19 @@ Run icacls C:\ProgramData\Caddy /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Admi
 if ($caddyfileChanged -and (Get-Service caddy).Status -eq 'Running') { Restart-Service caddy }
 Start-Service caddy
 if (-not (Get-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -Direction Inbound -Protocol TCP -LocalPort 80, 443 -Action Allow -Profile Any | Out-Null }
-# S4U: runs whether or not anyone is signed in, with no stored password; registering it for
-# another account needs an administrator, which this script is.
-Register-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner' -Xml (Get-Content deploy\task-runner.xml -Raw) -Force | Out-Null
+# The launcher keeps the password Windows stored for it, so it is registered again only when it is
+# missing or deploy\task-runner.xml has changed since; otherwise it is switched back on. S4U, which
+# stores no password, is refused here: Access is denied, even to an administrator.
+$registered = 'C:\ProgramData\DentalPracticeAdmin\task-runner.registered'
+$definition = (Get-FileHash deploy\task-runner.xml).Hash
+if (-not $launcher -or $launcher.Principal.LogonType -ne 'Password' -or ((Test-Path $registered) -and (Get-Content $registered) -ne $definition)) {
+    if (-not $password) { $password = Read-Host "Password for the $account account (its existing password)" }
+    if (-not $password) { throw 'No password entered; the scheduled launcher stays paused.' }
+    Register-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner' -Xml (Get-Content deploy\task-runner.xml -Raw) -User $account -Password $password -Force | Out-Null
+} else {
+    $launcher | Enable-ScheduledTask | Out-Null
+}
+Set-Content $registered $definition
 Remove-Item $env:TEMP\winsw.exe
 Remove-Item -Recurse -Force $env:TEMP\chocolatey -ErrorAction SilentlyContinue
 Write-Host "Done: $(git rev-parse --short HEAD)." -ForegroundColor Green
