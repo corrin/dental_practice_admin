@@ -14,17 +14,19 @@ Chat develops local task files; reviewed private-repository exports become insta
 - Staff can save a tested immutable script for immediate manual execution by the practice.
   Saving never repeats execution. Private chat history and runtime inputs stay outside the shared
   package. Reports and action scripts use the same file format and runner.
-- Scheduling requires a merged PR in the practice's private repository.
-  Export only source, its input contract and synthetic tests onto a clean review branch.
-  Install the approved revision locally without releasing the public application.
+- Scheduling requires a merged PR in the practice's private repository; the merge is the
+  approval. Export only source, its input contract and synthetic tests onto a clean review
+  branch. Each launcher check installs the default branch locally, without releasing the public
+  application; nobody installs by hand.
 - All execution records source, inputs, calls and outcomes in local files without credentials.
   Scheduled tasks run the installed revision through the same integrations without a model,
   GitHub access or Git commands.
 - The application owns schedules and saved inputs in its existing SQLite database. Staff edit
   them without a PR; changes are audited. Windows launches the due-task runner every five minutes.
   Missed occurrences are skipped, failures are visible, and uncertain writes are never retried.
-- Schedules pin approved revisions. Updates are explicit. Draft branches expire after 90 days
-  without edits or runs; execution records survive branch cleanup.
+- Schedules run the installed task, so a merged fix reaches them without a second step.
+  Each run records the revision it ran. Draft branches expire after 90 days without edits or
+  runs; execution records survive branch cleanup.
 - FastMCP consumes one released OpenAPI snapshot. Chat and scripts share its implementation.
   Preserve verified pagination, practice scope, completeness and incompatibility observations.
 - Firestore supplies scoped reads. Direct writes require a verified complete operation;

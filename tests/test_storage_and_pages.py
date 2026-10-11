@@ -219,12 +219,14 @@ FOR_STAFF = [{"patient": "Fake Dummy", "field": "phone", "value": "ring mum",
 
 
 def _launcher_checked(pages: Pages, ago: timedelta) -> None:
+    """A launcher that checked schedules, and brought tasks up to date, `ago`."""
     configured = pages.client.app.state.settings  # type: ignore[attr-defined]
-    heartbeat = configured.data_dir / "audits" / "launcher.jsonl"
-    heartbeat.parent.mkdir(parents=True, exist_ok=True)
-    heartbeat.write_text("{}\n", encoding="utf-8")
     when = (datetime.now(UTC) - ago).timestamp()
-    os.utime(heartbeat, (when, when))
+    for name in ("launcher", "task-sync"):
+        heartbeat = configured.data_dir / "audits" / f"{name}.jsonl"
+        heartbeat.parent.mkdir(parents=True, exist_ok=True)
+        heartbeat.write_text("{}\n", encoding="utf-8")
+        os.utime(heartbeat, (when, when))
 
 
 def _ran(pages: Pages, outcome: str, coverage: str, detail: dict[str, object],

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from dental_practice_admin import schedules
+from dental_practice_admin import schedules, task_files
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 from tests.test_automation import settings
 from tests.test_task_lifecycle import REVISION, install_fake
@@ -25,12 +25,13 @@ def test_launcher_records_the_installed_task_result(
                  f"'coverage': '{coverage}'}}\n"))
     (configured.data_dir / "installed" / "fake_report" / REVISION / "source.txt").write_text(
         source, encoding="utf-8")
-    schedule = schedules.Schedule(name="fake_report", revision=REVISION, inputs={"numbers": [7]})
+    schedule = schedules.Schedule(name="fake_report", inputs={"numbers": [7]})
     schedules.save(configured, schedule, "fake-staff")
     with schedules.open_schedules(configured) as scheduler:
         scheduler.get_job(schedule.id).modify(
             next_run_time=datetime.now(UTC) - timedelta(seconds=1))
     monkeypatch.setattr(schedules, "Settings", lambda: configured)
+    monkeypatch.setattr(task_files, "sync", lambda _: None)
     assert schedules.main() == exit_code
     store = Storage(configured.database_path)
     try:
@@ -41,5 +42,35 @@ def test_launcher_records_the_installed_task_result(
         if not raises:
             assert result.detail is not None and result.detail["value"] == 7
         assert (configured.data_dir / "audits" / f"{result.run_id}.jsonl").is_file()
+    finally:
+        store.close()
+
+
+def test_unreachable_repository_keeps_installed_tasks_running_and_tells_staff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    schedule = schedules.Schedule(name="fake_report", inputs={"numbers": [7]})
+    schedules.save(configured, schedule, "fake-staff")
+    with schedules.open_schedules(configured) as scheduler:
+        scheduler.get_job(schedule.id).modify(
+            next_run_time=datetime.now(UTC) - timedelta(seconds=1))
+    monkeypatch.setattr(schedules, "Settings", lambda: configured)
+
+    def unreachable(_: object) -> None:
+        raise ConnectionError("synthetic outage")
+
+    monkeypatch.setattr(task_files, "sync", unreachable)
+    assert schedules.main() == 0
+    store = Storage(configured.database_path)
+    try:
+        [result] = store.recent_runs()
+        assert result.outcome is Outcome.SUCCEEDED
+        assert [note["text"] for note in schedules.attention(configured, store)] == [
+            "New and changed reports can't be fetched; ask your administrator"]
+        monkeypatch.setattr(task_files, "sync", lambda _: None)
+        assert schedules.main() == 0
+        assert schedules.attention(configured, store) == []
     finally:
         store.close()

@@ -26,10 +26,10 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
     checked = schedules.launcher_checked(settings)
     launcher_recent = schedules.launcher_recent(checked)
     installed = []
-    for path in (settings.data_dir / "installed").glob("*/*/task.json"):
-        definition, _ = task_files.installed(settings, path.parent.parent.name, path.parent.name)
-        installed.append({**definition.model_dump(), "revision": path.parent.name,
-                          "reviewed": True})
+    for pointer in (settings.data_dir / "installed").glob("*/current"):
+        revision = pointer.read_text(encoding="utf-8")
+        definition, _ = task_files.installed(settings, pointer.parent.name, revision)
+        installed.append({**definition.model_dump(), "revision": revision, "reviewed": True})
     for path in (settings.data_dir / "saved").glob("*/*/task.json"):
         definition = task_files.Definition.model_validate_json(path.read_text(encoding="utf-8"))
         if any(task["reviewed"] and task["name"] == definition.name and
@@ -48,7 +48,7 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
             interval = isinstance(j.trigger, IntervalTrigger)
             fields = {} if interval else {f.name: str(f) for f in j.trigger.fields}
             jobs.append({"id": j.id, "name": j.name, "title": titles[j.name],
-                "revision": j.args[1], "inputs": j.args[2],
+                "inputs": j.args[1],
                 "next": j.next_run_time.strftime("%a %d %b, %I:%M %p")
                     if j.next_run_time else "Paused",
                 "minutes": int(j.trigger.interval.total_seconds() / 60) if interval else 0,
@@ -92,12 +92,6 @@ async def act(action: str, payload: dict[str, Any], request: Request, staff: Cur
         if action == "review":
             return {"url": await asyncio.to_thread(task_files.publish, settings,
                      task_files.Review.model_validate(payload), staff.email)}
-        if action == "install-existing":
-            return {"revision": await asyncio.to_thread(task_files.install_existing, settings,
-                                                         payload["name"], int(payload["number"]))}
-        if action == "install":
-            return {"revision": await asyncio.to_thread(task_files.install, settings,
-                                                         payload["task_id"], staff.email)}
         if action == "run":
             script = saved_scripts.load(settings, payload["name"], payload["revision"],
                                      payload["inputs"], staff.email)

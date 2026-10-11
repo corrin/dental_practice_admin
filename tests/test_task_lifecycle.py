@@ -12,7 +12,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from git import Repo
-from github import UnknownObjectException
 from jsonschema import ValidationError as SchemaError
 from pydantic import SecretStr, ValidationError
 
@@ -33,6 +32,7 @@ def install_fake(root: Path, name: str = "fake_report") -> task_files.Definition
     folder.mkdir(parents=True)
     (folder / "task.json").write_text(definition.model_dump_json(), encoding="utf-8")
     (folder / "source.txt").write_text(SOURCE, encoding="utf-8")
+    (folder.parent / "current").write_text(REVISION, encoding="utf-8")
     return definition
 
 
@@ -94,7 +94,7 @@ async def test_due_runs_use_local_approved_files_and_do_not_repeat(tmp_path: Pat
                                                                 ) -> None:
     configured = settings(tmp_path)
     install_fake(tmp_path)
-    schedule = schedules.Schedule(name="fake_report", revision=REVISION, inputs={"numbers": [2, 5]})
+    schedule = schedules.Schedule(name="fake_report", inputs={"numbers": [2, 5]})
     schedules.save(configured, schedule, "fake-staff")
     at = datetime(2026, 10, 4, 3, 2, tzinfo=UTC)
     with schedules.open_schedules(configured) as scheduler:
@@ -122,7 +122,7 @@ async def test_due_runs_use_local_approved_files_and_do_not_repeat(tmp_path: Pat
 async def test_missed_occurrence_is_visible_and_not_executed(tmp_path: Path) -> None:
     configured = settings(tmp_path)
     install_fake(tmp_path)
-    schedule = schedules.Schedule(name="fake_report", revision=REVISION, inputs={"numbers": [1]})
+    schedule = schedules.Schedule(name="fake_report", inputs={"numbers": [1]})
     schedules.save(configured, schedule, "fake-staff")
     at = datetime(2026, 10, 4, 3, 10, tzinfo=UTC)
     with schedules.open_schedules(configured) as scheduler:
@@ -135,17 +135,16 @@ async def test_missed_occurrence_is_visible_and_not_executed(tmp_path: Path) -> 
         store.close()
 
 
-def test_invalid_inputs_or_uninstalled_revision_cannot_be_scheduled(tmp_path: Path) -> None:
+def test_invalid_inputs_or_uninstalled_task_cannot_be_scheduled(tmp_path: Path) -> None:
     configured = settings(tmp_path)
     install_fake(tmp_path)
     with pytest.raises(SchemaError):
-        schedules.save(configured, schedules.Schedule(name="fake_report", revision=REVISION,
+        schedules.save(configured, schedules.Schedule(name="fake_report",
                        inputs={"numbers": "wrong"}), "fake-staff")
     with pytest.raises(FileNotFoundError):
-        schedules.save(configured, schedules.Schedule(name="fake_report", revision="b" * 40),
-                       "fake-staff")
+        schedules.save(configured, schedules.Schedule(name="missing_report"), "fake-staff")
     with pytest.raises(ValidationError):
-        schedules.Schedule(name="fake_report", revision=REVISION, minutes=7)
+        schedules.Schedule(name="fake_report", minutes=7)
     with schedules.open_schedules(configured) as scheduler:
         assert not scheduler.get_jobs()
 
@@ -153,8 +152,7 @@ def test_invalid_inputs_or_uninstalled_revision_cannot_be_scheduled(tmp_path: Pa
 def test_library_trigger_keeps_local_time_across_dst(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("apscheduler.triggers.cron.get_localzone",
                         lambda: ZoneInfo("Pacific/Auckland"))
-    trigger = schedules.Schedule(name="fake_report", revision=REVISION,
-                                 at="16:00", weekdays="*").trigger()
+    trigger = schedules.Schedule(name="fake_report", at="16:00", weekdays="*").trigger()
     before = trigger.get_next_fire_time(None, datetime(2026, 9, 26, tzinfo=UTC))
     after = trigger.get_next_fire_time(before, before + timedelta(seconds=1))
     assert before.hour == after.hour == 16
@@ -214,24 +212,6 @@ def test_clean_review_contains_no_draft_history_inputs_or_audits_and_installs_on
     assert "fake-private" not in "".join(exported.values())
     assert script.revision not in "".join(exported.values())
     assert script.thread not in "".join(exported.values())
-    with pytest.raises(ValueError):
-        task_files.install(configured, script.task_id, script.owner)
-    with pytest.raises(FileNotFoundError):
-        task_files.install(configured, script.task_id, "other@fake.invalid")
-    pr.merged = True
-
-    def contents(path: str, ref: str) -> SimpleNamespace:
-        if path not in exported:
-            raise UnknownObjectException(404)
-        return SimpleNamespace(decoded_content=exported[path].encode())
-
-    repo.get_contents.side_effect = contents
-    assert task_files.install(configured, script.task_id, script.owner) == REVISION
-    assert task_files.install(configured, script.task_id, script.owner) == REVISION
-    loaded = task_files.load(configured, "fake_report", REVISION, {"numbers": [2, 5]}, script.owner)
-    assert loaded.source == SOURCE
-    with Repo(task_files.folder_for(configured, script.task_id)) as local:
-        assert not local.heads
 
 
 def test_public_repository_is_refused_before_any_export(tmp_path: Path,
@@ -250,7 +230,7 @@ async def test_restart_marks_abandoned_occurrence_uncertain_without_replaying(
 ) -> None:
     configured = settings(tmp_path)
     install_fake(tmp_path)
-    schedule = schedules.Schedule(name="fake_report", revision=REVISION, inputs={"numbers": [2]})
+    schedule = schedules.Schedule(name="fake_report", inputs={"numbers": [2]})
     schedules.save(configured, schedule, "fake-staff")
     store = Storage(configured.database_path)
     identifier = store.start_run("fake_report", "scheduler", "fake")
@@ -267,7 +247,7 @@ async def test_schedule_management_does_not_wait_for_a_running_task(
 ) -> None:
     configured = settings(tmp_path)
     install_fake(tmp_path)
-    schedule = schedules.Schedule(name="fake_report", revision=REVISION, inputs={"numbers": [2]})
+    schedule = schedules.Schedule(name="fake_report", inputs={"numbers": [2]})
     schedules.save(configured, schedule, "fake-staff")
     at = datetime.now(UTC)
     with schedules.open_schedules(configured) as scheduler:
@@ -296,8 +276,7 @@ async def test_schedule_management_does_not_wait_for_a_running_task(
 async def test_long_missed_interval_is_reported_without_building_a_backlog(tmp_path: Path) -> None:
     configured = settings(tmp_path)
     install_fake(tmp_path)
-    schedule = schedules.Schedule(name="fake_report", revision=REVISION,
-                                  inputs={"numbers": [2]}, minutes=5)
+    schedule = schedules.Schedule(name="fake_report", inputs={"numbers": [2]}, minutes=5)
     schedules.save(configured, schedule, "fake-staff")
     at = datetime.now(UTC)
     with schedules.open_schedules(configured) as scheduler:
@@ -310,40 +289,75 @@ async def test_long_missed_interval_is_reported_without_building_a_backlog(tmp_p
         store.close()
 
 
-@pytest.mark.parametrize("problem", ["unmerged", "foreign", "invalid", "valid"])
-def test_install_existing_review_needs_no_local_draft(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, problem: str,
-) -> None:
-    configured = settings(tmp_path).model_copy(update={"task_repository": "fake/practice"})
-    definition = task_files.Definition(name="fake_report", title="Fake report",
-                                      description="Synthetic", inputs=CONTRACT)
-    files = {"task.json": definition.model_dump_json().encode(), "source.txt": SOURCE.encode(),
-             "test_task.py": b"def test_example(): assert True"}
-    if problem == "invalid":
-        files["task.json"] = b'{"name":"invalid"}'
+def fake_repository(revision: str, tasks: dict[str, dict[str, bytes]]) -> MagicMock:
+    """A practice repository whose default branch holds `tasks` and one shared module."""
     repo = MagicMock()
-    repo.get_pull.return_value = SimpleNamespace(merged=problem != "unmerged",
-        base=SimpleNamespace(repo=SimpleNamespace(
-            full_name="elsewhere/repo" if problem == "foreign" else "fake/practice")),
-        merge_commit_sha=REVISION)
-    shared = [SimpleNamespace(type="file", name="practice_time.py",
-                              decoded_content=b"NOON = 12\n")]
-    repo.get_contents.side_effect = lambda path, ref: (
-        shared if path == "shared"
-        else SimpleNamespace(decoded_content=files[path.rsplit("/", 1)[1]]))
-    monkeypatch.setattr(task_files, "repository", lambda _: repo)
-    if problem != "valid":
-        with pytest.raises(ValueError):
-            task_files.install_existing(configured, "fake_report", 2)
-        assert not (configured.data_dir / "installed").exists()
-        return
-    assert task_files.install_existing(configured, "fake_report", 2) == REVISION
-    assert task_files.install_existing(configured, "fake_report", 2) == REVISION
-    loaded = task_files.load(configured, "fake_report", REVISION, {"numbers": []}, "staff")
-    assert loaded.source == SOURCE
-    assert not (configured.data_dir / "task-drafts").exists()
-    installed = configured.data_dir / "installed" / "fake_report" / REVISION
+    repo.default_branch = "main"
+    repo.get_branch.return_value.commit.sha = revision
+
+    def contents(path: str, ref: str) -> Any:
+        assert ref == revision
+        if path == "shared":
+            return [SimpleNamespace(type="file", name="practice_time.py",
+                                    decoded_content=b"NOON = 12\n")]
+        if path == "tasks":
+            return [SimpleNamespace(type="dir", name=name) for name in tasks]
+        _, name, filename = path.split("/")
+        return SimpleNamespace(decoded_content=tasks[name][filename])
+
+    repo.get_contents.side_effect = contents
+    return repo
+
+
+def task(name: str, source: str = SOURCE) -> dict[str, bytes]:
+    definition = task_files.Definition(name=name, title=name.replace("_", " ").capitalize(),
+                                      description="Synthetic", inputs=CONTRACT)
+    return {"task.json": definition.model_dump_json().encode(), "source.txt": source.encode(),
+            "test_task.py": b"def test_example(): assert True"}
+
+
+def test_tasks_follow_the_default_branch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    configured = settings(tmp_path)
+    first, second = "1" * 40, "2" * 40
+    changed = SOURCE.replace("Synthetic report", "Changed report")
+    for revision, tasks in ((first, {"fake_report": task("fake_report")}),
+                            (second, {"fake_report": task("fake_report", changed),
+                                      "other_report": task("other_report")})):
+        repo = fake_repository(revision, tasks)
+        monkeypatch.setattr(task_files, "repository", lambda _, repo=repo: repo)
+        task_files.sync(configured)
+    assert task_files.current(configured, "fake_report") == second
+    assert task_files.current(configured, "other_report") == second
+    assert task_files.load(configured, "fake_report", second, {"numbers": []}, "staff"
+                           ).source == changed
+    assert task_files.load(configured, "fake_report", first, {"numbers": []}, "staff"
+                           ).source == SOURCE
+    installed = configured.data_dir / "installed" / "fake_report" / second
     assert (installed / "shared" / "practice_time.py").read_text() == "NOON = 12\n"
+
+    removed = fake_repository("3" * 40, {"other_report": task("other_report")})
+    monkeypatch.setattr(task_files, "repository", lambda _: removed)
+    task_files.sync(configured)
+    with pytest.raises(FileNotFoundError):
+        task_files.current(configured, "fake_report")
+    assert task_files.current(configured, "other_report") == "3" * 40
+
+    removed.get_contents.reset_mock()
+    task_files.sync(configured)
+    removed.get_contents.assert_not_called()
+
+
+def test_one_invalid_task_changes_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    broken = task("other_report")
+    broken["task.json"] = b'{"name":"other_report"}'
+    monkeypatch.setattr(task_files, "repository", lambda _: fake_repository(
+        "4" * 40, {"fake_report": task("fake_report", "changed"), "other_report": broken}))
+    with pytest.raises(ValidationError):
+        task_files.sync(configured)
+    assert task_files.current(configured, "fake_report") == REVISION
+    assert not (configured.data_dir / "installed" / "other_report").exists()
 
 
 async def test_installed_task_imports_the_practice_shared_modules(tmp_path: Path) -> None:

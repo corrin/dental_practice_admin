@@ -442,8 +442,8 @@ Then run `C:\Program Files\DentalPracticeAdmin\scripts\verify.ps1`, open `https:
 and sign in. [`deploy/ACCEPTANCE.md`](deploy/ACCEPTANCE.md) holds what only a person can sign
 off: the reboot, the unattended run and the restore drill. Back up `C:\ProgramData\DentalPracticeAdmin`.
 
-Tasks come from the practice's private repository, installed through the app's Reports & scripts
-page.
+Tasks come from the practice's private repository: within five minutes of a merge to its default
+branch, the app installs it, and staff see it on the Reports & scripts page.
 
 ### How it runs
 
