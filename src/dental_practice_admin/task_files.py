@@ -167,6 +167,18 @@ def publish(settings: Settings, review: Review, owner: str) -> str:
         return str(pr.html_url)
 
 
+def title(settings: Settings, task: str) -> str:
+    """What staff call a run's task: its installed or saved title, else its name in words."""
+    if task.startswith("draft:"):
+        return "Test run"
+    if re.fullmatch(NAME, task):
+        with suppress(FileNotFoundError):
+            return installed(settings, task, current(settings, task))[0].title
+        for path in (settings.data_dir / "saved" / task).glob("*/task.json"):
+            return Definition.model_validate_json(path.read_text(encoding="utf-8")).title
+    return task.replace("_", " ").capitalize()
+
+
 def current(settings: Settings, name: str) -> str:
     """The installed revision of a task on the practice repository's default branch."""
     if not re.fullmatch(NAME, name):

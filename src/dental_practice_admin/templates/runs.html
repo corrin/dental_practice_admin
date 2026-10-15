@@ -1,28 +1,19 @@
 {% extends "base.html" %}
+{% block title %}History{% endblock %}
 {% block body %}
-<p><a href="/chat" data-automation-id="chat-link">Chat &rarr;</a></p>
-<p><a href="/reconcile" data-automation-id="reconcile-link">Bank reconciliation &rarr;</a></p>
-<h1>Tasks</h1>
-<p><a href="/tasks/manage">Reports & scripts</a></p>
-<h1>Recent runs</h1>
+<h1>History</h1>
 {% if not runs %}
-<p class="quiet" data-automation-id="no-runs">No runs recorded yet.</p>
+<p class="quiet" data-automation-id="no-runs">Nothing has run yet.</p>
 {% else %}
 <table data-automation-id="run-list">
-  <tr><th>Started</th><th>Task</th><th>Principle</th><th>Outcome</th><th>Result</th></tr>
+  <tr><th>When</th><th>Report</th><th>Status</th><th>Result</th></tr>
   {% for run in runs %}
   <tr data-automation-id="run-row">
-    <td class="mono">{{ run.started_at[:19] }}</td>
-    <td>{{ run.task }}</td>
-    <td>{{ run.principle }}</td>
-    <td>
-      <span class="tag {% if run.outcome.value == 'failed' %}failed{% elif not run.is_trustworthy %}partial{% endif %}"
-            data-automation-id="run-outcome">{{ run.outcome.value }}</span>
-      {% if run.coverage.value == 'partial' %}
-      <span class="tag partial" data-automation-id="run-coverage">partial</span>
-      {% endif %}
-    </td>
-    <td><a href="/runs/{{ run.run_id }}" data-automation-id="run-link">{{ run.summary or 'in progress' }}</a></td>
+    <td>{{ local_time(run.started_at) }}</td>
+    <td>{{ titles[run.task] }}</td>
+    <td><span class="tag {% if run.finished_at and not run.is_trustworthy %}partial{% endif %}"
+              data-automation-id="run-outcome">{{ 'Ready' if run.is_trustworthy else ('Needs attention' if run.finished_at else 'Running') }}</span></td>
+    <td><a href="/runs/{{ run.run_id }}" data-automation-id="run-link">{{ run.summary or 'Running…' }}</a></td>
   </tr>
   {% endfor %}
 </table>

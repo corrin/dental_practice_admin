@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Bank reconciliation{% endblock %}
 {% block body %}
-<p><a href="/">&larr; Recent runs</a></p>
 <h1>Bank reconciliation</h1>
 <p>
   <span class="tag {% if bank_stale %}failed{% endif %}" data-automation-id="bank-as-of">Bank data as of {{ refreshed }}</span>

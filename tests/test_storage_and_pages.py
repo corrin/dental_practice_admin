@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -139,10 +140,13 @@ def test_compatible_pages_have_no_interface_warning(pages: Pages) -> None:
     assert 'data-automation-id="principle-interface-warning"' not in pages.client.get("/").text
 
 
-def test_results_link_to_application_schedule_controls(pages: Pages) -> None:
-    """The application owns schedules and provides staff controls for them."""
-    body = pages.client.get("/").text.lower()
-    assert 'href="/tasks/manage"' in body
+def test_home_is_the_report_picker_with_schedules_tucked_away(pages: Pages) -> None:
+    """Staff land on the reports; approval and schedules are one click away, closed."""
+    body = pages.client.get("/").text
+    assert "<h1 class=\"fs-2 mb-2\">Reports</h1>" in body
+    [section] = re.findall(r"<details[^>]*approval-and-automatic-runs[^>]*>", body)
+    assert "open" not in section.split("approval-and-automatic-runs")[1]
+    assert 'href="/history"' in body
 
 
 def test_frequent_runs_do_not_hide_other_scripts(pages: Pages) -> None:
@@ -308,3 +312,14 @@ def test_a_malformed_list_for_staff_is_refused_when_a_task_returns(for_staff: ob
     with pytest.raises(ValidationError):
         scripts.Result.model_validate({"summary": "Synthetic", "coverage": "complete",
                                        "detail": {"for_staff": for_staff}})
+
+
+def test_a_result_reads_plainly_with_technical_details_closed(pages: Pages) -> None:
+    run_id = _ran(pages, "succeeded", "complete", {"appointments": 3}, initiator="fake-staff")
+    body = pages.client.get(f"/runs/{run_id}").text
+    plain, technical = body.split('data-automation-id="technical-details"')
+    assert '<h1 data-automation-id="run-title">Fake report</h1>' in plain
+    assert "Synthetic" in plain
+    assert run_id not in plain and "appointments" not in plain
+    assert run_id in technical and "appointments" in technical
+    assert re.search(r"<details[^>]*technical-details\"\s*>", body)

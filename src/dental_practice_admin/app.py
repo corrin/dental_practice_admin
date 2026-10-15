@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator, Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -19,7 +20,7 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from dental_practice_admin import schedules
+from dental_practice_admin import akahu, schedules, task_files
 from dental_practice_admin.auth import AccessControl, CurrentStaff, StaffUser, build_oauth
 from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
@@ -30,6 +31,16 @@ from dental_practice_admin.storage import Storage, TaskRun
 from dental_practice_admin.task_ui import router as task_router
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def local_time(stamp: str | None) -> str:
+    """A stored UTC instant as NZ time for staff, or "never"."""
+    if stamp is None:
+        return "never"
+    return datetime.fromisoformat(stamp).astimezone(akahu.NZ).strftime("%a %d %b, %I:%M %p")
+
+
+TEMPLATES.env.globals["local_time"] = local_time
 
 # A signed-in session lasts a working day. Long enough that nobody signs in twice during a shift,
 # short enough that a laptop left at home is not signed in next week.
@@ -122,8 +133,8 @@ def health(
     }
 
 
-@router.get("/", response_class=HTMLResponse)
-def index(
+@router.get("/history", response_class=HTMLResponse)
+def history(
     request: Request,
     staff: CurrentStaff,
     configured: Annotated[Settings, Depends(settings)],
@@ -132,7 +143,8 @@ def index(
     """The most recent runs visible to this staff member."""
     runs = [run for run in store.recent_runs()
             if not run.task.startswith("draft:") or run.initiator == staff.email]
-    return render(request, "runs.html", staff, configured, store, runs=runs)
+    titles = {run.task: task_files.title(configured, run.task) for run in runs}
+    return render(request, "runs.html", staff, configured, store, runs=runs, titles=titles)
 
 
 @router.get("/chat", response_class=HTMLResponse)
@@ -217,14 +229,16 @@ def run_detail(
     """One run's result, with its coverage stated rather than implied."""
     run = visible_run(store, run_id, staff)
     return render(request, "run.html", staff, configured, store, run=run,
+                  title=task_files.title(configured, run.task),
                   has_audit=(configured.data_dir / "audits" / f"{run_id}.jsonl").is_file(),
                   has_printable=printable_path(configured, run_id).is_file())
 
 
 # The printable page is the task's own HTML, so it runs nothing: inline styles and inline
-# images only, never a script, a fetch or a frame.
+# images only, never a script, a fetch or a frame. Only this app may frame it: the run page
+# prints it from a hidden frame.
 PRINT_POLICY = ("default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
-                "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+                "base-uri 'none'; form-action 'none'; frame-ancestors 'self'")
 
 
 @router.get("/runs/{run_id}/print", response_class=HTMLResponse)

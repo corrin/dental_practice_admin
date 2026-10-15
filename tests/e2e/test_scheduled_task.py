@@ -56,8 +56,8 @@ def test_the_run_appears_on_the_page_with_its_generic_results(
 ) -> None:
     page.goto(spine["APP_URL"])
     expect(page.get_by_test_id("fake-banner")).to_be_visible()
-    page.locator(f'a[href="/runs/{completed_run}"]').click()
-    expect(page.get_by_test_id("run-title")).to_have_text("scheduled_report")
+    page.locator(f'a[href="/runs/{completed_run}"]').first.click()
+    expect(page.get_by_test_id("run-title")).to_have_text("Scheduled report")
     expect(page.get_by_test_id("not-complete-warning")).to_have_count(0)
     expect(page.get_by_test_id("run-summary")).to_have_text("2 practitioners")
     expect(page.locator("pre")).to_contain_text("Dr ")
@@ -65,7 +65,8 @@ def test_the_run_appears_on_the_page_with_its_generic_results(
 
 def test_results_link_to_application_schedules(page: Page, spine: dict[str, str]) -> None:
     page.goto(spine["APP_URL"])
-    page.get_by_role("link", name="Reports & scripts").click()
+    expect(page.get_by_role("heading", name="Automatic runs", exact=True)).to_be_hidden()
+    page.get_by_text("Approval and automatic runs", exact=True).click()
     expect(page.get_by_role("heading", name="Automatic runs", exact=True)).to_be_visible()
 
 

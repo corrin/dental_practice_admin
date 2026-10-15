@@ -1,32 +1,34 @@
 {% extends "base.html" %}
-{% block title %}{{ run.task }} — {{ run.started_at[:19] }}{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 {% block body %}
-<p><a href="/">&larr; All runs</a></p>
-<h1 data-automation-id="run-title">{{ run.task }}</h1>
-{% if has_printable %}<p><a href="/runs/{{ run.run_id }}/print" target="_blank" data-automation-id="run-print">Print</a></p>{% endif %}
-{% if has_audit %}<p><a href="/runs/{{ run.run_id }}/audit">Download local execution audit</a></p>{% endif %}
+<h1 data-automation-id="run-title">{{ title }}</h1>
+<p class="quiet">{% if run.finished_at %}Ran {{ local_time(run.started_at) }}{% else %}Running since {{ local_time(run.started_at) }}{% endif %}</p>
 
 {% if not run.is_trustworthy %}
 <p class="banner" data-automation-id="not-complete-warning">
-  This run is <strong>{{ run.outcome.value }}</strong> with <strong>{{ run.coverage.value }}</strong>
-  coverage. Completion has not been established.
+  {% if run.finished_at %}This report didn't finish properly, so its results may be incomplete.
+  Run it again; if it happens again, tell your administrator.
+  {% else %}This report is still running. Refresh the page in a minute.{% endif %}
 </p>
 {% endif %}
 
-<dl>
-  <dt>Run id</dt><dd class="mono" data-automation-id="run-id">{{ run.run_id }}</dd>
-  <dt>Initiator</dt><dd data-automation-id="run-initiator">{{ run.initiator }}</dd>
-  <dt>Principle</dt><dd data-automation-id="run-principle">{{ run.principle }}</dd>
-  <dt>Started</dt><dd class="mono">{{ run.started_at }}</dd>
-  <dt>Finished</dt><dd class="mono">{{ run.finished_at or '—' }}</dd>
-  <dt>Summary</dt><dd data-automation-id="run-summary">{{ run.summary }}</dd>
-</dl>
+<p class="fs-5" data-automation-id="run-summary">{{ run.summary }}</p>
+
+{% if has_printable %}
+<p><button id="print" class="btn btn-primary btn-lg" type="button" data-automation-id="run-print">Print</button>
+  <a class="ms-3 small" href="/runs/{{ run.run_id }}/print" target="_blank">Open the printable page</a></p>
+<iframe id="printable" src="/runs/{{ run.run_id }}/print" title="Printable page" style="position:absolute;width:0;height:0;border:0"></iframe>
+<script>
+  // The printable page may not run scripts itself; printing it from here is the one click.
+  document.getElementById('print').onclick = () => document.getElementById('printable').contentWindow.print();
+</script>
+{% endif %}
 
 {% if run.detail and run.detail.for_staff %}
-<h2>For staff to fix</h2>
+<h2 class="h5 mt-4">For staff to fix</h2>
 <table data-automation-id="for-staff">
   {% set columns = run.detail.for_staff[0] | reject("equalto", "href") | list %}
-  <tr>{% for key in columns %}<th>{{ key }}</th>{% endfor %}<th></th></tr>
+  <tr>{% for key in columns %}<th>{{ key | replace("_", " ") | capitalize }}</th>{% endfor %}<th></th></tr>
   {% for row in run.detail.for_staff %}
   <tr>{% for key in columns %}<td>{{ row[key] }}</td>{% endfor %}
     <td>{% if row.href %}<a href="{{ row.href }}">Open</a>{% endif %}</td></tr>
@@ -34,7 +36,17 @@
 </table>
 {% endif %}
 
-{% if run.detail %}
-<pre>{{ run.detail | tojson(indent=2) }}</pre>
-{% endif %}
+<details class="mt-4" data-automation-id="technical-details"><summary class="quiet">Technical details</summary>
+<dl>
+  <dt>Run id</dt><dd class="mono" data-automation-id="run-id">{{ run.run_id }}</dd>
+  <dt>Task</dt><dd class="mono">{{ run.task }}</dd>
+  <dt>Initiator</dt><dd data-automation-id="run-initiator">{{ run.initiator }}</dd>
+  <dt>Principle</dt><dd data-automation-id="run-principle">{{ run.principle }}</dd>
+  <dt>Outcome</dt><dd>{{ run.outcome.value }}, {{ run.coverage.value }} coverage</dd>
+  <dt>Started</dt><dd class="mono">{{ run.started_at }}</dd>
+  <dt>Finished</dt><dd class="mono">{{ run.finished_at or '—' }}</dd>
+</dl>
+{% if has_audit %}<p><a href="/runs/{{ run.run_id }}/audit">Download local execution audit</a></p>{% endif %}
+{% if run.detail %}<pre>{{ run.detail | tojson(indent=2) }}</pre>{% endif %}
+</details>
 {% endblock %}
