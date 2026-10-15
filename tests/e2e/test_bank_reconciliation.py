@@ -11,7 +11,7 @@ def test_staff_match_a_transfer_to_the_payment_already_in_principle(
     errors: list[str] = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.goto(spine["APP_URL"] + "/")
-    page.get_by_test_id("reconcile-link").click()
+    page.get_by_test_id("staff-nav").get_by_role("link", name="Bank reconciliation").click()
     page.get_by_test_id("fetch-now").click()
     rows = page.get_by_test_id("deposit-row")
     expect(rows).to_have_count(3, timeout=60000)

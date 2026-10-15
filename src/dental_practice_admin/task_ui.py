@@ -17,6 +17,7 @@ DAYS = {"mon-fri": "Weekdays", "*": "Every day", "mon": "Monday", "tue": "Tuesda
         "wed": "Wednesday", "thu": "Thursday", "fri": "Friday", "sat": "Saturday", "sun": "Sunday"}
 
 
+@router.get("/")
 @router.get("/tasks/manage")
 def manage(request: Request, staff: CurrentStaff) -> Any:
     """Show practice reports, scripts, recent results and automatic runs."""
@@ -60,9 +61,11 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
     store = Storage(settings.database_path)
     recent = [run for run in store.latest_runs_by_task() if not run.task.startswith("draft:")]
     attention = schedules.attention(settings, store)
+    interface_warnings = store.interface_warnings()
     store.close()
     return TEMPLATES.TemplateResponse(request, "tasks.html", {
         "staff": staff, "is_fake": settings.environment.value == "fake", "attention": attention,
+        "interface_warnings": interface_warnings,
         "days": DAYS, "installed": installed, "jobs": jobs, "recent": recent, "titles": titles,
         "launcher_recent": launcher_recent, "launcher_checked": checked})
 

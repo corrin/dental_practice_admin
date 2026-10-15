@@ -105,6 +105,7 @@ def test_the_page_is_served_with_no_scripts_allowed(
     assert response.text == PAGE
     policy = response.headers["content-security-policy"]
     assert "default-src 'none'" in policy and "script-src" not in policy
+    assert "frame-ancestors 'self'" in policy
 
 
 def test_a_draft_prints_for_its_owner_only(

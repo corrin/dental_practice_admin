@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from dental_practice_admin import akahu
-from dental_practice_admin.app import render, storage
+from dental_practice_admin.app import local_time, render, storage
 from dental_practice_admin.audit import Audit
 from dental_practice_admin.auth import CurrentStaff
 from dental_practice_admin.config import Settings, current_settings
@@ -148,13 +148,6 @@ def open_items(store: Storage) -> tuple[list[dict[str, Any]], list[dict[str, Any
     return payments, sorted(invoices, key=lambda i: (i["patient"], i["day"]))
 
 
-def local_time(stamp: str | None) -> str:
-    """A stored UTC instant as NZ time for staff, or "never"."""
-    if stamp is None:
-        return "never"
-    return datetime.fromisoformat(stamp).astimezone(akahu.NZ).strftime("%a %d %b, %I:%M %p")
-
-
 def _stale(stamp: str | None) -> bool:
     return stamp is None or datetime.now(UTC) - datetime.fromisoformat(stamp) > STALE
 
@@ -168,7 +161,7 @@ def page(request: Request, staff: CurrentStaff, configured: Configured, store: S
                   deposits=store.deposits(tab), names=store.cached("patient"),
                   refreshed=local_time(refreshed), bank_stale=_stale(refreshed),
                   principle_read=local_time(read), principle_stale=_stale(read),
-                  last_fetch=store.last_fetch(), local_time=local_time)
+                  last_fetch=store.last_fetch())
 
 
 @router.post("/fetch")
