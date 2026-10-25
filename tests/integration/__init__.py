@@ -1,1 +1,1 @@
-"""Integration tier: reaches the real Principle staging API."""
+"""Integration tier: reads the real Principle production API (ADR 0006)."""

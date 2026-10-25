@@ -41,8 +41,8 @@ so auth, paging and error handling are exercised for real everywhere.
 | | What it is | Used by |
 | --- | --- | --- |
 | **fake** | [`tests/fake/`](tests/fake/) — a real implementation with its own SQLite state, no network | the default suite, the [E2E tier](#running-the-tests), local development |
-| **staging** | `api.staging.principle.dental` | the [integration tier](#running-the-tests), writes that probe Principle ([ADR 0006](docs/adr/0006-read-from-production.md)) |
-| **production** | `api.principle.dental` | the practice, the [recorder](scripts/record_principle_wire.py)'s reads |
+| **staging** | `api.staging.principle.dental` | writes that probe Principle ([ADR 0006](docs/adr/0006-read-from-production.md)) |
+| **production** | `api.principle.dental` | the practice; the [integration tier](#running-the-tests) and the [recorder](scripts/record_principle_wire.py), reading |
 
 Configuration refuses to address production unless it says `PRINCIPLE_ENVIRONMENT=production`,
 and refuses to call itself production while addressing anything else.
@@ -154,21 +154,20 @@ sign-out button because it does not establish a Google session.
 uv sync
 uv run pytest                          # fake only: hermetic, fast, needs no credentials
 uv run pytest -m e2e                   # fake, task and web app as separate processes, in a browser
-uv run pytest -m integration           # the real staging API; refuses if unconfigured
+uv run pytest -m integration           # reads the real production API; refuses if unconfigured
 uv run pytest -m llm                   # bounded real OpenAI check with synthetic text; costs tokens
 uv run python -m scripts.code_size     # application size, counted
 ```
 
-The integration tier needs `PRINCIPLE_API_KEY_STAGING` and `PRINCIPLE_PRACTICE_ID_STAGING` for a
-**staging** workspace. It is a release gate, deliberately absent from
+The integration tier needs `PRINCIPLE_API_KEY_PROD` and `PRINCIPLE_PRACTICE_ID_PROD`, and only
+reads. It is a release gate, deliberately absent from
 [CI](.github/workflows/ci.yml), which stays hermetic.
 
 [`scripts/release_gate.ps1`](scripts/release_gate.ps1) runs the fixed release checks: installed
-imports, Caddy validation, lint, types, local tests, browser tests, Principle staging, and the
+imports, Caddy validation, lint, types, local tests, browser tests, reads of Principle production, and the
 synthetic real-model check. It requires Caddy, Playwright Chromium, network access, and
-staging/OpenAI credentials. Missing prerequisites fail the gate. Run individual test commands for
-diagnosis; partial checks do not certify a release. No release command exercises production
-records.
+production/OpenAI credentials. Missing prerequisites fail the gate. Run individual test commands for
+diagnosis; partial checks do not certify a release. No release command writes to production.
 
 ## Principle interface and workflow promotion
 
@@ -363,7 +362,7 @@ tests/
   fake/                  the fake Principle: its own store, its own routes
   recordings/            refusal bodies; the rest live under ADMIN_DATA_ROOT
   spec/                  the derived fingerprint of the operations we call
-  integration/           the staging tier and the specification drift check
+  integration/           reads of production and the specification drift check
   e2e/                   separate processes, real browser
 scripts/                 tools: the recorder, the fingerprinter, the release gate, verify.ps1
 .vscode/tasks.json       one Run entry; scripts.run starts the configured services
@@ -452,4 +451,4 @@ home, which makes the Google sign-in allowlist the only access control.
 ## Releasing
 
 Before merging to `main`, run `scripts\release_gate.ps1` in a development checkout; it must end
-"Release checks passed" (its staging tier needs the recordings in `tests\recordings`).
+"Release checks passed" (its production tier needs the recordings under `ADMIN_DATA_ROOT`).

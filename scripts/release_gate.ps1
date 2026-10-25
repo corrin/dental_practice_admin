@@ -35,7 +35,7 @@ Stage 'Released Principle interface' { uv run --locked python -m scripts.refresh
 Stage 'Local suite' { uv run --locked pytest -q }
 Stage 'End to end' { uv run --locked pytest -m e2e -q }
 Stage 'Browser smoke' { uv run --locked pytest -m smoke -q }
-Stage 'Principle staging' { & "$PSScriptRoot\run_integration_tests.ps1" }
+Stage 'Principle production, reading' { & "$PSScriptRoot\run_integration_tests.ps1" }
 Stage 'Real model with synthetic input' { uv run --locked pytest -m llm -q }
 
 if ($script:Failed.Count) {

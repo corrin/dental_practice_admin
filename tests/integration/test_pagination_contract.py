@@ -1,4 +1,4 @@
-"""What Principle's paging actually does, asserted against staging.
+"""What Principle's paging actually does, asserted against production, reading only.
 
 Every behaviour here contradicts the published specification, and each was found by the
 recorder rather than by reading the document. They are pinned as tests so the fake can be
@@ -30,7 +30,7 @@ def _window(days: int = WIDE_WINDOW_DAYS) -> dict[str, str]:
 
 
 async def test_total_is_the_page_size_not_the_result_size(
-    staging_client: PrincipleClient, staging_settings: Settings
+    production_client: PrincipleClient, production_settings: Settings
 ) -> None:
     """`meta.total` counts this page, not the result set. The spec says otherwise.
 
@@ -38,9 +38,10 @@ async def test_total_is_the_page_size_not_the_result_size(
     od_data's "unreliable grand totals" observation, now precisely characterised: asking for
     one row answers total 1 over the same window that answers total 20 at limit 20.
     """
-    query = {"practiceId": staging_settings.practice_id, **_window()}
-    one = await staging_client.get("listAppointmentsByDateRange", query={**query, "limit": 1})
-    twenty = await staging_client.get("listAppointmentsByDateRange", query={**query, "limit": 20})
+    query = {"practiceId": production_settings.practice_id, **_window()}
+    one = await production_client.get("listAppointmentsByDateRange", query={**query, "limit": 1})
+    twenty = await production_client.get("listAppointmentsByDateRange",
+                                         query={**query, "limit": 20})
 
     assert one["meta"]["total"] == len(one["data"]) == 1
     assert twenty["meta"]["total"] == len(twenty["data"]) == 20
@@ -51,7 +52,7 @@ async def test_total_is_the_page_size_not_the_result_size(
 
 
 async def test_next_offset_id_is_the_last_row_created_at(
-    staging_client: PrincipleClient, staging_settings: Settings
+    production_client: PrincipleClient, production_settings: Settings
 ) -> None:
     """The cursor is a `createdAt`, not a record id, and the order is createdAt descending.
 
@@ -59,9 +60,9 @@ async def test_next_offset_id_is_the_last_row_created_at(
     different sequence from the real API, and a report reading the second page would silently
     describe different appointments.
     """
-    page = await staging_client.get(
+    page = await production_client.get(
         "listAppointmentsByDateRange",
-        query={"practiceId": staging_settings.practice_id, "limit": 3, **_window()},
+        query={"practiceId": production_settings.practice_id, "limit": 3, **_window()},
     )
     rows = page["data"]
     assert len(rows) == 3
@@ -72,38 +73,38 @@ async def test_next_offset_id_is_the_last_row_created_at(
 
 
 async def test_an_unplaceable_offset_id_is_ignored_not_refused(
-    staging_client: PrincipleClient, staging_settings: Settings
+    production_client: PrincipleClient, production_settings: Settings
 ) -> None:
     """A cursor Principle cannot parse silently restarts the walk at page one.
 
     This is why PrincipleClient.rows refuses on a repeated row id: without that guard a stale
     cursor mid-walk would yield the first page twice and inflate every count in the report.
     """
-    query = {"practiceId": staging_settings.practice_id, "limit": 2, **_window()}
-    first = await staging_client.get("listAppointmentsByDateRange", query=query)
-    with_nonsense = await staging_client.get(
+    query = {"practiceId": production_settings.practice_id, "limit": 2, **_window()}
+    first = await production_client.get("listAppointmentsByDateRange", query=query)
+    with_nonsense = await production_client.get(
         "listAppointmentsByDateRange", query={**query, "offsetId": "no-such-record"}
     )
     assert [row["id"] for row in with_nonsense["data"]] == [row["id"] for row in first["data"]]
 
 
 async def test_the_server_default_limit_is_twenty(
-    staging_client: PrincipleClient, staging_settings: Settings
+    production_client: PrincipleClient, production_settings: Settings
 ) -> None:
     """Omitting `limit` gets 20 rows, not everything and not 100.
 
     Any code reading a single page without asking for a limit silently sees only 20
     appointments, which for a busy practice is most of a day missing.
     """
-    page = await staging_client.get(
+    page = await production_client.get(
         "listAppointmentsByDateRange",
-        query={"practiceId": staging_settings.practice_id, **_window()},
+        query={"practiceId": production_settings.practice_id, **_window()},
     )
     assert page["meta"]["limit"] == 20
 
 
 async def test_practitioners_is_not_paginated(
-    staging_client: PrincipleClient, staging_settings: Settings
+    production_client: PrincipleClient, production_settings: Settings
 ) -> None:
     """The practitioner listing carries no `meta` and ignores `limit`.
 
@@ -111,21 +112,21 @@ async def test_practitioners_is_not_paginated(
     practitioner anyway, so a caller that believed the filter worked would be wrong about
     what it asked for.
     """
-    envelope = await staging_client.get(
-        "listPractitioners", path_params={"practiceId": staging_settings.practice_id}
+    envelope = await production_client.get(
+        "listPractitioners", path_params={"practiceId": production_settings.practice_id}
     )
     assert "meta" not in envelope
     assert envelope["data"], "the practice must have at least one practitioner"
 
 
-async def test_practices_is_not_paginated(staging_client: PrincipleClient) -> None:
+async def test_practices_is_not_paginated(production_client: PrincipleClient) -> None:
     """`/v1/practices` returns `data` alone, which is what the catalogue assumes."""
-    envelope = await staging_client.get("listPractices")
+    envelope = await production_client.get("listPractices")
     assert "meta" not in envelope
 
 
 async def test_a_full_walk_yields_no_duplicates(
-    staging_client: PrincipleClient, staging_settings: Settings
+    production_client: PrincipleClient, production_settings: Settings
 ) -> None:
     """The guarded walk must complete over a real multi-page result set.
 
@@ -135,9 +136,9 @@ async def test_a_full_walk_yields_no_duplicates(
     """
     rows = [
         row
-        async for row in staging_client.rows(
+        async for row in production_client.rows(
             "listAppointmentsByDateRange",
-            query={"practiceId": staging_settings.practice_id, **_window(days=14)},
+            query={"practiceId": production_settings.practice_id, **_window(days=14)},
             page_size=10,
         )
     ]
