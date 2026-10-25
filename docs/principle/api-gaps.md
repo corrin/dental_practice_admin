@@ -30,6 +30,12 @@ Principle has one unconfirmed state where Open Dental had several ("1 week sent"
 confirmations were not migrated as status: on 15/09 Principle shows each appointment marked
 `confirmed` minutes before it started, as the patient arrived.
 
+## Text messages
+
+`listSMSMessages` rows carry `patientId`, which the interface requires, and it is the patient
+they were listed under. **Verified:** 107 of 107 messages across 25 patients from the diary,
+production, 2026-10-25, each response validated by `PrincipleClient` against the interface.
+
 ## Missing from the API, read from Firestore
 
 Each is visible in Principle's timeline or appointment card. See [firestore.md](firestore.md).

@@ -31,8 +31,8 @@ __pycache__/
 
 # Recordings captured from a real Principle tenant are NOT distributed. They are derived from
 # real patient records, and no anonymiser should be trusted enough to publish its output under
-# health-privacy law. Each practice runs scripts/record_principle_wire.py against its own
-# staging tenant and keeps the result locally.
+# health-privacy law. scripts/record_principle_wire.py writes them under ADMIN_DATA_ROOT;
+# these lines catch one copied here by hand.
 #
 # Refusal recordings ARE committed: an error body is the API's own wording and carries no
 # patient data, and tests/fake/server.py needs them to refuse in words nobody invented.

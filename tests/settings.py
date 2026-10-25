@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+import httpx2 as httpx
 import pytest
 from pydantic import SecretStr
 
@@ -77,3 +78,18 @@ def use_fake_environment(monkeypatch: pytest.MonkeyPatch, data_root: Path,
 def fake_environment(data_root: Path, **overrides: Any) -> dict[str, str]:
     """The same settings as environment variables, named as `.env` names them."""
     return fake_settings(data_root, **overrides).as_environment()
+
+
+class ReadingOnly(httpx.AsyncBaseTransport):
+    """A transport that sends only GETs: the integration tier reads production and never writes."""
+
+    def __init__(self, inner: httpx.AsyncBaseTransport | None = None) -> None:
+        self.inner = inner or httpx.AsyncHTTPTransport()
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        if request.method != "GET":
+            raise PermissionError(f"{request.method} refused: this client only reads production")
+        return await self.inner.handle_async_request(request)
+
+    async def aclose(self) -> None:
+        await self.inner.aclose()

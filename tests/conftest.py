@@ -1,6 +1,6 @@
-"""Fixtures for every tier, and the guard that keeps tests away from production.
+"""Fixtures for every tier, and the guards that keep tests from changing production.
 
-The default suite talks only to the fake. The integration tier talks to staging and
+The default suite talks only to the fake. The integration tier reads production (ADR 0006) and
 **refuses rather than skips** when it is unconfigured: a skip and a pass look the same in a
 summary line, which is exactly how an integration suite quietly stops testing anything.
 """
@@ -14,7 +14,6 @@ from pathlib import Path
 import pytest
 
 from dental_practice_admin.config import (
-    ConfigurationError,
     Environment,
     Settings,
     is_production_host,
@@ -76,17 +75,15 @@ async def fake_client(
 
 
 @pytest.fixture
-def staging_settings() -> Settings:
-    """Staging configuration, refusing when credentials are absent."""
-    settings = Settings(environment=Environment.STAGING)
-    if is_production_host(settings.api_base_url):
-        raise ConfigurationError("the integration tier must not address production")
+def production_settings() -> Settings:
+    """Production configuration, for reads only, refusing when credentials are absent."""
+    settings = Settings(environment=Environment.PRODUCTION)
     settings.require_credentials()
     return settings
 
 
 @pytest.fixture
-async def staging_client(staging_settings: Settings) -> AsyncIterator[PrincipleClient]:
-    client = PrincipleClient(staging_settings)
+async def production_client(production_settings: Settings) -> AsyncIterator[PrincipleClient]:
+    client = PrincipleClient(production_settings, transport=test_settings.ReadingOnly())
     yield client
     await client.aclose()

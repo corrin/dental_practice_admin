@@ -519,7 +519,7 @@ class FakeStore:
 def _render_patient(row: sqlite3.Row) -> dict[str, object]:
     """A patient as Principle sends one.
 
-    tests/recordings/create_patient.json (2026-10-10): `contactNumbers` and `tags` are always
+    The create_patient recording (2026-10-10): `contactNumbers` and `tags` are always
     present, empty when unset, and there is no `practiceId`.
     """
     patient: dict[str, object] = {
