@@ -20,7 +20,12 @@ can recognise every patient, so real data has no place here at all.
   private task repository (`ADMIN_TASK_REPOSITORY`). Never into this checkout.
 - Findings from production enter `docs/` as counts and shapes ("19 of 287 patients break the
   specification"), never as records, names or identifiers.
-- Test data is invented, and every invented person carries the `Fake` marker in their name.
+- Tests run on the practice's own data: the fake Principle loads a snapshot of production from
+  `ADMIN_DATA_ROOT` ([ADR 0007](docs/adr/0007-record-every-interface.md)). Nothing in the
+  checkout holds patient data, so tests that need it never run on GitHub, whose logs are
+  public.
+- The only patient anything here creates is the recorder's staging patient, named with the
+  `Fake` marker and carrying the owner's own phone and email.
 
 ## For any practice on Principle
 
