@@ -31,16 +31,19 @@ Firestore documents are recorded as shapes only: each field's name and value typ
 several documents, with no value at all. The shape is all tests/test_fake_conformance.py
 compares, and a value that is never written cannot leak.
 
-Creating a patient is the one write, and only with --create-patient: a `[TEST]` patient on
-staging, which the API cannot delete, so the fake's `POST /v1/patients` is checked against what
-Principle answers.
+Creating a patient is the one write, and only with --create-patient: a `[TEST] Fake` patient
+on staging, which the API cannot delete, so the fake's `POST /v1/patients` is checked against
+what Principle answers. It runs after every read, and nothing is written to disk until the whole
+run has succeeded, so a failed run leaves no patient for its re-run to duplicate and the previous
+recordings as they were. Recordings go under the production data folder; only refusals, which
+are Principle's own wording, are written into this checkout.
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
-import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -56,7 +59,9 @@ from dental_practice_admin.config import (
 from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.principle import PrincipleClient, RecordError
 
-RECORDINGS = Path(__file__).resolve().parent.parent / "tests" / "recordings"
+# Refusals are Principle's own wording and are committed; every other recording derives from
+# patient records and stays in the environment's data folder (`recordings_of`).
+REFUSALS = Path(__file__).resolve().parent.parent / "tests" / "recordings" / "refusals"
 
 # One element is a shape; a hundred contacts are a hundred copies of it.
 LIST_ELEMENTS_KEPT = 2
@@ -124,8 +129,6 @@ TIMESTAMP_KEYS = frozenset(
 )
 
 REDACTED = "<unrecognised field; add it to scripts/record_principle_wire.py deliberately>"
-
-FIRESTORE = RECORDINGS / "firestore"
 
 # The Firestore collections the fake serves (tests/fake/firestore.py), keyed by recording name.
 FIRESTORE_CATALOGUE = ("patient", "appointment", "treatment_step", "treatment_category",
@@ -309,39 +312,47 @@ def covers(recorded: Any, fake: Any, where: str = "") -> list[str]:
     return []
 
 
-def write_shape(name: str, source: str, documents: list[dict[str, Any]]) -> Path:
-    """Save the joined shape of some Firestore documents' fields: names and types only."""
+# A recording's destination and its text. Nothing is written until the whole run succeeds,
+# so a failure part-way leaves the previous recordings as they were.
+Recording = tuple[Path, str]
+
+
+def recordings_of(settings: Settings) -> Path:
+    """Where an environment's recordings live: its data folder, never this checkout."""
+    return settings.data_dir / "recordings"
+
+
+def as_text(document: object) -> str:
+    """A recording's file contents."""
+    return json.dumps(document, indent=2, sort_keys=True) + "\n"
+
+
+def write_shape(name: str, settings: Settings, documents: list[dict[str, Any]]) -> Recording:
+    """The joined shape of some Firestore documents' fields: names and types only."""
     if not documents:
         raise SystemExit(f"{name}: no documents to take a shape from; pick another day")
-    target = FIRESTORE / f"{name}.json"
-    target.parent.mkdir(parents=True, exist_ok=True)
     shape = joined([shape_of(d.get("fields", {})) for d in documents])[0]
-    target.write_text(json.dumps({
+    return recordings_of(settings) / "firestore" / f"{name}.json", as_text({
         "capturedOn": datetime.now(tz=UTC).date().isoformat(),
-        "source": source, "documents": len(documents), "shape": shape,
-    }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return target
+        "source": f"firestore ({settings.environment.value})",
+        "documents": len(documents), "shape": shape,
+    })
 
 
 def write(
-    name: str, status: int, body: object, names: Pseudonymiser, settings: Settings, *,
-    refusal: bool = False,
-) -> Path:
-    """Save one scrubbed recording, citing the day it was captured.
+    name: str, status: int, body: object, names: Pseudonymiser, settings: Settings, into: Path,
+) -> Recording:
+    """One scrubbed recording, citing the day it was captured.
 
     The capture date is a day, not an instant: a precise timestamp on a file describing one
     practice's diary narrows down when that diary was read.
     """
-    target = (RECORDINGS / "refusals" if refusal else RECORDINGS) / f"{name}.json"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    document = {
+    return into / f"{name}.json", as_text({
         "capturedOn": datetime.now(tz=UTC).date().isoformat(),
         "source": api_host(settings.api_base_url),
         "status": status,
         "body": names.scrub(body),
-    }
-    target.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return target
+    })
 
 
 def configured(environment: Environment) -> Settings:
@@ -361,7 +372,7 @@ def window() -> dict[str, str]:
 
 
 async def record_firestore(settings: Settings,
-                           appointments: list[dict[str, Any]]) -> list[Path]:
+                           appointments: list[dict[str, Any]]) -> list[Recording]:
     """The shape of every collection the fake serves, joined over sampled appointments.
 
     Fields vary between documents (a step charted to a tooth or to the whole mouth), so one
@@ -381,7 +392,6 @@ async def record_firestore(settings: Settings,
         def stamp(moment: datetime) -> dict[str, str]:
             return {"timestampValue": moment.astimezone(UTC).isoformat().replace("+00:00", "Z")}
 
-        source = f"firestore ({settings.environment.value})"
         patients = [await firestore.read(f"patients/{p}")
                     for p in sorted({a["patientId"] for a in appointments})]
         bookings = [await firestore.read(f"patients/{a['patientId']}/appointments/{a['id']}")
@@ -395,15 +405,15 @@ async def record_firestore(settings: Settings,
                    for document in found(await firestore.read(f"staff/{staff}",
                                                               query("rosterSchedules")))]
         return [
-            write_shape("patient", source, patients),
-            write_shape("appointment", source, bookings),
-            write_shape("treatment_step", source, steps),
-            write_shape("treatment_category", source, categories),
-            write_shape("schedule_summaries", source, found(await firestore.read(
+            write_shape("patient", settings, patients),
+            write_shape("appointment", settings, bookings),
+            write_shape("treatment_step", settings, steps),
+            write_shape("treatment_category", settings, categories),
+            write_shape("schedule_summaries", settings, found(await firestore.read(
                 f"practices/{settings.practice_id}",
                 query("scheduleSummaries", ("day", "EQUAL", {"stringValue": day.isoformat()}))))),
-            write_shape("roster_schedules", source, rosters),
-            write_shape("calendar_events", source, found(await firestore.read("", query(
+            write_shape("roster_schedules", settings, rosters),
+            write_shape("calendar_events", settings, found(await firestore.read("", query(
                 "calendarEvents", ("event.from", "GREATER_THAN_OR_EQUAL", stamp(start)),
                 ("event.from", "LESS_THAN", stamp(start + timedelta(days=7))))))),
         ]
@@ -411,7 +421,7 @@ async def record_firestore(settings: Settings,
         await firestore.aclose()
 
 
-async def record_firestore_refusals(settings: Settings) -> list[Path]:
+async def record_firestore_refusals(settings: Settings) -> list[Recording]:
     """Firestore's answers to a missing document and a bad token, with the path as a slot."""
     firestore = Firestore(settings)
     try:
@@ -428,25 +438,19 @@ async def record_firestore_refusals(settings: Settings) -> list[Path]:
             text = response.text.replace(f"{firestore.root}/{path}", "{document}")
             if firestore.root in text or settings.firebase_project in text:
                 raise SystemExit(f"{name}: the refusal still names the real database")
-            target = RECORDINGS / "refusals" / f"{name}.json"
-            target.write_text(json.dumps({
+            written.append((REFUSALS / f"{name}.json", as_text({
                 "capturedOn": datetime.now(tz=UTC).date().isoformat(),
                 "source": f"firestore ({settings.environment.value})",
                 "status": response.status_code,
-                "body": json.loads(text)}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            written.append(target)
+                "body": json.loads(text)})))
         return written
     finally:
         await firestore.aclose()
 
 
 async def record_patient(client: PrincipleClient, names: Pseudonymiser,
-                         appointment: dict[str, Any], staging: Settings | None) -> list[Path]:
-    """getPatient, searchPatients and, when given staging, createPatient there.
-
-    Creating writes a `[TEST]` patient to staging that the API cannot delete, so it runs only
-    with --create-patient: when the fake's createPatient changes, not on every re-record.
-    """
+                         appointment: dict[str, Any]) -> list[Recording]:
+    """The appointment's patient, by id and by name search."""
     async def as_sent(name: str, **arguments: Any) -> dict[str, Any]:
         # A phone number or email that breaks the specification is real data, not a reason
         # to leave the record out.
@@ -457,26 +461,36 @@ async def record_patient(client: PrincipleClient, names: Pseudonymiser,
 
     patient = await as_sent("getPatient", path_params={"patientId": appointment["patientId"]})
     search = await as_sent("searchPatients", query={"name": patient["name"]})
-    created = None
-    if staging is not None:
-        async with PrincipleClient(staging) as writer:
-            created = await writer.call("createPatient", {
-                "practiceId": staging.practice_id, "name": f"[TEST] Recording {date.today()}",
-                "dateOfBirth": "1970-01-01", "gender": "notSpecified",
-                "email": "recording@example.invalid"})
-    for document in (patient, search, created):
+    for document in (patient, search):
         names.observe(document)
     names.freeze()
-    written = [write("patient", 200, patient, names, client.settings),
-               write("search_patients", 200, search, names, client.settings)]
-    if staging is not None:
-        written.append(write("create_patient", 201, created, names, staging))
-    return written
+    return [write("patient", 200, patient, names, client.settings,
+                  recordings_of(client.settings)),
+            write("search_patients", 200, search, names, client.settings,
+                  recordings_of(client.settings))]
+
+
+async def record_created_patient(staging: Settings, names: Pseudonymiser,
+                                 into: Path) -> Recording:
+    """Create a `[TEST]` patient on staging, which the API cannot delete.
+
+    It runs only with --create-patient, when the fake's createPatient changes, and last, so a
+    run that fails leaves no patient behind for its re-run to duplicate.
+    """
+    async with PrincipleClient(staging) as writer:
+        created = await writer.call("createPatient", {
+            "practiceId": staging.practice_id,
+            "name": f"[TEST] Fake Recording {date.today()}",
+            "dateOfBirth": "1970-01-01", "gender": "notSpecified",
+            "email": "recording@example.invalid"})
+    names.observe(created)
+    names.freeze()
+    return write("create_patient", 201, created, names, staging, into)
 
 
 async def record_successes(
     client: PrincipleClient, practice_id: str, names: Pseudonymiser
-) -> list[Path]:
+) -> list[Recording]:
     """Capture one page of each verified diary listing.
 
     All three share one Pseudonymiser, so the practice id in the appointment rows maps to the
@@ -494,9 +508,12 @@ async def record_successes(
         names.observe(document)
     names.freeze()
     return [
-        write("practices", 200, practices, names, client.settings),
-        write("practitioners", 200, practitioners, names, client.settings),
-        write("appointments", 200, appointments, names, client.settings),
+        write("practices", 200, practices, names, client.settings,
+                  recordings_of(client.settings)),
+        write("practitioners", 200, practitioners, names, client.settings,
+                  recordings_of(client.settings)),
+        write("appointments", 200, appointments, names, client.settings,
+                  recordings_of(client.settings)),
     ]
 
 
@@ -511,16 +528,9 @@ def query(collection: str, *filters: tuple[str, str, dict[str, Any]]) -> dict[st
     return {"structuredQuery": body}
 
 
-def recent() -> dict[str, str]:
-    """The month before today and the week after: enough booked days to sample from."""
-    today = date.today()
-    return {"from": f"{today - timedelta(days=30)}T00:00:00Z",
-            "to": f"{today + timedelta(days=7)}T00:00:00Z"}
-
-
 async def first_appointment(client: PrincipleClient, settings: Settings) -> dict[str, Any]:
     """A booked appointment on a day with a schedule summary, to read its documents from."""
-    search = recent()
+    search = window()
     firestore = Firestore(settings)
     checked: dict[date, bool] = {}
     try:
@@ -548,10 +558,10 @@ DOCUMENTS_SAMPLED = 40
 
 async def sample(client: PrincipleClient, settings: Settings,
                  appointment: dict[str, Any]) -> list[dict[str, Any]]:
-    """`appointment` first, then other booked appointments from the month before today."""
+    """`appointment` first, then other booked appointments from the fortnight around today."""
     rows = [appointment]
     async for row in client.rows("listAppointmentsByDateRange",
-                                 query={"practiceId": settings.practice_id, **recent()}):
+                                 query={"practiceId": settings.practice_id, **window()}):
         if len(rows) == DOCUMENTS_SAMPLED:
             break
         if row["id"] != appointment["id"] and row["status"] != "cancelled" \
@@ -560,9 +570,9 @@ async def sample(client: PrincipleClient, settings: Settings,
     return rows
 
 
-async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Path]:
-    """Provoke each error the fake needs to be able to speak, and save what was said."""
-    written: list[Path] = []
+async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Recording]:
+    """Provoke each error the fake needs to be able to speak, and keep what was said."""
+    written: list[Recording] = []
 
     # The client's PrincipleError carries no response body, by design, so refusals are read
     # from the raw response: the recording is Principle's own words or nothing.
@@ -573,7 +583,7 @@ async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Path
     if "json" not in refused.headers.get("content-type", ""):
         raise SystemExit(f"unauthorised: the refusal is not JSON ({refused.status_code})")
     written.append(write("unauthorised", refused.status_code, refused.json(), names, settings,
-                         refusal=True))
+                         REFUSALS))
 
     # Deliberately not provoked: an unplaceable offsetId, a missing required parameter, and
     # an out-of-range limit. The first is not a refusal at all -- Principle ignores it and
@@ -582,25 +592,32 @@ async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Path
     return written
 
 
-
 async def main() -> None:
     """Capture every recording the fake needs, successes and refusals alike."""
-    # Both are resolved before anything is sent, so a missing setting refuses the whole run.
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--create-patient", action="store_true",
+                        help="also create an undeletable [TEST] patient on staging")
+    create = parser.parse_args().create_patient
     settings = configured(Environment.PRODUCTION)
-    staging = configured(Environment.STAGING) if "--create-patient" in sys.argv else None
+    staging = configured(Environment.STAGING) if create else None
     print(f"recording from {settings.api_base_url}")
-    names, patient_names = Pseudonymiser(), Pseudonymiser()
+    names, patient_names, created_names = Pseudonymiser(), Pseudonymiser(), Pseudonymiser()
     async with PrincipleClient(settings) as client:
-        written = await record_successes(client, settings.practice_id, names)
+        recorded = await record_successes(client, settings.practice_id, names)
         appointment = await first_appointment(client, settings)
-        written += await record_patient(client, patient_names, appointment, staging)
+        recorded += await record_patient(client, patient_names, appointment)
         appointments = await sample(client, settings, appointment)
-    names.unrecognised |= patient_names.unrecognised
-    written += await record_refusals(settings, names)
-    written += await record_firestore(settings, appointments)
-    written += await record_firestore_refusals(settings)
-    for path in written:
-        print(f"  wrote {path.relative_to(Path.cwd())}")
+    recorded += await record_refusals(settings, names)
+    recorded += await record_firestore(settings, appointments)
+    recorded += await record_firestore_refusals(settings)
+    if staging is not None:
+        recorded.append(await record_created_patient(staging, created_names,
+                                                       recordings_of(settings)))
+    for target, text in recorded:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        print(f"  wrote {target}")
+    names.unrecognised |= patient_names.unrecognised | created_names.unrecognised
     if names.unrecognised:
         print(
             "\nRedacted unrecognised field(s): "

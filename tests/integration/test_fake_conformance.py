@@ -14,12 +14,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import pytest
-from scripts.record_principle_wire import FIRESTORE_CATALOGUE, RECORDINGS, covers, shape_of
+from scripts.record_principle_wire import FIRESTORE_CATALOGUE, covers, recordings_of, shape_of
 
+from dental_practice_admin.config import Environment, Settings
 from tests.fake import FakeStore, dispatch
 from tests.fake import firestore as fake_firestore
 from tests.fake.server import Request
@@ -28,7 +28,9 @@ from tests.fake.store import FAKE_API_KEY, FAKE_PRACTICE_ID
 pytestmark = pytest.mark.integration
 
 
-def recorded(path: Path) -> dict[str, Any]:
+def recorded(name: str) -> dict[str, Any]:
+    """A recording from production's data folder, where the recorder keeps them."""
+    path = recordings_of(Settings(environment=Environment.PRODUCTION)) / f"{name}.json"
     if not path.exists():
         pytest.fail(f"{path} is missing; re-record with scripts/record_principle_wire.py")
     document: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
@@ -60,7 +62,7 @@ API_CALLS = {
 @pytest.mark.parametrize("name", sorted(API_CALLS))
 def test_the_fake_api_sends_only_recorded_shapes(fake_store: FakeStore, name: str) -> None:
     method, path, query, body = API_CALLS[name]
-    real = shape_of(recorded(RECORDINGS / f"{name}.json")["body"])
+    real = shape_of(recorded(name)["body"])
     fake = shape_of(answer(fake_store, method, path, query, body))
     assert covers(real, fake) == []
 
@@ -95,7 +97,7 @@ def test_every_recorded_collection_is_checked() -> None:
 @pytest.mark.parametrize("name", FIRESTORE_CATALOGUE)
 def test_the_fake_firestore_sends_only_recorded_shapes(fake_store: FakeStore,
                                                        name: str) -> None:
-    real = recorded(RECORDINGS / "firestore" / f"{name}.json")["shape"]
+    real = recorded(f"firestore/{name}")["shape"]
     documents = FIRESTORE_READS[name](fake_store)
     assert documents and all(documents)
     for document in documents:

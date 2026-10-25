@@ -41,8 +41,8 @@ so auth, paging and error handling are exercised for real everywhere.
 | | What it is | Used by |
 | --- | --- | --- |
 | **fake** | [`tests/fake/`](tests/fake/) — a real implementation with its own SQLite state, no network | the default suite, the [E2E tier](#running-the-tests), local development |
-| **staging** | `api.staging.principle.dental` | the [integration tier](#running-the-tests), the [recorder](scripts/record_principle_wire.py) |
-| **production** | `api.principle.dental` | the practice |
+| **staging** | `api.staging.principle.dental` | the [integration tier](#running-the-tests), writes that probe Principle ([ADR 0006](docs/adr/0006-read-from-production.md)) |
+| **production** | `api.principle.dental` | the practice, the [recorder](scripts/record_principle_wire.py)'s reads |
 
 Configuration refuses to address production unless it says `PRINCIPLE_ENVIRONMENT=production`,
 and refuses to call itself production while addressing anything else.
@@ -334,18 +334,17 @@ not have to rediscover them. If Principle has since changed, the tests will say 
 
 ## Recordings are not distributed
 
-[`tests/recordings/`](tests/recordings/) holds wire bodies captured from a real tenant, and the
-success bodies are **gitignored**. They derive from real patient records, and no key-based
-anonymiser deserves the confidence needed to publish its output as health information.
-
-Run [`scripts/record_principle_wire.py`](scripts/record_principle_wire.py) against your own
-staging tenant to get your own. The anonymiser denies by default — an unrecognised field is
-replaced and reported rather than passed through — and it is still not a basis for publishing
+Wire bodies captured from Principle derive from real patient records, and no key-based
+anonymiser deserves the confidence needed to publish its output as health information. So
+[`scripts/record_principle_wire.py`](scripts/record_principle_wire.py) reads your production
+workspace and writes them under `ADMIN_DATA_ROOT`, in `production/recordings/`, never into
+this checkout. The anonymiser denies by default — an unrecognised field is replaced and
+reported rather than passed through — and it is still not a basis for publishing
 patient-derived data.
 
 They stay on the machine that made them. DocketWorks commits its recordings so a failed disk
 cannot lose them; here the risk runs the other way. A lost recording costs one run of the
-recorder against staging, while a published one would put patient-derived data on GitHub.
+recorder, while a published one would put patient-derived data on GitHub.
 
 Committed: [`tests/recordings/refusals/`](tests/recordings/refusals/), which are error bodies.
 Those are Principle's own wording and carry no patient data, and the fake needs them so it can
@@ -362,7 +361,7 @@ src/dental_practice_admin/     the application (counted with deploy/)
   app.py, templates/     staff pages
 tests/
   fake/                  the fake Principle: its own store, its own routes
-  recordings/            refusal bodies (committed); success bodies (yours, local)
+  recordings/            refusal bodies; the rest live under ADMIN_DATA_ROOT
   spec/                  the derived fingerprint of the operations we call
   integration/           the staging tier and the specification drift check
   e2e/                   separate processes, real browser

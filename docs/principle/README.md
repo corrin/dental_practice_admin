@@ -46,6 +46,7 @@ check if automatic monitoring is wanted; the generic due-task launcher does not 
 
 When the warning appears:
 
-1. Run the scripts and tests for the tasks in use against staging.
+1. Run the scripts and tests for the tasks in use: reads against production, writes against
+   staging ([ADR 0006](../adr/0006-read-from-production.md)).
 2. Fix anything that broke, and update the entries it affects.
 3. Accept the new build in a pull request. The warning clears when the check next runs.

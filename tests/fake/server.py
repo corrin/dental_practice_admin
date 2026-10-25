@@ -59,13 +59,13 @@ class FakeUnhandledParameterError(NotImplementedError):
 class FakeRefusalNotRecordedError(NotImplementedError):
     """An error the fake would have to invent wording for.
 
-    Capture it from the real API instead: provoke it against staging and save the body to
+    Capture it from the real API instead: provoke it against production and save the body to
     tests/recordings/refusals/<name>.json.
     """
 
     def __init__(self, name: str) -> None:
         super().__init__(
-            f"no recorded refusal {name!r}; provoke it against staging and save "
+            f"no recorded refusal {name!r}; provoke it against production and save "
             f"{REFUSALS_DIR / f'{name}.json'} rather than inventing a body"
         )
 
