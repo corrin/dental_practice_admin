@@ -1,18 +1,17 @@
 # 0008 — Every change proves itself
 
-A pull request merges only when its automated tests show, on the practice's own data, that it
-does what the practice needs and that no bug which has tripped us before has come back.
+A pull request lists the automated tests that pass for it, and is not ready until every
+requirement and bug fix in it has one.
 
 ## Rules
 
-- The tests state the business requirement the change is for, as scenarios in the practice's
-  terms ("a text sent to a patient is in that patient's messages, with the patient's number"),
-  written before the code and failing until it exists. They assert what staff, patients or
-  Principle see, never which lines ran.
-- Every bug found gets a test of the behaviour it broke, written to fail before the fix, and it
-  stays in the suite.
-- The tests run on the anonymised copy of production and Principle's recordings
-  ([ADR 0007](0007-record-every-interface.md)), so they meet the data the practice really has.
-- `hermetic` runs a pull request's new and changed tests against `main`'s code as well as its
-  own, and fails unless at least one of them fails on `main`. A test that passes before the
-  change was made tests nothing the change did.
+- The list is the pull request's description, written from
+  [`.github/pull_request_template.md`](../../.github/pull_request_template.md): each requirement
+  or bug fix, the test that proves it, where it ran, the command, and the result. The
+  description is public, so a result is passed or failed with counts, never output.
+- A test states the business requirement in the practice's terms ("a text sent to a patient is
+  in that patient's messages") or the bug that tripped us, never which lines ran.
+- A test runs where it means something: `hermetic` for the suite, the integration tier against
+  production for reads, the recorder on staging for writes. Code that has not run there has no
+  passing test, so it is listed under "Not yet passing" and the pull request stays a draft.
+- A bug found gets a test that failed before the fix, and the test stays in the suite.
