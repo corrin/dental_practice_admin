@@ -30,8 +30,9 @@ from typing import Annotated, Any, cast
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
+from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse, Response
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from dental_practice_admin.config import Settings, SignIn, current_settings
 from dental_practice_admin.storage import Storage
@@ -121,7 +122,24 @@ class AccessControl:
                         response = RedirectResponse("/auth/login", status_code=303)
                     await response(scope, receive, send)
                     return
+                if scope["type"] == "http":
+                    send = _not_stored(send)
         await self.app(scope, receive, send)
+
+
+def _not_stored(send: Send) -> Send:
+    """Tell the browser not to keep the response.
+
+    A kept page shows staff a stale list, and leaves patient details on a shared computer.
+    """
+    async def sending(message: Message) -> None:
+        if message["type"] == "http.response.start":
+            headers = MutableHeaders(scope=message)
+            # The chat stream's own no-transform must survive: Caddy would buffer without it.
+            kept = headers.get("cache-control")
+            headers["cache-control"] = f"{kept}, no-store" if kept else "no-store"
+        await send(message)
+    return sending
 
 
 def require_staff(
