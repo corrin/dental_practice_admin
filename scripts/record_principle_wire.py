@@ -4,14 +4,14 @@ The fake computes its answers; these recordings are the oracle that proves those
 carry the shapes and the refusal wording the real API produces. Nothing here is replayed at
 test time -- a stored answer stops being true the moment the state changes.
 
-Run against staging only:
+Reads go to production and the one write to staging (ADR 0006):
 
-    uv run python scripts/record_principle_wire.py [--create-patient] [--firestore-from-production]
+    uv run python scripts/record_principle_wire.py [--create-patient]
 
 Two rules this enforces:
 
   * **Scrubbing happens before anything is written, and it covers identifiers, not just
-    names.** The staging tenant is a migrated copy of a real practice. A patient id is a
+    names.** Every read is of a real practice's records. A patient id is a
     persistent, re-identifiable handle on a real person, and an appointment time attached to
     one is health information however opaque the id looks -- redacting the name is not
     enough. Every id and every timestamp is replaced with a synthetic value.
@@ -31,10 +31,6 @@ Firestore documents are recorded as shapes only: each field's name and value typ
 several documents, with no value at all. The shape is all tests/test_fake_conformance.py
 compares, and a value that is never written cannot leak.
 
-Staging's Firestore can be read only with a working staging UI login. Without one,
---firestore-from-production records the Firestore shapes and refusals from production instead:
-reads only, and nothing but field names, types and Firestore's own error wording is written.
-
 Creating a patient is the one write, and only with --create-patient: a `[TEST]` patient on
 staging, which the API cannot delete, so the fake's `POST /v1/patients` is checked against what
 Principle answers.
@@ -53,10 +49,9 @@ from zoneinfo import ZoneInfo
 import httpx2 as httpx
 
 from dental_practice_admin.config import (
-    ConfigurationError,
     Environment,
     Settings,
-    is_production_host,
+    api_host,
 )
 from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.principle import PrincipleClient
@@ -329,7 +324,8 @@ def write_shape(name: str, source: str, documents: list[dict[str, Any]]) -> Path
 
 
 def write(
-    name: str, status: int, body: object, names: Pseudonymiser, *, refusal: bool = False
+    name: str, status: int, body: object, names: Pseudonymiser, settings: Settings, *,
+    refusal: bool = False,
 ) -> Path:
     """Save one scrubbed recording, citing the day it was captured.
 
@@ -340,7 +336,7 @@ def write(
     target.parent.mkdir(parents=True, exist_ok=True)
     document = {
         "capturedOn": datetime.now(tz=UTC).date().isoformat(),
-        "source": "api.staging.principle.dental",
+        "source": api_host(settings.api_base_url),
         "status": status,
         "body": names.scrub(body),
     }
@@ -348,11 +344,9 @@ def write(
     return target
 
 
-def staging_settings() -> Settings:
-    """Staging configuration, refusing production and missing credentials alike."""
-    settings = Settings(environment=Environment.STAGING)
-    if is_production_host(settings.api_base_url):
-        raise ConfigurationError("the recorder addresses staging, never production")
+def configured(environment: Environment) -> Settings:
+    """One environment's configuration, refusing missing credentials."""
+    settings = Settings(environment=environment)
     settings.require_credentials()
     return settings
 
@@ -446,26 +440,29 @@ async def record_firestore_refusals(settings: Settings) -> list[Path]:
         await firestore.aclose()
 
 
-async def record_patient(client: PrincipleClient, practice_id: str, names: Pseudonymiser,
-                         appointment: dict[str, Any], create: bool) -> list[Path]:
-    """getPatient, searchPatients and, when asked, createPatient.
+async def record_patient(client: PrincipleClient, names: Pseudonymiser,
+                         appointment: dict[str, Any], staging: Settings | None) -> list[Path]:
+    """getPatient, searchPatients and, when given staging, createPatient there.
 
     Creating writes a `[TEST]` patient to staging that the API cannot delete, so it runs only
     with --create-patient: when the fake's createPatient changes, not on every re-record.
     """
     patient = await client.get("getPatient", path_params={"patientId": appointment["patientId"]})
     search = await client.get("searchPatients", query={"name": patient["name"]})
-    created = await client.call("createPatient", {
-        "practiceId": practice_id, "name": f"[TEST] Recording {date.today()}",
-        "dateOfBirth": "1970-01-01", "gender": "notSpecified",
-        "email": "recording@example.invalid"}) if create else None
+    created = None
+    if staging is not None:
+        async with PrincipleClient(staging) as writer:
+            created = await writer.call("createPatient", {
+                "practiceId": staging.practice_id, "name": f"[TEST] Recording {date.today()}",
+                "dateOfBirth": "1970-01-01", "gender": "notSpecified",
+                "email": "recording@example.invalid"})
     for document in (patient, search, created):
         names.observe(document)
     names.freeze()
-    written = [write("patient", 200, patient, names),
-               write("search_patients", 200, search, names)]
-    if created is not None:
-        written.append(write("create_patient", 201, created, names))
+    written = [write("patient", 200, patient, names, client.settings),
+               write("search_patients", 200, search, names, client.settings)]
+    if staging is not None:
+        written.append(write("create_patient", 201, created, names, staging))
     return written
 
 
@@ -489,9 +486,9 @@ async def record_successes(
         names.observe(document)
     names.freeze()
     return [
-        write("practices", 200, practices, names),
-        write("practitioners", 200, practitioners, names),
-        write("appointments", 200, appointments, names),
+        write("practices", 200, practices, names, client.settings),
+        write("practitioners", 200, practitioners, names, client.settings),
+        write("appointments", 200, appointments, names, client.settings),
     ]
 
 
@@ -507,18 +504,14 @@ def query(collection: str, *filters: tuple[str, str, dict[str, Any]]) -> dict[st
 
 
 def recent() -> dict[str, str]:
-    """The month before today and the week after: staging's copy is up to a month old."""
+    """The month before today and the week after: enough booked days to sample from."""
     today = date.today()
     return {"from": f"{today - timedelta(days=30)}T00:00:00Z",
             "to": f"{today + timedelta(days=7)}T00:00:00Z"}
 
 
 async def first_appointment(client: PrincipleClient, settings: Settings) -> dict[str, Any]:
-    """A booked appointment on a day with a schedule summary, to read its documents from.
-
-    Staging is a copy taken on one day: its summaries stop there, so the search reaches back
-    a month rather than staying near today.
-    """
+    """A booked appointment on a day with a schedule summary, to read its documents from."""
     search = recent()
     firestore = Firestore(settings)
     checked: dict[date, bool] = {}
@@ -571,7 +564,7 @@ async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Path
         raise SystemExit("unauthorised: an empty key was answered; nothing to record")
     if "json" not in refused.headers.get("content-type", ""):
         raise SystemExit(f"unauthorised: the refusal is not JSON ({refused.status_code})")
-    written.append(write("unauthorised", refused.status_code, refused.json(), names,
+    written.append(write("unauthorised", refused.status_code, refused.json(), names, settings,
                          refusal=True))
 
     # Deliberately not provoked: an unplaceable offsetId, a missing required parameter, and
@@ -584,27 +577,20 @@ async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Path
 
 async def main() -> None:
     """Capture every recording the fake needs, successes and refusals alike."""
-    settings = staging_settings()
+    # Both are resolved before anything is sent, so a missing setting refuses the whole run.
+    settings = configured(Environment.PRODUCTION)
+    staging = configured(Environment.STAGING) if "--create-patient" in sys.argv else None
     print(f"recording from {settings.api_base_url}")
     names, patient_names = Pseudonymiser(), Pseudonymiser()
     async with PrincipleClient(settings) as client:
         written = await record_successes(client, settings.practice_id, names)
         appointment = await first_appointment(client, settings)
-        written += await record_patient(client, settings.practice_id, patient_names,
-                                        appointment, "--create-patient" in sys.argv)
+        written += await record_patient(client, patient_names, appointment, staging)
+        appointments = await sample(client, settings, appointment)
     names.unrecognised |= patient_names.unrecognised
     written += await record_refusals(settings, names)
-    firestore_settings = settings
-    if "--firestore-from-production" in sys.argv:
-        # Reads only: up to DOCUMENTS_SAMPLED booked appointments with their patients, steps
-        # and rosters, and one day's summaries and calendar events. Only field names and types
-        # are written, and the refusals' document path is replaced first.
-        firestore_settings = Settings(environment=Environment.PRODUCTION)
-    async with PrincipleClient(firestore_settings) as client:
-        appointments = await sample(client, firestore_settings,
-                                    await first_appointment(client, firestore_settings))
-    written += await record_firestore(firestore_settings, appointments)
-    written += await record_firestore_refusals(firestore_settings)
+    written += await record_firestore(settings, appointments)
+    written += await record_firestore_refusals(settings)
     for path in written:
         print(f"  wrote {path.relative_to(Path.cwd())}")
     if names.unrecognised:
