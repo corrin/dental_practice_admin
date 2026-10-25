@@ -9,24 +9,26 @@ the fake, and the fake answers from a snapshot of production.
   refusal is computed from that state. The state is loaded from a snapshot of production that
   the recorder takes, so the fake's patients, diary and messages are the practice's own.
 - The snapshot and the recordings derive from patient records, so they live under
-  `ADMIN_DATA_ROOT` and never in this checkout or on GitHub. GitHub's `hermetic` check runs
-  only the tests that need no patient records, and its logs, which are public, never show one.
-  The tests that need the snapshot run in the pre-push hook, which refuses a push they fail,
-  and in the release gate.
+  `ADMIN_DATA_ROOT`, never in this checkout. The recorder also writes an anonymised copy of the
+  snapshot into `tests/snapshot/`, which is committed, and GitHub's `hermetic` check runs the
+  whole suite on it. The release gate runs the suite on both.
+- The anonymised copy is deny-by-default. Every name, phone, email, address, note and message
+  text is invented, and every id and timestamp is remapped. Only relations, counts, statuses
+  and Principle's own catalogue values (treatment and appointment-type names) survive. The leak
+  scan refuses any value the recorder read from production.
 - A test states behaviour over whatever the snapshot holds ("every appointment in the diary is
   on the report"), never a value from it, so a new snapshot changes no test. A test that needs
-  a case the snapshot lacks fails, naming the case. The recorder takes a new snapshot at each
-  release gate and when run by hand.
-- An operation without a fake route fails the default suite. One without a recording fails the
-  integration tier in the release gate, so a new interface cannot be released without both.
+  a case the snapshot lacks fails, naming the case.
+- An operation without a fake route, or without a recording, fails the suite, so a new
+  interface cannot be merged without both.
 - Reads are recorded from production and writes on staging ([ADR 0006](0006-read-from-production.md)).
   A write goes only to the staging patient the recorder creates, whose name carries `Fake` and
-  whose phone and email are the owner's (`ADMIN_OWNER_MOBILE`, `ADMIN_OWNER_EMAIL`). The
-  recorder reads that patient back before each write and refuses unless both still match, so
-  no text, email or call from it reaches a real patient.
+  whose phone and email are the owner's, read from `ADMIN_OWNER_MOBILE` and `ADMIN_OWNER_EMAIL`
+  in `.env`. The recorder reads that patient back before each write and refuses unless both
+  still match, so no text, email or call from it reaches a real patient.
 - The release gate re-records every read and the writes the practice makes, such as text
-  messages. A write the practice does not make keeps its recording until the interface
-  changes it.
+  messages, and takes a new snapshot. A write the practice does not make keeps its recording
+  until the interface changes it.
 
 ## Observed
 
