@@ -58,7 +58,7 @@ development directory before starting the application. On the server,
 
 The ordinary setup is Principle staging, Google login, real OpenAI, and your ngrok address. The
 command is
-`uv run python scripts/run.py --preset staging --sign-in google`.
+`uv run python -m scripts.run --preset staging --sign-in google`.
 Stop it with Ctrl+C; the launcher stops its child processes. Only one local run can hold port
 8080: the launcher refuses to start while something else already has it.
 
@@ -118,10 +118,10 @@ task may write and staging holds a copy of real patients. `--help` says the rest
 Principle, sign-in, and AI are independent. These examples change only the choices named:
 
 ```powershell
-uv run python scripts/run.py --preset fake --sign-in developer  # local fakes, NO GOOGLE LOGIN
-uv run python scripts/run.py --principle fake                  # Google and real AI, fake records
-uv run python scripts/run.py --ai fake                         # Google and staging records, fake AI
-uv run python scripts/run.py --preset production               # explicit live-data investigation
+uv run python -m scripts.run --preset fake --sign-in developer  # local fakes, NO GOOGLE LOGIN
+uv run python -m scripts.run --principle fake                   # Google and real AI, fake records
+uv run python -m scripts.run --ai fake                          # Google and staging records, fake AI
+uv run python -m scripts.run --preset production                # explicit live-data investigation
 ```
 
 The fake preset selects the two simulations and local access; disabling Google still requires
@@ -367,7 +367,7 @@ tests/
   integration/           the staging tier and the specification drift check
   e2e/                   separate processes, real browser
 scripts/                 tools: the recorder, the fingerprinter, the release gate, verify.ps1
-.vscode/tasks.json       one Run entry; scripts/run.py starts the configured services
+.vscode/tasks.json       one Run entry; scripts.run starts the configured services
 deploy/                  what runs in production: Caddy, WinSW, Task Scheduler (counted)
 docs/adr/                rules for changing this codebase
 docs/principle/          what tasks have learned about Principle's website and Firestore

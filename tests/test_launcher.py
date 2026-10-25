@@ -2,6 +2,8 @@
 
 import argparse
 import os
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -19,7 +21,13 @@ from dental_practice_admin.config import (
 )
 from tests.fake.store import FAKE_API_KEY
 from tests.fake_ai import FAKE_AI_KEY
-from tests.settings import API_URLS, fake_settings, use_fake_environment
+from tests.settings import (
+    API_URLS,
+    APPLICATION_PREFIXES,
+    fake_environment,
+    fake_settings,
+    use_fake_environment,
+)
 
 PUBLIC_ORIGIN = "https://admin.fake.invalid"
 
@@ -162,3 +170,22 @@ def test_cli_principle_overrides_preset_and_dotenv(
     assert settings.api_base_url == "https://staging.fake.invalid"
     assert settings.sign_in is SignIn.GOOGLE
     assert settings.openai_base_url == "http://127.0.0.1:8899/v1"
+
+
+def test_the_documented_fake_command_reaches_configuration(tmp_path: Path) -> None:
+    """The README's fake launcher line, run as written, imports what the fake preset needs."""
+    root = Path(__file__).resolve().parents[1]
+    line = next(line for line in (root / "README.md").read_text(encoding="utf-8").splitlines()
+                if line.startswith("uv run python") and "--preset fake" in line)
+    command = line.split("#")[0].split()[3:]  # after "uv run python"
+    missing = tmp_path / "missing"
+    env = {name: value for name, value in os.environ.items()
+           if not name.startswith(APPLICATION_PREFIXES)}
+    env |= {name: value for name, value in fake_environment(tmp_path).items()
+            if name.startswith(APPLICATION_PREFIXES)} | {"ADMIN_DATA_ROOT": str(missing)}
+
+    result = subprocess.run([sys.executable, *command], cwd=root, env=env, capture_output=True,
+                            text=True, timeout=120, check=False)
+
+    assert result.returncode == 1
+    assert "ADMIN_DATA_ROOT" in result.stderr
