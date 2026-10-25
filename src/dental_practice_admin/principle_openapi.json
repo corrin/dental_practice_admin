@@ -1963,6 +1963,10 @@
           "id": {
             "type": "string"
           },
+          "patientId": {
+            "description": "",
+            "type": "string"
+          },
           "patientPhoneNumber": {
             "description": "",
             "type": "string"
@@ -1997,6 +2001,7 @@
           "practicePhoneNumber",
           "direction",
           "status",
+          "patientId",
           "practiceId",
           "createdAt",
           "updatedAt"
@@ -2036,6 +2041,23 @@
           "body",
           "status",
           "practiceId"
+        ],
+        "type": "object"
+      },
+      "SMSMessageStatusUpdate": {
+        "properties": {
+          "status": {
+            "description": "",
+            "enum": [
+              "sent",
+              "delivered",
+              "failed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
         ],
         "type": "object"
       },
@@ -5912,6 +5934,67 @@
           {
             "oauth2": [
               "messages:read",
+              "messages:write"
+            ]
+          },
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "SMS Messages"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/sms-messages/{smsMessageId}/status": {
+      "patch": {
+        "description": "",
+        "operationId": "updateSMSMessageStatus",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/patientId"
+          },
+          {
+            "$ref": "#/components/parameters/smsMessageId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SMSMessageStatusUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SMSMessage"
+                }
+              }
+            },
+            "description": "Response"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          }
+        },
+        "security": [
+          {
+            "oauth2": [
               "messages:write"
             ]
           },
