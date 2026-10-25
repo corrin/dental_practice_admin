@@ -9,13 +9,14 @@ the fake, and the fake answers from a snapshot of production.
   refusal is computed from that state. The state is loaded from a snapshot of production that
   the recorder takes, so the fake's patients, diary and messages are the practice's own.
 - The snapshot and the recordings derive from patient records, so they live under
-  `ADMIN_DATA_ROOT`, never in this checkout. The recorder also writes an anonymised copy of the
-  snapshot into `tests/snapshot/`, which is committed, and GitHub's `hermetic` check runs the
-  whole suite on it. The release gate runs the suite on both.
-- The anonymised copy is deny-by-default. Every name, phone, email, address, note and message
-  text is invented, and every id and timestamp is remapped. Only relations, counts, statuses
-  and Principle's own catalogue values (treatment and appointment-type names) survive. The leak
-  scan refuses any value the recorder read from production.
+  `ADMIN_DATA_ROOT`, never in this checkout. The same recorder run writes an anonymised copy of
+  both into `tests/snapshot/`, which is committed and names the day it was taken. GitHub's
+  `hermetic` check runs the whole suite on the copy; the release gate runs it on both.
+- The anonymised copy is deny-by-default: every value in it is invented, including the
+  practice's own names for treatments and appointment types, and every id and timestamp is
+  remapped. Only structure survives: relations, counts, and the values Principle's interface
+  enumerates, such as statuses. Before writing the copy the recorder checks it against every
+  value in the real snapshot and refuses to write it if any appears.
 - A test states behaviour over whatever the snapshot holds ("every appointment in the diary is
   on the report"), never a value from it, so a new snapshot changes no test. A test that needs
   a case the snapshot lacks fails, naming the case.
