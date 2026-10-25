@@ -1,5 +1,5 @@
-<!-- ADR 0008. This description is public: results are passed or failed with counts, never output
-or patient data. -->
+<!-- ADR 0008. This description is public: results are counts, never output or patient
+data. A failing test goes under "Not yet passing". -->
 
 ## What it does
 
