@@ -82,6 +82,17 @@ def test_no_setting_has_a_value_written_in_the_code() -> None:
         assert value == "", f"{name} defaults to {value!r}"
 
 
+def test_the_production_template_names_every_setting() -> None:
+    """A practice fills in what `deploy/production.env.example` lists, and nothing else."""
+    template = (Path(__file__).parent.parent / "deploy" / "production.env.example").read_text(
+        encoding="utf-8")
+    listed = {line.split("=")[0] for line in template.splitlines()
+              if "=" in line and not line.startswith("#")}
+    missing = {setting_name(field, Environment.PRODUCTION) for field in Settings.model_fields
+               } - listed
+    assert not missing, f"deploy/production.env.example lacks {sorted(missing)}"
+
+
 def test_missing_automation_settings_are_named_as_dotenv_names_them() -> None:
     settings = _settings(environment=Environment.STAGING, api_base_url=STAGING_API_URL,
                          ui_email="fake@fake.invalid", ui_password=SecretStr("fake-password"),
