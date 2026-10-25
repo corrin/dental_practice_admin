@@ -140,9 +140,9 @@ class Settings(BaseSettings):
     # contact-details clean-up. Only the address string is sent to Google.
     google_maps_api_key: SecretStr = SecretStr("")
 
-    # The owner's own mobile, in the practice's form (+64 and the number without its 0), and
-    # email. The recorder's staging patient carries them, so a text or email its writes cause
-    # reaches the owner and never a patient (ADR 0007).
+    # The owner's own mobile in international form (+6421...), and email. The recorder's
+    # staging patient carries them, so a text or email its writes cause reaches the owner and
+    # never a patient (ADR 0007).
     owner_mobile: str = ""
     owner_email: str = ""
 
@@ -377,9 +377,9 @@ class Settings(BaseSettings):
     def require_owner_contact(self) -> None:
         """Refuse a staging write without the owner's phone and email to address it to."""
         import re
-        if not re.fullmatch(r"\+64\d{8,10}", self.owner_mobile):
+        if not re.fullmatch(r"\+\d{8,15}", self.owner_mobile):
             raise ConfigurationError("Writing to staging needs ADMIN_OWNER_MOBILE, the owner's"
-                                     " mobile as +64 and the number without its 0")
+                                     " mobile in international form, such as +6421...")
         if "@" not in self.owner_email:
             raise ConfigurationError("Writing to staging needs ADMIN_OWNER_EMAIL, the owner's"
                                      " email")

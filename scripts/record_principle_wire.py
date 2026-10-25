@@ -36,8 +36,9 @@ on staging, which the API cannot delete, so the fake's `POST /v1/patients` is ch
 what Principle answers. It carries the owner's own mobile and email (ADMIN_OWNER_MOBILE,
 ADMIN_OWNER_EMAIL), so anything Principle sends it reaches the owner and no patient. It runs
 after every read, and nothing is written to disk until the whole run has succeeded, so a failed
-run leaves no patient for its re-run to duplicate and the previous recordings as they were. Recordings go under the production data folder; only refusals, which
-are Principle's own wording, are written into this checkout.
+run leaves no patient for its re-run to duplicate and the previous recordings as they were.
+Recordings go under the production data folder; only refusals, which are Principle's own
+wording, are written into this checkout.
 """
 
 from __future__ import annotations

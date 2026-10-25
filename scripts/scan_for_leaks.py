@@ -65,6 +65,9 @@ PUBLIC_SETTINGS = frozenset(
 # Short values match by accident. A real key, address or identifier is longer than this.
 MIN_SECRET_LENGTH = 12
 
+# Phone numbers, which are shorter than that and are searched for by their digits instead.
+PHONE_SETTINGS = frozenset({"ADMIN_OWNER_MOBILE"})
+
 # Everything invented carries this marker, which is what makes a scanner possible at all: real
 # patient data cannot be enumerated, but fake data can be declared. A value carrying the marker is
 # not a secret however much it looks like one, and a name that lacks it in test data is suspect.
@@ -137,8 +140,12 @@ def secrets_from_env(env: dict[str, str]) -> dict[str, str]:
     key and addresses without any of them being written into a tracked file.
     """
     found: dict[str, str] = {}
+    for name in PHONE_SETTINGS & env.keys():
+        # Shorter than any key, and written with or without its country code: the last eight
+        # digits are in every spelling, and long enough not to match by accident.
+        found[re.sub(r"\D", "", env[name])[-8:]] = name
     for name, value in env.items():
-        if name in PUBLIC_SETTINGS or len(value) < MIN_SECRET_LENGTH:
+        if name in PUBLIC_SETTINGS or name in PHONE_SETTINGS or len(value) < MIN_SECRET_LENGTH:
             continue
         if FAKE_MARKER.search(value):
             continue
