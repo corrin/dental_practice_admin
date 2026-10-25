@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import httpx2 as httpx
 import pytest
 from pydantic import SecretStr, ValidationError
 
@@ -25,7 +26,13 @@ from dental_practice_admin.config import (
 )
 from dental_practice_admin.principle import PrincipleClient
 from tests.fake import FakeStore
-from tests.settings import API_URLS, FAKE_SETTINGS, fake_settings, use_fake_environment
+from tests.settings import (
+    API_URLS,
+    FAKE_SETTINGS,
+    ReadingOnly,
+    fake_settings,
+    use_fake_environment,
+)
 from tests.test_auth_boundary import configured
 
 
@@ -395,3 +402,20 @@ def test_automation_refuses_to_start_without_git(
                         lambda name: None if name == "git" else shutil.which(name))
     with pytest.raises(ConfigurationError, match="Git"):
         settings.require_automation_configured()
+
+
+async def test_the_integration_tiers_production_client_refuses_to_write() -> None:
+    sent: list[httpx.Request] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200)
+
+    reading = ReadingOnly(httpx.MockTransport(answer))
+
+    async with httpx.AsyncClient(transport=reading) as client:
+        assert (await client.get("https://api.principle.dental/v1/practices")).status_code == 200
+        with pytest.raises(PermissionError):
+            await client.post("https://api.principle.dental/v1/patients", json={})
+
+    assert [request.method for request in sent] == ["GET"]

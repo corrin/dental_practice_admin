@@ -44,7 +44,7 @@ async def test_api_key_is_accepted_and_practices_are_listed(
     assert all({"id", "name"} <= set(practice) for practice in practices)
     assert any(
         practice["id"] == production_settings.practice_id for practice in practices
-    ), f"PRINCIPLE_PRACTICE_ID={production_settings.practice_id!r} is not in this workspace"
+    ), f"PRINCIPLE_PRACTICE_ID_PROD={production_settings.practice_id!r} is not in this workspace"
 
 
 async def test_a_wrong_api_key_is_refused(production_settings: Settings) -> None:

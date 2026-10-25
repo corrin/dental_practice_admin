@@ -1,4 +1,4 @@
-"""Fixtures for every tier, and the guard that keeps tests away from production.
+"""Fixtures for every tier, and the guards that keep tests from changing production.
 
 The default suite talks only to the fake. The integration tier reads production (ADR 0006) and
 **refuses rather than skips** when it is unconfigured: a skip and a pass look the same in a
@@ -84,6 +84,6 @@ def production_settings() -> Settings:
 
 @pytest.fixture
 async def production_client(production_settings: Settings) -> AsyncIterator[PrincipleClient]:
-    client = PrincipleClient(production_settings)
+    client = PrincipleClient(production_settings, transport=test_settings.ReadingOnly())
     yield client
     await client.aclose()
