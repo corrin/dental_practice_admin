@@ -11,9 +11,7 @@ writes.
 - A write is never sent to production to learn how Principle answers it. It goes to staging,
   only behind an explicit flag, as `--create-patient` does for `createPatient`. Reading staging
   to see what that write did is part of the write, behind the same flag.
-- Reading production keeps the rules for its data (AGENTS.md): recordings are scrubbed before
-  they are written and kept under `ADMIN_DATA_ROOT`, and findings enter `docs/` as counts and
-  shapes.
+- Data read from production follows AGENTS.md, "Keep patient data out of this repository".
 
 ## Observed
 
