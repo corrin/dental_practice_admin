@@ -69,7 +69,8 @@ def test_the_chatkit_endpoint_streams_with_buffering_disabled(spine: dict[str, s
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
         assert response.headers.get("x-accel-buffering") == "no"
-        assert "no-cache" in response.headers.get("cache-control", "")
+        cache = response.headers.get("cache-control", "")
+        assert {"no-cache", "no-transform", "no-store"} <= {d.strip() for d in cache.split(",")}
         body = "".join(response.iter_text())
 
     # ChatKit frames carry `data:` with the event type inside the payload, and no `event:` name.
