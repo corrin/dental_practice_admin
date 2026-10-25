@@ -7,9 +7,9 @@ session.
 
 - Files are `NNNN-short-topic.md`, numbered in sequence. A number is never reused. A retired ADR is
   deleted, and every citation of its number is reworded in the same change.
-- The first line is the rule in one sentence. **Rules** follow, then **Observed**.
-- **Observed** lists only mistakes actually seen, each with the commit that shows it. It may be
-  empty; nothing is invented to fill it.
+- The first line is the rule in one sentence. **Rules** follow.
+- An ADR states rules as they are now. It records no history: no mistakes seen, commits or
+  dates.
 - An ADR lands in its own commit, apart from any code it authorises.
 - An ADR is in force once the owner merges the pull request that adds it.
 

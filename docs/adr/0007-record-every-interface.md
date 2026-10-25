@@ -32,10 +32,3 @@ the fake, and the fake answers from a snapshot of production.
 - The release gate re-records every read and the writes the practice makes, such as text
   messages, and takes a new snapshot. A write the practice does not make keeps its recording
   until the interface changes it.
-
-## Observed
-
-- At `d84add4` the fake served 8 of 57 operations, and `listSMSMessages` had no recording when
-  Principle made `patientId` required on `SMSMessage`.
-- At `d84add4` the fake's state is invented (`tests/fake/store.py`, `seed()`), so a test passes
-  on data shaped as the author imagined rather than as the practice's records are.

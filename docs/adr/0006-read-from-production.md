@@ -12,8 +12,3 @@ writes.
   only behind an explicit flag, as `--create-patient` does for `createPatient`. Reading staging
   to see what that write did is part of the write, behind the same flag.
 - Data read from production follows AGENTS.md, "Keep patient data out of this repository".
-
-## Observed
-
-- At `770c2eb`, `scripts/record_principle_wire.py` found no booked appointment in staging's last
-  30 days and recorded nothing: staging's copy was more than a month old.

@@ -1,26 +1,18 @@
 # 0008 — Every change proves itself
 
-A pull request merges only when automated tests run every line it changes, fail when any of
-those lines is broken, and run on Principle's real answers; machines check this, and an agent's
-word is not evidence.
+A pull request merges only when its automated tests show, on the practice's own data, that it
+does what the practice needs and that no bug which has tripped us before has come back.
 
 ## Rules
 
-- The `hermetic` suite runs every changed line in `src/`, `scripts/` and `tests/fake/`: coverage
-  of the lines a pull request changes is 100%, measured against `main`. A new
-  `pragma: no cover` fails the check.
-- Every changed line is mutated (a condition flipped, a guard removed, a value changed), and a
-  test fails for each mutation. This is [ADR 0004](0004-tests-state-behaviour.md)'s "delete the
-  guard and watch the test fail", done by the check rather than trusted to whoever wrote it.
-- Every Principle operation the code calls has a recording from Principle under the released
-  interface, in the committed anonymised copy ([ADR 0007](0007-record-every-interface.md)), so
-  code that calls Principle cannot merge without having been run against it.
-- The checks, their thresholds and `.github/` belong to the owner through `CODEOWNERS`, so a pull
-  request that weakens them waits for the owner instead of merging itself.
-- Done means merged with `hermetic` green. A red pull request is never reported as done.
-
-## Observed
-
-- At `a499294`, `scripts/record_principle_wire.py --create-patient` gives the staging patient the
-  owner's phone and email, and had never been run against staging. At `814fcf3`, ADR 0007
-  describes an anonymiser that no code implements.
+- The tests state the business requirement the change is for, as scenarios in the practice's
+  terms ("a text sent to a patient is in that patient's messages, with the patient's number"),
+  written before the code and failing until it exists. They assert what staff, patients or
+  Principle see, never which lines ran.
+- Every bug found gets a test of the behaviour it broke, written to fail before the fix, and it
+  stays in the suite.
+- The tests run on the anonymised copy of production and Principle's recordings
+  ([ADR 0007](0007-record-every-interface.md)), so they meet the data the practice really has.
+- `hermetic` runs a pull request's new and changed tests against `main`'s code as well as its
+  own, and fails unless at least one of them fails on `main`. A test that passes before the
+  change was made tests nothing the change did.

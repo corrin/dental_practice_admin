@@ -37,7 +37,3 @@ Chat develops local task files; reviewed private-repository exports become insta
   developer's browser. Irrecoverable authentication and uncertain writes are explicit failures.
 - Use the existing run history, staff pages, database and warnings. Do not add a workflow
   designer, job service or a second source of Principle documentation.
-
-## Observed
-
-None yet.
