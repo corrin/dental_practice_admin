@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 import httpx2 as httpx
 import pytest
 
-from dental_practice_admin.config import Settings
+from dental_practice_admin.config import Settings, setting_name
 from dental_practice_admin.principle import CallError, PrincipleClient, PrincipleError
 
 pytestmark = pytest.mark.integration
@@ -44,7 +44,8 @@ async def test_api_key_is_accepted_and_practices_are_listed(
     assert all({"id", "name"} <= set(practice) for practice in practices)
     assert any(
         practice["id"] == production_settings.practice_id for practice in practices
-    ), f"PRINCIPLE_PRACTICE_ID_PROD={production_settings.practice_id!r} is not in this workspace"
+    ), (f"{setting_name('practice_id', production_settings.environment)}="
+        f"{production_settings.practice_id!r} is not in this workspace")
 
 
 async def test_a_wrong_api_key_is_refused(production_settings: Settings) -> None:
