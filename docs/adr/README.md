@@ -22,3 +22,4 @@ session.
 | [0003](0003-unhappy-case-first.md) | Unhappy case first |
 | [0004](0004-tests-state-behaviour.md) | Tests state behaviour |
 | [0005](0005-promote-working-scripts.md) | Promote working scripts |
+| [0006](0006-read-from-production.md) | Read from production |
