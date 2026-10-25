@@ -23,3 +23,4 @@ session.
 | [0004](0004-tests-state-behaviour.md) | Tests state behaviour |
 | [0005](0005-promote-working-scripts.md) | Promote working scripts |
 | [0006](0006-read-from-production.md) | Read from production |
+| [0007](0007-record-every-interface.md) | Record every interface |
