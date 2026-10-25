@@ -22,6 +22,7 @@ from tests.settings import fake_settings
 
 Sent = list[tuple[str, httpx.Request]]
 TODAY = date(2026, 9, 29)
+OWNER_MOBILE, OWNER_EMAIL = "+6421000000", "owner@example.invalid"
 
 
 class SeededDay(date):
@@ -46,6 +47,8 @@ def sent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore)
     for name, value in (_environment(tmp_path, Environment.PRODUCTION, PRODUCTION_API_URL)
                         | _environment(tmp_path, Environment.STAGING, STAGING_API_URL)).items():
         monkeypatch.setenv(name, value)
+    monkeypatch.setenv("ADMIN_OWNER_MOBILE", OWNER_MOBILE)
+    monkeypatch.setenv("ADMIN_OWNER_EMAIL", OWNER_EMAIL)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(recorder, "REFUSALS", tmp_path / "refusals")
     monkeypatch.setattr(recorder, "date", SeededDay)
@@ -127,6 +130,26 @@ async def test_the_created_patient_carries_the_fake_marker(
 
     (_, request), = _creates(sent)
     assert "Fake" in json.loads(request.content)["name"]
+
+
+async def test_the_created_patient_carries_the_owners_phone_and_email(
+        monkeypatch: pytest.MonkeyPatch, sent: Sent) -> None:
+    await _record(monkeypatch, "--create-patient")
+
+    (_, request), = _creates(sent)
+    body = json.loads(request.content)
+    assert body["contactNumbers"] == [{"label": "mobile", "number": OWNER_MOBILE}]
+    assert body["email"] == OWNER_EMAIL
+
+
+@pytest.mark.parametrize("missing", ["ADMIN_OWNER_MOBILE", "ADMIN_OWNER_EMAIL"])
+async def test_creating_without_the_owners_contact_details_refuses_before_reading(
+        monkeypatch: pytest.MonkeyPatch, sent: Sent, missing: str) -> None:
+    monkeypatch.setenv(missing, "")
+
+    with pytest.raises(ConfigurationError):
+        await _record(monkeypatch, "--create-patient")
+    assert sent == []
 
 
 async def test_a_failed_run_creates_nothing_and_keeps_the_previous_recordings(

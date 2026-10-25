@@ -21,7 +21,9 @@ uv run python scripts/record_principle_wire.py
 ```
 
 `--create-patient` also records `createPatient`, by creating a `[TEST] Fake` patient on staging,
-which the API cannot delete, so it needs the `_STAGING` settings too and runs last.
+which the API cannot delete, so it needs the `_STAGING` settings too and runs last. The
+patient carries your own mobile and email, from `ADMIN_OWNER_MOBILE` (`+64` and the number
+without its 0) and `ADMIN_OWNER_EMAIL` in `.env`, so whatever Principle sends it reaches you.
 
 ## What *is* committed
 

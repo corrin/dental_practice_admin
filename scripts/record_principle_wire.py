@@ -33,9 +33,10 @@ compares, and a value that is never written cannot leak.
 
 Creating a patient is the one write, and only with --create-patient: a `[TEST] Fake` patient
 on staging, which the API cannot delete, so the fake's `POST /v1/patients` is checked against
-what Principle answers. It runs after every read, and nothing is written to disk until the whole
-run has succeeded, so a failed run leaves no patient for its re-run to duplicate and the previous
-recordings as they were. Recordings go under the production data folder; only refusals, which
+what Principle answers. It carries the owner's own mobile and email (ADMIN_OWNER_MOBILE,
+ADMIN_OWNER_EMAIL), so anything Principle sends it reaches the owner and no patient. It runs
+after every read, and nothing is written to disk until the whole run has succeeded, so a failed
+run leaves no patient for its re-run to duplicate and the previous recordings as they were. Recordings go under the production data folder; only refusals, which
 are Principle's own wording, are written into this checkout.
 """
 
@@ -482,7 +483,8 @@ async def record_created_patient(staging: Settings, names: Pseudonymiser,
             "practiceId": staging.practice_id,
             "name": f"[TEST] Fake Recording {date.today()}",
             "dateOfBirth": "1970-01-01", "gender": "notSpecified",
-            "email": "recording@example.invalid"})
+            "contactNumbers": [{"label": "mobile", "number": staging.owner_mobile}],
+            "email": staging.owner_email})
     names.observe(created)
     names.freeze()
     return write("create_patient", 201, created, names, staging, into)
@@ -600,6 +602,8 @@ async def main() -> None:
     create = parser.parse_args().create_patient
     settings = configured(Environment.PRODUCTION)
     staging = configured(Environment.STAGING) if create else None
+    if staging is not None:
+        staging.require_owner_contact()
     print(f"recording from {settings.api_base_url}")
     names, patient_names, created_names = Pseudonymiser(), Pseudonymiser(), Pseudonymiser()
     async with PrincipleClient(settings) as client:
