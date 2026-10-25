@@ -54,7 +54,7 @@ from dental_practice_admin.config import (
     api_host,
 )
 from dental_practice_admin.firestore import Firestore
-from dental_practice_admin.principle import PrincipleClient
+from dental_practice_admin.principle import PrincipleClient, RecordError
 
 RECORDINGS = Path(__file__).resolve().parent.parent / "tests" / "recordings"
 
@@ -447,8 +447,16 @@ async def record_patient(client: PrincipleClient, names: Pseudonymiser,
     Creating writes a `[TEST]` patient to staging that the API cannot delete, so it runs only
     with --create-patient: when the fake's createPatient changes, not on every re-record.
     """
-    patient = await client.get("getPatient", path_params={"patientId": appointment["patientId"]})
-    search = await client.get("searchPatients", query={"name": patient["name"]})
+    async def as_sent(name: str, **arguments: Any) -> dict[str, Any]:
+        # A phone number or email that breaks the specification is real data, not a reason
+        # to leave the record out.
+        try:
+            return await client.get(name, **arguments)
+        except RecordError as error:
+            return error.body
+
+    patient = await as_sent("getPatient", path_params={"patientId": appointment["patientId"]})
+    search = await as_sent("searchPatients", query={"name": patient["name"]})
     created = None
     if staging is not None:
         async with PrincipleClient(staging) as writer:

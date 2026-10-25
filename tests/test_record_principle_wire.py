@@ -17,7 +17,7 @@ from dental_practice_admin.config import (
 )
 from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.principle import PrincipleClient
-from tests.fake import seed, transport
+from tests.fake import FakeStore, transport
 from tests.settings import fake_settings
 
 Sent = list[tuple[str, str, str]]
@@ -36,7 +36,7 @@ def _environment(tmp_path: Path, environment: Environment, url: str) -> dict[str
 
 
 @pytest.fixture
-def sent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Sent:
+def sent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore) -> Sent:
     """Run the recorder against one fake Principle, noting each request's environment.
 
     Production and staging differ by name only; the fake answers both, so a request reaching
@@ -49,7 +49,7 @@ def sent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Sent:
     monkeypatch.setattr(recorder, "RECORDINGS", tmp_path / "recordings")
     monkeypatch.setattr(recorder, "FIRESTORE", tmp_path / "recordings" / "firestore")
     monkeypatch.setattr(recorder, "date", SeededDay)
-    fake = transport(seed())
+    fake = transport(fake_store)
     seen: Sent = []
 
     def noting(environment: str) -> httpx.AsyncBaseTransport:
@@ -129,3 +129,14 @@ async def test_creating_without_staging_settings_refuses_before_reading(
     with pytest.raises(ConfigurationError):
         await _record(monkeypatch, "--create-patient")
     assert sent == []
+
+
+async def test_a_patient_breaking_the_specification_is_recorded_as_sent(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore,
+        sent: Sent) -> None:
+    fake_store.db.execute("UPDATE patients SET phone = '021 123 4567'")
+    fake_store.db.commit()
+
+    await _record(monkeypatch)
+
+    assert {"patient", "search_patients"} <= _sources(tmp_path).keys()

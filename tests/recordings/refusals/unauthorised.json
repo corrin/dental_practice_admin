@@ -4,7 +4,7 @@
     "message": "Please authenticate first",
     "statusCode": 401
   },
-  "capturedOn": "2026-10-10",
-  "source": "api.staging.principle.dental",
+  "capturedOn": "2026-10-25",
+  "source": "api.principle.dental",
   "status": 401
 }
