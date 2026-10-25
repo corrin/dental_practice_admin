@@ -1,4 +1,4 @@
-"""The fake covers the diary and reconciliation reads; generated transport tests cover others."""
+"""The fake serves every operation in the released interface (ADR 0007)."""
 
 from __future__ import annotations
 
@@ -19,13 +19,9 @@ def _concrete_path(call: Call) -> str:
     return re.sub(r"\{[^}]+\}", SAMPLE_SEGMENT, call.path)
 
 
-@pytest.mark.parametrize("call", [call for call in CATALOGUE if call.name in {
-    "listPractices", "listPractitioners", "listAppointmentsByDateRange",
-    "getPatient", "searchPatients", "createPatient", "listInvoicesByDateRange",
-    "listTransactionsByDateRange",
-}], ids=lambda call: call.name)
+@pytest.mark.parametrize("call", CATALOGUE, ids=lambda call: call.name)
 def test_every_catalogue_call_is_routed(call: Call) -> None:
-    """Every operation used by the diary must reach an independently verified fake route."""
+    """Every operation in the released interface reaches a fake route (ADR 0007)."""
     path = _concrete_path(call)
     matched = [
         pattern.pattern
@@ -45,7 +41,7 @@ def test_unrouted_call_refuses(fake_store: FakeStore) -> None:
     """
     request = Request(
         method="GET",
-        path="/v1/patients/anything/invoices",
+        path="/v1/not-in-the-interface",
         query={},
         headers={"x-api-key": FAKE_API_KEY},
     )
