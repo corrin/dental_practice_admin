@@ -24,3 +24,4 @@ session.
 | [0005](0005-promote-working-scripts.md) | Promote working scripts |
 | [0006](0006-read-from-production.md) | Read from production |
 | [0007](0007-record-every-interface.md) | Record every interface |
+| [0008](0008-every-change-proves-itself.md) | Every change proves itself |
