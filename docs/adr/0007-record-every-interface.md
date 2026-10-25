@@ -16,7 +16,9 @@ the fake, and the fake answers from a snapshot of production.
   practice's own names for treatments and appointment types, and every id and timestamp is
   remapped. Only structure survives: relations, counts, and the values Principle's interface
   enumerates, such as statuses. Before writing the copy the recorder checks it against every
-  value in the real snapshot and refuses to write it if any appears.
+  value it read from production, snapshot and recordings alike, and refuses to write it if any
+  appears other than an enumerated one. The commit hook's leak scan then checks the copy as it
+  checks any staged file.
 - A test states behaviour over whatever the snapshot holds ("every appointment in the diary is
   on the report"), never a value from it, so a new snapshot changes no test. A test that needs
   a case the snapshot lacks fails, naming the case.
