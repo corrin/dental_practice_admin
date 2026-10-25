@@ -132,3 +132,11 @@ def test_google_identity_must_be_verified_and_allowed(
     with TestClient(app, base_url="https://testserver") as client:
         assert client.get("/auth/callback").status_code == 403
         assert client.get("/").status_code == 401
+
+
+def test_staff_pages_are_never_kept_by_the_browser(tmp_path: Path) -> None:
+    """A kept page shows a stale list, and leaves patient details on a shared computer."""
+    settings = configured(tmp_path).model_copy(update={"sign_in": SignIn.DEVELOPER})
+    with TestClient(create_app(settings)) as client:
+        for path in ["/", "/chat"]:
+            assert "no-store" in client.get(path).headers.get("cache-control", "")
