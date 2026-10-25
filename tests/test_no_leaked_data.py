@@ -63,3 +63,8 @@ def test_the_owners_mobile_is_found_however_it_is_written() -> None:
     found = secrets_from_env({"ADMIN_OWNER_MOBILE": "+6421000123"})
     for written in ("+6421000123", "021000123", "21000123"):
         assert any(value in f"call {written} today" for value in found), written
+
+
+def test_a_blank_mobile_is_not_searched_for() -> None:
+    """A practice that never records leaves it blank, which would otherwise match every file."""
+    assert secrets_from_env({"ADMIN_OWNER_MOBILE": ""}) == {}

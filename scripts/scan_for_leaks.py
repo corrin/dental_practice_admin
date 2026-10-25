@@ -143,7 +143,9 @@ def secrets_from_env(env: dict[str, str]) -> dict[str, str]:
     for name in PHONE_SETTINGS & env.keys():
         # Shorter than any key, and written with or without its country code: the last eight
         # digits are in every spelling, and long enough not to match by accident.
-        found[re.sub(r"\D", "", env[name])[-8:]] = name
+        digits = re.sub(r"\D", "", env[name])[-8:]
+        if len(digits) == 8:
+            found[digits] = name
     for name, value in env.items():
         if name in PUBLIC_SETTINGS or name in PHONE_SETTINGS or len(value) < MIN_SECRET_LENGTH:
             continue
