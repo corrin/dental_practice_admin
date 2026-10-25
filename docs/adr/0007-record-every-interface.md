@@ -5,9 +5,13 @@ the fake that answers from the fake's own state.
 
 ## Rules
 
-- An operation without a recording or a fake route fails the default suite, so updating the
-  interface (`scripts/refresh_spec.py --update`) brings the recording and the route with it.
+- An operation without a fake route fails the default suite, and one without a recording fails
+  the integration tier in the release gate, where the recordings are (they derive from patient
+  records, so they live under `ADMIN_DATA_ROOT`, never in this checkout). Updating the interface
+  therefore cannot be released without both.
 - Reads are recorded from production and writes on staging ([ADR 0006](0006-read-from-production.md)).
+  A write goes only to a `Fake` patient the recorder creates, whose phone and email are the
+  owner's, so no message from it can reach a real patient.
 - The release gate re-records every read, and the writes the practice makes, such as text
   messages, so what the practice relies on is checked against Principle as it is now. A write
   the practice does not make keeps its recording until the interface changes it.
