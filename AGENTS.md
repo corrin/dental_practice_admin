@@ -81,6 +81,10 @@ possible, and keep it there.
 - Commit and push after every step that works. Never end a turn with unpushed commits.
 - Commit everything in the working tree. Don't stash, cherry-pick, rebase, or switch branches
   over uncommitted work, and don't pick files selectively.
+- The description follows [`.github/pull_request_template.md`](.github/pull_request_template.md)
+  ([ADR 0008](docs/adr/0008-every-change-proves-itself.md)). `gh pr create --body-file` skips
+  GitHub's template, so start the file from it.
+- Mark the pull request ready only when its "Not yet passing" section is empty.
 - When the work is done, mark the pull request ready and run `gh pr merge --auto --merge`. It
   merges once `hermetic` passes, and GitHub then deletes the branch. Done means merged to `main`.
 - After it merges, remove the worktree and local branch. GitHub deletes only its own copy.
