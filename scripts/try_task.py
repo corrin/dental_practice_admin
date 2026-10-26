@@ -70,7 +70,11 @@ def fake_principle() -> Iterator[str]:
         yield f"http://127.0.0.1:{port}"
     finally:
         child.terminate()
-        child.wait(timeout=10)
+        try:
+            child.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            child.wait()
 
 
 def services(environment: Environment, fake_url: str | None) -> Services:
