@@ -136,7 +136,8 @@ function chosenField(key, field, value, required) {
     chosen[key] = () => {
       if(!select.value && !day.value && (required || isPeriod(field.default)))
         throw new Error('Choose a date for ' + label.textContent
-          + (isPeriod(field.default) ? ', or pick ' + select.options[Object.keys(PERIODS).indexOf(field.default)].text : '') + '.');
+          + (isPeriod(field.default) ? ', or pick '
+             + [...select.options].find(option => option.value === field.default).text : '') + '.');
       return select.value || day.value;
     };
   } else {
@@ -151,7 +152,7 @@ function chosenField(key, field, value, required) {
       for(const name of names) if(name !== value) select.add(new Option(name, name));
     }).catch(() => {
       if(el('task').value === task)
-        el('status').textContent = "Principle's list of practitioners could not be loaded. Refresh the page to try again.";
+        el('status').textContent = "Principle's list of practitioners could not be loaded. Choose the report again to try again.";
     }).finally(() => { select.disabled = false; });
     chosen[key] = () => {
       if(required && !select.value) throw new Error('Choose a practitioner for ' + label.textContent + '.');

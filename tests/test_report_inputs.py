@@ -126,8 +126,7 @@ async def test_a_run_due_before_midnight_is_for_the_day_it_was_due(
     configured = install(tmp_path)
     schedule = schedules.Schedule(name="day_report", inputs={"date": "today"})
     schedules.save(configured, schedule, "fake-staff")
-    local = datetime.now().astimezone().tzinfo
-    started = datetime(2026, 10, 5, 0, 1, tzinfo=local)
+    started = datetime(2026, 10, 5, 0, 1).astimezone()  # this host's zone, on that day
     with schedules.open_schedules(configured) as scheduler:
         scheduler.get_job(schedule.id).modify(next_run_time=started - timedelta(minutes=3))
     given: list[str] = []
