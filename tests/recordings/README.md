@@ -1,27 +1,26 @@
 # Recordings
 
-Wire bodies captured from Principle, used as the oracle for the fake: they are what proves
-the fake's computed answers carry the shapes Principle actually sends.
+Every response from Principle and Firestore, captured bit for bit, used as the oracle for the
+fakes: they are what proves the fakes' computed answers carry what Principle actually sends
+(ADR 0007).
 
-## Success bodies are not in this repository
+## Recordings are not in this repository
 
-The success bodies (`practices.json`, `patient.json`, `create_patient.json` and the rest) and
-`firestore/` live under `ADMIN_DATA_ROOT`, in `production/recordings/`. They are derived from
-real patient records, and no key-based anonymiser deserves the confidence needed to publish its
-output as health information.
-
-The anonymiser in `scripts/record_principle_wire.py` denies by default — an unrecognised field
-is replaced and reported rather than passed through — and it is still not the basis on which
-anyone should publish patient-derived data.
+They live under `ADMIN_DATA_ROOT`, in `production/recordings/`, exactly as received: each
+operation's exchanges are `<operationId>/NNN.json` (when, which request, status, headers) and
+`NNN.body`, the body bytes as they came off the wire. Firestore's are `firestore/<collection>/`.
+They hold real patient records, so nothing in them is ever committed.
 
 To get your own, with the `_PROD` settings in `.env` (ADR 0006: reads come from production):
 
 ```powershell
-uv run python scripts/record_principle_wire.py
+uv run python -m scripts.record_principle_wire
 ```
 
 `--create-patient` also records `createPatient`, by creating a `[TEST] Fake` patient on staging,
-which the API cannot delete, so it needs the `_STAGING` settings too and runs last.
+which the API cannot delete, so it needs the `_STAGING` settings too and runs last. The
+patient carries your own mobile and email, from `ADMIN_OWNER_MOBILE` (in international
+form, such as `+6421...`) and `ADMIN_OWNER_EMAIL` in `.env`, so whatever Principle sends it reaches you.
 
 ## What *is* committed
 

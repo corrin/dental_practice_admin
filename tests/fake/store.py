@@ -27,9 +27,11 @@ In-memory, one store per test. `seed()` builds a small practice whose name carri
 
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -64,6 +66,13 @@ CREATE TABLE patients (
     email         TEXT NOT NULL,
     address       TEXT,
     date_of_birth TEXT
+);
+-- What Principle's name search reads. At Principle's speed a created patient reaches it only
+-- `SEARCH_INDEX_LAG` later, so a search straight after a create misses, as Principle's does.
+CREATE TABLE patient_search (
+    patient_id  TEXT PRIMARY KEY REFERENCES patients(id),
+    practice_id TEXT NOT NULL,
+    name        TEXT NOT NULL
 );
 -- The patient's pinned notes, which Principle copies onto each timeline card.
 CREATE TABLE patient_notes (
@@ -189,6 +198,10 @@ PRACTICE_TZ = ZoneInfo("Pacific/Auckland")
 # Principle's own default when a request omits `limit` (observed 2026-10-01).
 SERVER_DEFAULT_LIMIT = 20
 
+# The slowest time the recorder's staging write runs have measured between createPatient and
+# the name search finding the patient. The fake pauses this long with SIMULATE_PRINCIPLE_SPEED=1.
+SEARCH_INDEX_LAG = timedelta(seconds=18.5)
+
 
 @dataclass(frozen=True)
 class Page:
@@ -206,12 +219,18 @@ class Page:
 class FakeStore:
     """The practice's state, queried the way the API lets a caller query it."""
 
-    def __init__(self) -> None:
-        self.db = sqlite3.connect(":memory:")
+    def __init__(self, path: Path | str = ":memory:") -> None:
+        """The database at `path`, created with the schema if it is new."""
+        self.db = sqlite3.connect(str(path), check_same_thread=False)
         self.db.row_factory = sqlite3.Row
-        self.db.executescript(SCHEMA)
+        if self.db.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0] == 0:
+            self.db.executescript(SCHEMA)
+        # Index updates waiting to happen (SIMULATE_PRINCIPLE_SPEED); a closed store drops them.
+        self.pending: list[asyncio.TimerHandle] = []
 
     def close(self) -> None:
+        for handle in self.pending:
+            handle.cancel()
         self.db.close()
 
     # -- reads ---------------------------------------------------------------
@@ -357,6 +376,40 @@ class FakeStore:
         )
         self.db.executemany("INSERT INTO patient_notes VALUES (?, ?, ?)",
                             [(ident, n, text) for n, text in enumerate(notes)])
+        # Seeded long ago, so long since indexed.
+        self.index_patient(ident)
+
+    def index_patient(self, patient_id: str) -> None:
+        """Bring the search index up to date with one patient's record."""
+        self.db.execute("INSERT OR REPLACE INTO patient_search SELECT id, practice_id, name"
+                        " FROM patients WHERE id = ?", (patient_id,))
+        self.db.commit()
+
+    def practice_of(self, patient_id: str) -> str | None:
+        """The practice a patient belongs to, or None for no such patient."""
+        row = self.db.execute("SELECT practice_id FROM patients WHERE id = ?",
+                              (patient_id,)).fetchone()
+        return None if row is None else str(row[0])
+
+    def update_patient(self, patient_id: str, body: dict[str, Any],
+                       at: str) -> dict[str, object] | None:
+        """`PATCH /v1/patients/{id}`: the required fields replace the stored ones.
+
+        docs/principle/patient-writes.md: contact numbers and address not sent are kept.
+        """
+        if self.patient(patient_id) is None:
+            return None
+        columns = {"name": body["name"], "gender": body["gender"], "email": body["email"],
+                   "date_of_birth": body["dateOfBirth"], "updated_at": canonical(at)}
+        if "address" in body:
+            columns["address"] = body["address"]
+        if "contactNumbers" in body:
+            numbers = body["contactNumbers"]
+            columns["phone"] = numbers[0]["number"] if numbers else None
+        self.db.execute("UPDATE patients SET " + ", ".join(f"{c} = :{c}" for c in columns)
+                        + " WHERE id = :id", columns | {"id": patient_id})
+        self.db.commit()
+        return self.patient(patient_id)
 
     def create_patient(self, body: dict[str, Any], at: str) -> dict[str, object]:
         """A patient created through `POST /v1/patients`, with an id minted by the store."""
@@ -370,9 +423,7 @@ class FakeStore:
             {"id": ident, "practice": body["practiceId"], "name": body["name"],
              "phone": numbers[0]["number"] if numbers else None, "at": canonical(at),
              "gender": body["gender"], "email": body["email"],
-             # create_patient.json: Principle answers a string when no address was sent. The
-             # anonymiser hides which, so the fake sends an empty one; to confirm, create a
-             # patient on staging without an address and read it back with getPatient.
+             # With no address sent, Principle answers an empty one (createPatient recording).
              "address": body.get("address", ""), "dob": body["dateOfBirth"]})
         self.db.commit()
         created = self.patient(ident)
@@ -406,10 +457,11 @@ class FakeStore:
         return None if row is None else _render_patient(row)
 
     def search_patients(self, practice_id: str, name: str) -> list[dict[str, object]]:
-        """Patients whose name contains `name`, ignoring case. Not paginated."""
+        """Patients the search index finds by name, ignoring case. Not paginated."""
         return [_render_patient(row) for row in self.db.execute(
-            "SELECT * FROM patients WHERE practice_id = ? AND name LIKE ? ORDER BY id",
-            (practice_id, f"%{name}%"))]
+            "SELECT patients.* FROM patient_search JOIN patients ON patients.id = patient_id"
+            " WHERE patient_search.practice_id = ? AND patient_search.name LIKE ?"
+            " ORDER BY patients.id", (practice_id, f"%{name}%"))]
 
     def changed(self, table: str, practice_id: str, query: dict[str, str], limit: int,
                 offset_id: str | None) -> Page:
@@ -601,7 +653,8 @@ def _parse_cursor(offset_id: str | None) -> str | None:
         return None
 
 
-def seed(appointments_per_day: int = 8, days: int = 3) -> FakeStore:
+def seed(store: FakeStore | None = None, appointments_per_day: int = 8,
+         days: int = 3) -> FakeStore:
     """A small practice with a diary, sized to force more than one page.
 
     Names are invented. Nothing here comes from a real patient record, and the practice name
@@ -610,7 +663,7 @@ def seed(appointments_per_day: int = 8, days: int = 3) -> FakeStore:
     Each appointment gets a distinct `createdAt`, descending with its slot, because the paging
     cursor is a createdAt and rows sharing one would page unpredictably.
     """
-    store = FakeStore()
+    store = store if store is not None else FakeStore()
     first_day = date(2026, 9, 28)
     created_base = datetime(2026, 3, 31, 20, 55, tzinfo=UTC)
     at = _iso(datetime.combine(first_day, time(0), tzinfo=PRACTICE_TZ))

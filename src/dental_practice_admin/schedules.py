@@ -163,21 +163,46 @@ def save(settings: Settings, schedule: Schedule, owner: str) -> None:
             job.pause()
 
 
-async def run_due(settings: Settings, at: datetime | None = None) -> int:
-    """Claim each occurrence before execution; interrupted claims are never replayed."""
+def task_lock(settings: Settings, name: str) -> portalocker.Lock:
+    """Held while a scheduled task runs, so it never runs twice at once (ADR 0009)."""
+    folder = settings.data_dir / "locks"
+    folder.mkdir(parents=True, exist_ok=True)
+    return portalocker.Lock(str(folder / f"task-{name}.lock"), timeout=0)
+
+
+async def run_due(settings: Settings, at: datetime | None = None,
+                  claim_wait: float = 30) -> int:
+    """Claim each occurrence before execution; interrupted claims are never replayed.
+
+    The launcher lock covers only the claiming. Claimed tasks run side by side, each under its
+    own task lock, so a long run holds up neither another task nor the next launch (ADR 0009).
+    Occurrences of one task claimed together run one after the other under its lock.
+    """
     observed_at = at or datetime.now(UTC)
     store = Storage(settings.database_path)
     failed = 0
-    pending = []
-    launcher = portalocker.Lock(str(settings.data_dir / "launcher.lock"), timeout=0)
+    pending: dict[str, tuple[portalocker.Lock, list[tuple[str, Any]]]] = {}
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    claiming = portalocker.Lock(str(settings.data_dir / "launcher.lock"), timeout=claim_wait)
     try:
-        launcher.acquire()
-        with open_schedules(settings) as scheduler:
-            interrupted = store.db.execute(
-                "SELECT run_id FROM task_runs WHERE initiator='scheduler' AND outcome='running'")
-            for row in interrupted.fetchall():
-                Audit(settings, row[0]).write("interrupted", reason="launcher_disappeared")
-                store.finish_run(row[0], Outcome.UNCERTAIN, Coverage.PARTIAL,
+        try:
+            claiming.acquire()
+        except portalocker.AlreadyLocked:
+            Audit(settings, "launcher-failed").write("failed", reason="claiming_locked",
+                                                     waited_seconds=claim_wait)
+            return 1
+        with claiming, open_schedules(settings) as scheduler:
+            running = store.db.execute(
+                "SELECT run_id, task FROM task_runs"
+                " WHERE initiator='scheduler' AND outcome='running'")
+            for run_id, name in running.fetchall():
+                try:
+                    with task_lock(settings, name):
+                        pass
+                except portalocker.AlreadyLocked:
+                    continue  # Still running, under another launch.
+                Audit(settings, run_id).write("interrupted", reason="launcher_disappeared")
+                store.finish_run(run_id, Outcome.UNCERTAIN, Coverage.PARTIAL,
                                  "Launcher interrupted; inspect saved state before retrying")
             for job in scheduler.get_jobs():
                 due = job.next_run_time
@@ -200,34 +225,62 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
                         store.finish_run(identifier, Outcome.MISSED, Coverage.PARTIAL,
                                          f"Missed scheduled work from {due.isoformat()}")
                         failed += 1
+                    elif job.name in pending:
+                        pending[job.name][1].append((identifier, job))
                     else:
-                        pending.append((identifier, due, job))
+                        # Taken now, before the launcher lock is let go, so no launch can see
+                        # this claimed run with its task lock free and call it interrupted.
+                        lock = task_lock(settings, job.name)
+                        try:
+                            lock.acquire()
+                        except portalocker.AlreadyLocked:
+                            Audit(settings, identifier).write("missed", schedule=job.id,
+                                                              reason="still_running")
+                            store.finish_run(identifier, Outcome.MISSED, Coverage.PARTIAL,
+                                             "Not started: the previous run of this task is"
+                                             " still going")
+                            failed += 1
+                        else:
+                            pending[job.name] = (lock, [(identifier, job)])
                     due = next_due
-        for identifier, due, job in pending:
-            try:
-                if ((at or datetime.now(UTC)) - due).total_seconds() > POLL_SECONDS:
-                    Audit(settings, identifier).write("missed", schedule=job.id, due=due)
-                    store.finish_run(identifier, Outcome.MISSED, Coverage.PARTIAL,
-                                     "Execution window passed while another task was running")
-                    failed += 1
-                    continue
-                name, inputs = job.args
-                script = task_files.load(settings, name, task_files.current(settings, name),
-                                         inputs, "scheduler")
-                await scripts.recorded(settings, script, job.name,
-                    partial(scripts.worker_run, settings, script), identifier)
-                result = store.run(identifier)
-                failed += int(result is None or not result.is_trustworthy)
-            except Exception:
-                Audit(settings, identifier).write("failed", schedule=job.id)
-                store.finish_run(identifier, Outcome.UNCERTAIN, Coverage.PARTIAL,
-                                 "Scheduled execution incomplete; inspect its audit")
-                failed += 1
+        runs = [run_claimed(settings, store, claimed, lock)
+                for lock, claimed in pending.values()]
+        pending = {}  # Each task's runs release its lock from here on.
+        outcomes = await asyncio.gather(*runs)
+        failed += sum(outcomes)
         Audit(settings, "launcher").write("checked", failures=failed)
     finally:
-        launcher.release()
+        for lock, _claimed in pending.values():
+            lock.release()
         store.close()
     return int(failed > 0)
+
+
+async def run_claimed(settings: Settings, store: Storage, claimed: list[tuple[str, Any]],
+                      lock: portalocker.Lock) -> int:
+    """Run one task's claimed occurrences in turn, then release its lock; how many failed."""
+    try:
+        return sum([await _run_one(settings, store, identifier, job)
+                    for identifier, job in claimed])
+    finally:
+        lock.release()
+
+
+async def _run_one(settings: Settings, store: Storage, identifier: str, job: Any) -> int:
+    """Run one claimed occurrence; 1 if it did not succeed."""
+    try:
+        name, inputs = job.args
+        script = task_files.load(settings, name, task_files.current(settings, name),
+                                 inputs, "scheduler")
+        await scripts.recorded(settings, script, job.name,
+            partial(scripts.worker_run, settings, script), identifier)
+        result = store.run(identifier)
+    except Exception:
+        Audit(settings, identifier).write("failed", schedule=job.id)
+        store.finish_run(identifier, Outcome.UNCERTAIN, Coverage.PARTIAL,
+                         "Scheduled execution incomplete; inspect its audit")
+        return 1
+    return int(result is None or not result.is_trustworthy)
 
 
 def main() -> int:

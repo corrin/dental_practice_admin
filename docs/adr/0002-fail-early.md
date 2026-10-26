@@ -13,7 +13,3 @@ line of code can trust them without checking.
   `getattr(obj, name, default)` and `if x is None` each claim the model allows the bad case. If it
   does not, delete the branch. If it does, tighten the model so it does not.
 - Malformed data is fixed where it is written, never defended against where it is read.
-
-## Observed
-
-None yet.

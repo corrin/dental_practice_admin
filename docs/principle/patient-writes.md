@@ -18,6 +18,19 @@ after changing their numbers or address.
 dummy patients, 2026-10-10, comparing the whole Firestore document, which holds fields the API
 does not return.
 
+## A new patient is found by name search only later
+
+**What:** straight after `createPatient`, `searchPatients` by the patient's name does not return
+them; `getPatient` by id does. Measured on staging at 2.8 s and 18.5 s; every staging write run
+of `scripts/record_principle_wire.py --create-patient` measures it again and keeps it in
+staging's `recordings/measurements.json`.
+**Gotchas:**
+- The client's practice check is a name search, so it waits up to 60 s for a patient that new
+  rather than refusing them (ADR 0009).
+- It waits the same after `updatedAt`, so a renamed patient is not refused while search still
+  holds the old name. The lag after a rename is unmeasured; the recorder's update keeps the name.
+- The fake models it only with `SIMULATE_PRINCIPLE_SPEED=1`; otherwise it indexes at once.
+
 ## The address the website saves
 
 **What:** the website's verified-address picker saves NZ Post order with the country:

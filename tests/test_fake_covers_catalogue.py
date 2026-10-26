@@ -1,4 +1,4 @@
-"""The fake covers the diary and reconciliation reads; generated transport tests cover others."""
+"""The fake serves every operation in the released interface (ADR 0007)."""
 
 from __future__ import annotations
 
@@ -13,19 +13,70 @@ from tests.fake.store import FAKE_API_KEY
 
 SAMPLE_SEGMENT = "sample"
 
+# Operations the fake has no route for yet. Each comes off this list in the change that records
+# it and routes it; strict, so a routed operation still listed fails until it is taken off.
+NOT_YET_ROUTED = frozenset({
+    "cancelAppointment",
+    "createAppointment",
+    "createAppointmentInteraction",
+    "createAppointmentTag",
+    "createCallEvent",
+    "createDeposit",
+    "createEmail",
+    "createLead",
+    "createPatientInteraction",
+    "createPatientTag",
+    "createSMSMessage",
+    "createTransaction",
+    "getAccountCredit",
+    "getAppointment",
+    "getAppointmentTag",
+    "getEmail",
+    "getInvoice",
+    "getPatientFile",
+    "getPatientTag",
+    "getPatientTreatmentStep",
+    "getPractice",
+    "getPractitioner",
+    "getSMSMessage",
+    "getTransaction",
+    "getTreatmentOption",
+    "listAccountCredits",
+    "listAllowedAppointmentStatuses",
+    "listAppointmentTags",
+    "listAppointments",
+    "listEmails",
+    "listFilesByDateRange",
+    "listInvoices",
+    "listPatientFiles",
+    "listPatientTags",
+    "listPatientTreatmentPlans",
+    "listSMSMessages",
+    "listTransactions",
+    "listTreatmentOptions",
+    "listTreatmentPlansByDateRange",
+    "rescheduleAppointment",
+    "searchAvailability",
+    "searchLeads",
+    "searchRescheduleAvailability",
+    "updateAppointmentStatus",
+    "updatePatientFile",
+    "updateSMSMessageStatus",
+    "updateTransaction",
+    "uploadPatientFile",
+})
+
 
 def _concrete_path(call: Call) -> str:
     """The call's path with every template segment filled, so a route regex can match it."""
     return re.sub(r"\{[^}]+\}", SAMPLE_SEGMENT, call.path)
 
 
-@pytest.mark.parametrize("call", [call for call in CATALOGUE if call.name in {
-    "listPractices", "listPractitioners", "listAppointmentsByDateRange",
-    "getPatient", "searchPatients", "createPatient", "listInvoicesByDateRange",
-    "listTransactionsByDateRange",
-}], ids=lambda call: call.name)
+@pytest.mark.parametrize("call", [
+    pytest.param(call, marks=pytest.mark.xfail(strict=True, reason="not yet recorded and routed"))
+    if call.name in NOT_YET_ROUTED else call for call in CATALOGUE], ids=lambda call: call.name)
 def test_every_catalogue_call_is_routed(call: Call) -> None:
-    """Every operation used by the diary must reach an independently verified fake route."""
+    """Every operation in the released interface reaches a fake route (ADR 0007)."""
     path = _concrete_path(call)
     matched = [
         pattern.pattern
@@ -45,7 +96,7 @@ def test_unrouted_call_refuses(fake_store: FakeStore) -> None:
     """
     request = Request(
         method="GET",
-        path="/v1/patients/anything/invoices",
+        path="/v1/not-in-the-interface",
         query={},
         headers={"x-api-key": FAKE_API_KEY},
     )

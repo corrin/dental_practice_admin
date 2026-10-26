@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,6 +11,7 @@ from typing import Any
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
+import portalocker
 import pytest
 from git import Repo
 from jsonschema import ValidationError as SchemaError
@@ -374,3 +376,196 @@ async def test_installed_task_imports_the_practice_shared_modules(tmp_path: Path
     loaded = task_files.load(configured, "fake_report", REVISION, {"numbers": []}, "staff")
     result = await scripts.execute(configured, loaded)
     assert result.detail == {"total": 7}
+
+
+async def _due_now(configured: Any, schedule: schedules.Schedule, at: datetime) -> None:
+    schedules.save(configured, schedule, "fake-staff")
+    with schedules.open_schedules(configured) as scheduler:
+        scheduler.get_job(schedule.id).modify(next_run_time=at)
+
+
+async def test_a_long_task_does_not_stop_the_next_launch_running_another(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR 0009: a long run does not hold up others."""
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    install_fake(tmp_path, "other_report")
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def work(_settings: Any, script: scripts.Script, _run_id: str) -> scripts.Result:
+        if script.inputs == {"numbers": [2]}:
+            started.set()
+            await release.wait()
+        return scripts.Result(summary="fake", detail={}, coverage="complete")
+
+    monkeypatch.setattr(scripts, "worker_run", work)
+    at = datetime.now(UTC)
+    await _due_now(configured, schedules.Schedule(name="fake_report", inputs={"numbers": [2]}),
+                   at)
+    long_run = asyncio.create_task(schedules.run_due(configured, at))
+    try:
+        await asyncio.wait_for(started.wait(), 5)
+        await _due_now(configured, schedules.Schedule(name="other_report",
+                                                      inputs={"numbers": [3]}), at)
+        assert await asyncio.wait_for(schedules.run_due(configured, at), 10) == 0
+        store = Storage(configured.database_path)
+        try:
+            outcomes = {run.task: run.outcome for run in store.recent_runs()}
+        finally:
+            store.close()
+        assert outcomes["other_report"] is Outcome.SUCCEEDED
+        assert outcomes["fake_report"] is Outcome.RUNNING
+    finally:
+        release.set()
+        await long_run
+
+
+async def test_a_task_still_running_is_not_started_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR 0009: a task never runs twice at once."""
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    started, release = asyncio.Event(), asyncio.Event()
+    runs = 0
+
+    async def work(*_args: Any) -> scripts.Result:
+        nonlocal runs
+        runs += 1
+        started.set()
+        await release.wait()
+        return scripts.Result(summary="fake", detail={}, coverage="complete")
+
+    monkeypatch.setattr(scripts, "worker_run", work)
+    schedule = schedules.Schedule(name="fake_report", inputs={"numbers": [2]})
+    first = datetime.now(UTC)
+    await _due_now(configured, schedule, first)
+    long_run = asyncio.create_task(schedules.run_due(configured, first))
+    try:
+        await asyncio.wait_for(started.wait(), 5)
+        second = first + timedelta(minutes=1)
+        with schedules.open_schedules(configured) as scheduler:
+            scheduler.get_job(schedule.id).modify(next_run_time=second)
+        assert await asyncio.wait_for(schedules.run_due(configured, second), 10) == 1
+        assert runs == 1
+        store = Storage(configured.database_path)
+        try:
+            assert Outcome.MISSED in [run.outcome for run in store.recent_runs()]
+        finally:
+            store.close()
+    finally:
+        release.set()
+        await long_run
+
+
+async def test_a_launch_between_claiming_and_running_leaves_the_run_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run is claimed before it starts; a launch in that moment must not call it interrupted."""
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    at = datetime.now(UTC)
+    await _due_now(configured, schedules.Schedule(name="fake_report", inputs={"numbers": [2]}),
+                   at)
+    claimed = schedules.run_claimed
+    seen_in_between: list[Outcome] = []
+
+    async def launch_in_between(*args: Any, **kwargs: Any) -> int:
+        await schedules.run_due(configured, at)
+        store = Storage(configured.database_path)
+        try:
+            seen_in_between.extend(run.outcome for run in store.recent_runs())
+        finally:
+            store.close()
+        return await claimed(*args, **kwargs)
+
+    monkeypatch.setattr(schedules, "run_claimed", launch_in_between)
+    assert await schedules.run_due(configured, at) == 0
+    assert seen_in_between == [Outcome.RUNNING]
+
+
+async def test_two_schedules_of_one_task_due_together_both_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Staff may schedule one task twice with different inputs; both run, one after the other."""
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    ran: list[dict[str, Any]] = []
+    running = 0
+
+    async def work(_settings: Any, script: scripts.Script, _run_id: str) -> scripts.Result:
+        nonlocal running
+        running += 1
+        assert running == 1, "one task ran twice at once"
+        ran.append(script.inputs)
+        await asyncio.sleep(0.05)
+        running -= 1
+        return scripts.Result(summary="fake", detail={}, coverage="complete")
+
+    monkeypatch.setattr(scripts, "worker_run", work)
+    at = datetime.now(UTC)
+    for numbers in ([2], [3]):
+        await _due_now(configured, schedules.Schedule(name="fake_report",
+                                                      inputs={"numbers": numbers}), at)
+    assert await schedules.run_due(configured, at) == 0
+    assert sorted(inputs["numbers"][0] for inputs in ran) == [2, 3]
+
+
+async def test_a_run_whose_bookkeeping_fails_does_not_strand_the_others(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every other run of the launch still finishes and is recorded, and the launch is checked."""
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    install_fake(tmp_path, "other_report")
+
+    async def work(_settings: Any, script: scripts.Script, _run_id: str) -> scripts.Result:
+        if script.inputs == {"numbers": [2]}:
+            await asyncio.sleep(0.2)
+            raise RuntimeError("fake failure")
+        return scripts.Result(summary="fake", detail={}, coverage="complete")
+
+    monkeypatch.setattr(scripts, "worker_run", work)
+    recorded, run = scripts.recorded, Storage.run
+    armed = False
+
+    async def then_arm(*args: Any, **kwargs: Any) -> Any:
+        nonlocal armed
+        result = await recorded(*args, **kwargs)
+        armed = True
+        return result
+
+    def failing_once(self: Storage, run_id: str) -> Any:
+        nonlocal armed
+        if armed:
+            armed = False
+            raise sqlite3.OperationalError("fake: database is locked")
+        return run(self, run_id)
+
+    monkeypatch.setattr(scripts, "recorded", then_arm)
+    at = datetime.now(UTC)
+    await _due_now(configured, schedules.Schedule(name="fake_report", inputs={"numbers": [2]}),
+                   at)
+    await _due_now(configured, schedules.Schedule(name="other_report", inputs={"numbers": [3]}),
+                   at)
+    monkeypatch.setattr(Storage, "run", failing_once)
+    assert await schedules.run_due(configured, at) == 1
+    monkeypatch.setattr(Storage, "run", run)
+    await asyncio.sleep(0.3)
+    store = Storage(configured.database_path)
+    try:
+        assert Outcome.RUNNING not in [run.outcome for run in store.recent_runs()]
+    finally:
+        store.close()
+    assert schedules.launcher_checked(configured) is not None
+
+
+async def test_a_launch_that_cannot_claim_says_so(tmp_path: Path) -> None:
+    """A launch held off the claiming lock fails with a record, never silently."""
+    configured = settings(tmp_path)
+    configured.data_dir.mkdir(parents=True, exist_ok=True)
+    with portalocker.Lock(str(configured.data_dir / "launcher.lock"), timeout=0):
+        assert await schedules.run_due(configured, datetime.now(UTC), claim_wait=0.1) == 1
+    audit = configured.data_dir / "audits" / "launcher-failed.jsonl"
+    assert "claiming" in audit.read_text(encoding="utf-8")

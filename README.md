@@ -413,6 +413,7 @@ The first run of the install script writes `C:\Program Files\DentalPracticeAdmin
 | `ADMIN_GOOGLE_MAPS_API_KEY` | Google Cloud console: enable the Geocoding API and create an API key. |
 | `ADMIN_TASK_REPOSITORY` | `owner/repository`, the private task repository. |
 | `ADMIN_GITHUB_TOKEN` | GitHub, Settings, Developer settings, fine-grained token for that repository with read and write on Contents and Pull requests. |
+| `ADMIN_OWNER_MOBILE`, `ADMIN_OWNER_EMAIL` | Your own mobile in international form (`+6421...`) and email. The recorder's staging test patient carries them, so the texts and emails it causes reach you and no patient. |
 
 The template already holds the values that are the same for every practice, including
 Principle's public web-app Firebase settings.

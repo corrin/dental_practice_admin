@@ -9,7 +9,7 @@ these were passive: a .gitignore and remembering to look.
 
 from __future__ import annotations
 
-from scripts.scan_for_leaks import SHAPES, scan
+from scripts.scan_for_leaks import SHAPES, contains, scan, secrets_from_env
 
 
 def test_nothing_tracked_leaks_data() -> None:
@@ -56,3 +56,16 @@ def test_ordinary_text_is_not_flagged() -> None:
     for description, pattern in SHAPES:
         for text in innocent:
             assert not pattern.search(text), f"{description} wrongly matched {text!r}"
+
+
+def test_the_owners_mobile_is_found_however_it_is_written() -> None:
+    """A phone number is shorter than any key, and is written with or without its country code."""
+    found = secrets_from_env({"ADMIN_OWNER_MOBILE": "+6421000123"})
+    for written in ("+6421000123", "021000123", "21000123", "021 000 123", "+64 21-000-123",
+                    "(021) 000 123", "+64 21 000 123"):
+        assert any(contains(f"call {written} today", value) for value in found), written
+
+
+def test_a_blank_mobile_is_not_searched_for() -> None:
+    """A practice that never records leaves it blank, which would otherwise match every file."""
+    assert secrets_from_env({"ADMIN_OWNER_MOBILE": ""}) == {}

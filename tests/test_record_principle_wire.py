@@ -1,9 +1,9 @@
 """The recorder reads production and writes only to staging (ADR 0006)."""
 import json
 import sys
+from collections.abc import AsyncIterator
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 
 import httpx2 as httpx
 import pytest
@@ -14,14 +14,19 @@ from dental_practice_admin.config import (
     STAGING_API_URL,
     ConfigurationError,
     Environment,
+    Settings,
 )
-from dental_practice_admin.firestore import Firestore
-from dental_practice_admin.principle import PrincipleClient
 from tests.fake import FakeStore, transport
 from tests.settings import fake_settings
 
-Sent = list[tuple[str, httpx.Request]]
+
+class Sent(list[tuple[str, httpx.Request]]):
+    """Each request with its environment, and every response body exactly as the fake sent it."""
+
+    bodies: list[bytes]
+
 TODAY = date(2026, 9, 29)
+OWNER_MOBILE, OWNER_EMAIL = "+6421000000", "owner@example.invalid"
 
 
 class SeededDay(date):
@@ -46,29 +51,42 @@ def sent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore)
     for name, value in (_environment(tmp_path, Environment.PRODUCTION, PRODUCTION_API_URL)
                         | _environment(tmp_path, Environment.STAGING, STAGING_API_URL)).items():
         monkeypatch.setenv(name, value)
+    monkeypatch.setenv("ADMIN_OWNER_MOBILE", OWNER_MOBILE)
+    monkeypatch.setenv("ADMIN_OWNER_EMAIL", OWNER_EMAIL)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(recorder, "REFUSALS", tmp_path / "refusals")
     monkeypatch.setattr(recorder, "date", SeededDay)
     fake = transport(fake_store)
-    seen: Sent = []
+    seen = Sent()
+    seen.bodies = []
 
-    def noting(environment: str) -> httpx.AsyncBaseTransport:
+    def noting(settings: Settings) -> httpx.AsyncBaseTransport:
+        class Teed(httpx.AsyncByteStream):
+            """The fake's body as it streams, copied as it goes, as a network response is."""
+
+            def __init__(self, inner: httpx.AsyncByteStream) -> None:
+                self.inner = inner
+
+            async def __aiter__(self) -> AsyncIterator[bytes]:
+                chunks = []
+                async for chunk in self.inner:
+                    chunks.append(chunk)
+                    yield chunk
+                seen.bodies.append(b"".join(chunks))
+
+            async def aclose(self) -> None:
+                await self.inner.aclose()
+
         class Noting(httpx.AsyncBaseTransport):
             async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-                seen.append((environment, request))
-                return await fake.handle_async_request(request)
+                seen.append((settings.environment.value, request))
+                response = await fake.handle_async_request(request)
+                assert isinstance(response.stream, httpx.AsyncByteStream)
+                response.stream = Teed(response.stream)
+                return response
         return Noting()
 
-    def by_host(url: str) -> str:
-        return "production" if url.startswith(PRODUCTION_API_URL) else "staging"
-
-    monkeypatch.setattr(recorder, "PrincipleClient", lambda settings, **kw: PrincipleClient(
-        settings, transport=noting(settings.environment.value), **kw))
-    monkeypatch.setattr(recorder, "Firestore", lambda settings: Firestore(
-        settings, transport=noting(settings.environment.value)))
-    monkeypatch.setattr(recorder, "httpx", SimpleNamespace(
-        AsyncClient=lambda base_url, **kw: httpx.AsyncClient(
-            base_url=base_url, transport=noting(by_host(base_url)), **kw)))
+    monkeypatch.setattr(recorder, "transport_for", noting)
     return seen
 
 
@@ -82,9 +100,18 @@ def _recordings(tmp_path: Path) -> Path:
     return tmp_path / Environment.PRODUCTION.value / "recordings"
 
 
-def _sources(folder: Path) -> dict[str, str]:
-    return {path.stem: json.loads(path.read_text(encoding="utf-8"))["source"]
-            for path in folder.rglob("*.json")}
+def _hosts(folder: Path) -> dict[str, set[str]]:
+    """Each recorded operation, with the hosts that answered it."""
+    hosts: dict[str, set[str]] = {}
+    for path in folder.glob("**/*/*.json"):
+        url = json.loads(path.read_text(encoding="utf-8"))["url"]
+        hosts.setdefault(path.parent.relative_to(folder).as_posix(), set()).add(
+            httpx.URL(url).host)
+    return hosts
+
+
+def _refusals(tmp_path: Path) -> set[str]:
+    return {path.stem for path in (tmp_path / "refusals").rglob("*.json")}
 
 
 def _creates(sent: Sent) -> list[tuple[str, httpx.Request]]:
@@ -98,27 +125,86 @@ async def test_a_plain_run_reads_only_production(
 
     assert sent
     assert {environment for environment, _ in sent} == {"production"}
-    assert set(_sources(_recordings(tmp_path)).values()) <= {
-        "api.principle.dental", "firestore (production)"}
+    assert not any(STAGING_API_URL.removeprefix("https://") in hosts
+                   for hosts in _hosts(_recordings(tmp_path)).values())
+
+
+async def test_a_recording_is_exactly_what_the_system_sent(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    await _record(monkeypatch)
+
+    recorded = [path.read_bytes() for path in _recordings(tmp_path).rglob("*.body")]
+    assert sorted(recorded) == sorted(sent.bodies)
 
 
 async def test_recordings_stay_in_the_data_folder_and_refusals_in_the_repository(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
     await _record(monkeypatch)
 
-    assert {"patient", "appointments"} <= _sources(_recordings(tmp_path)).keys()
-    assert "patient" not in _sources(tmp_path / "refusals")
-    assert "unauthorised" in _sources(tmp_path / "refusals")
+    assert {"getPatient", "listAppointmentsByDateRange"} <= _hosts(_recordings(tmp_path)).keys()
+    assert "unauthorised" in _refusals(tmp_path)
+    assert not {"getPatient", "patient"} & _refusals(tmp_path)
 
 
 async def test_creating_a_patient_writes_only_to_staging_and_last(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
     await _record(monkeypatch, "--create-patient")
 
+    environments = [environment for environment, _ in sent]
+    first = environments.index("staging")
     assert [environment for environment, _ in _creates(sent)] == ["staging"]
-    assert sent[-1] == _creates(sent)[0]
-    assert {environment for environment, _ in sent[:-1]} == {"production"}
-    assert _sources(_recordings(tmp_path))["create_patient"] == "api.staging.principle.dental"
+    assert set(environments[:first]) == {"production"}
+    assert set(environments[first:]) == {"staging"}
+
+
+async def test_writes_are_recorded_in_stagings_own_data_folder(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    await _record(monkeypatch, "--create-patient")
+
+    staging = _hosts(tmp_path / Environment.STAGING.value / "recordings")
+    assert {"createPatient", "updatePatient"} <= staging.keys()
+    assert set().union(*staging.values()) == {STAGING_API_URL.removeprefix("https://")}
+    assert not {"createPatient", "updatePatient"} & _hosts(_recordings(tmp_path)).keys()
+
+
+def _updates(sent: Sent) -> list[httpx.Request]:
+    return [request for _, request in sent if request.method == "PATCH"]
+
+
+async def test_the_update_goes_only_to_the_patient_just_created(
+        monkeypatch: pytest.MonkeyPatch, fake_store: FakeStore, sent: Sent) -> None:
+    before = {row["id"] for row in fake_store.db.execute("SELECT id FROM patients")}
+
+    await _record(monkeypatch, "--create-patient")
+
+    created = {row["id"] for row in fake_store.db.execute("SELECT id FROM patients")} - before
+    assert [request.url.path for request in _updates(sent)] == [
+        f"/v1/patients/{patient}" for patient in created]
+
+
+async def test_the_update_is_refused_unless_the_patient_carries_the_owners_details(
+        monkeypatch: pytest.MonkeyPatch, fake_store: FakeStore, sent: Sent) -> None:
+    create = fake_store.create_patient
+    monkeypatch.setattr(fake_store, "create_patient", lambda body, at: create(
+        body | {"email": "someone.else@example.invalid"}, at))
+
+    with pytest.raises(SystemExit):
+        await _record(monkeypatch, "--create-patient")
+    assert _updates(sent) == []
+
+
+async def test_a_write_that_fails_keeps_what_every_system_sent(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore,
+        sent: Sent) -> None:
+    """The patient it created stays on staging, so the exchanges that show why are kept."""
+    create = fake_store.create_patient
+    monkeypatch.setattr(fake_store, "create_patient", lambda body, at: create(
+        body | {"email": "someone.else@example.invalid"}, at))
+
+    with pytest.raises(SystemExit):
+        await _record(monkeypatch, "--create-patient")
+    assert "createPatient" in _hosts(tmp_path / Environment.STAGING.value / "recordings")
+    assert "listPractices" in _hosts(_recordings(tmp_path))
 
 
 async def test_the_created_patient_carries_the_fake_marker(
@@ -129,10 +215,30 @@ async def test_the_created_patient_carries_the_fake_marker(
     assert "Fake" in json.loads(request.content)["name"]
 
 
+async def test_the_created_patient_carries_the_owners_phone_and_email(
+        monkeypatch: pytest.MonkeyPatch, sent: Sent) -> None:
+    await _record(monkeypatch, "--create-patient")
+
+    (_, request), = _creates(sent)
+    body = json.loads(request.content)
+    assert body["contactNumbers"] == [{"label": "mobile", "number": OWNER_MOBILE}]
+    assert body["email"] == OWNER_EMAIL
+
+
+@pytest.mark.parametrize("missing", ["ADMIN_OWNER_MOBILE", "ADMIN_OWNER_EMAIL"])
+async def test_creating_without_the_owners_contact_details_refuses_before_reading(
+        monkeypatch: pytest.MonkeyPatch, sent: Sent, missing: str) -> None:
+    monkeypatch.setenv(missing, "")
+
+    with pytest.raises(ConfigurationError):
+        await _record(monkeypatch, "--create-patient")
+    assert sent == []
+
+
 async def test_a_failed_run_creates_nothing_and_keeps_the_previous_recordings(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore,
         sent: Sent) -> None:
-    previous = _recordings(tmp_path) / "practices.json"
+    previous = _recordings(tmp_path) / "listPractices" / "001.body"
     previous.parent.mkdir(parents=True)
     previous.write_text("previous", encoding="utf-8")
     fake_store.db.execute("DELETE FROM calendar_events")
@@ -142,7 +248,7 @@ async def test_a_failed_run_creates_nothing_and_keeps_the_previous_recordings(
         await _record(monkeypatch, "--create-patient")
 
     assert _creates(sent) == []
-    assert [path.name for path in _recordings(tmp_path).rglob("*")] == ["practices.json"]
+    assert [path for path in _recordings(tmp_path).rglob("*") if path.is_file()] == [previous]
     assert previous.read_text(encoding="utf-8") == "previous"
 
 
@@ -200,4 +306,108 @@ async def test_a_patient_breaking_the_specification_is_recorded_as_sent(
 
     await _record(monkeypatch)
 
-    assert {"patient", "search_patients"} <= _sources(_recordings(tmp_path)).keys()
+    assert {"getPatient", "searchPatients"} <= _hosts(_recordings(tmp_path)).keys()
+
+
+def _recorded_days_ago(folder: Path, days: int) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "listPractices.json").write_text(json.dumps(
+        {"capturedOn": (TODAY - timedelta(days=days)).isoformat()}), encoding="utf-8")
+
+
+async def test_a_recording_older_than_sixty_days_fails_the_age_check(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    _recorded_days_ago(_recordings(tmp_path), 61)
+
+    with pytest.raises(SystemExit) as refused:
+        await _record(monkeypatch, "--older-than")
+    assert refused.value.code == 1
+    assert sent == []
+
+
+async def test_recordings_within_sixty_days_pass_the_age_check(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    _recorded_days_ago(_recordings(tmp_path), 59)
+
+    await _record(monkeypatch, "--older-than")
+    assert sent == []
+
+
+async def test_the_age_check_takes_its_limit_in_days(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    _recorded_days_ago(_recordings(tmp_path), 10)
+
+    with pytest.raises(SystemExit) as refused:
+        await _record(monkeypatch, "--older-than", "7")
+    assert refused.value.code == 1
+    assert sent == []
+
+
+async def test_the_age_check_fails_when_there_are_no_recordings(
+        monkeypatch: pytest.MonkeyPatch, sent: Sent) -> None:
+    """A wrong data folder holds no recordings, which would otherwise pass as all being fresh."""
+    with pytest.raises(SystemExit) as refused:
+        await _record(monkeypatch, "--older-than")
+    assert refused.value.code == 1
+
+
+async def test_a_recording_carries_the_day_it_was_taken_on_this_machine(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    """The day the age check measures from; a UTC day is yesterday for a New Zealand morning."""
+    await _record(monkeypatch)
+
+    days = {json.loads(path.read_text(encoding="utf-8"))["capturedOn"]
+            for folder in (_recordings(tmp_path), tmp_path / "refusals")
+            for path in folder.rglob("*.json")}
+    assert days == {TODAY.isoformat()}
+
+
+async def test_a_run_keeps_the_recordings_of_operations_it_did_not_make(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    kept = _recordings(tmp_path) / "createPatient" / "001.body"
+    kept.parent.mkdir(parents=True)
+    kept.write_bytes(b"from an earlier run")
+
+    await _record(monkeypatch)
+
+    assert kept.read_bytes() == b"from an earlier run"
+
+
+async def test_a_run_replaces_the_recordings_of_operations_it_made(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    stale = _recordings(tmp_path) / "listPractices" / "009.body"
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"from an earlier run")
+
+    await _record(monkeypatch)
+
+    assert not stale.exists()
+
+
+@pytest.mark.parametrize("table", ["calendar_events", "roster_items", "invoices", "transactions"])
+async def test_a_collection_with_nothing_to_record_fails_the_run(
+        monkeypatch: pytest.MonkeyPatch, fake_store: FakeStore, sent: Sent, table: str) -> None:
+    fake_store.db.execute(f"DELETE FROM {table}")
+    fake_store.db.commit()
+
+    with pytest.raises(SystemExit):
+        await _record(monkeypatch)
+
+
+async def test_a_run_records_what_bank_reconciliation_reads(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    await _record(monkeypatch)
+
+    assert {"listInvoicesByDateRange", "listTransactionsByDateRange"} <= _hosts(
+        _recordings(tmp_path)).keys()
+
+
+async def test_every_write_run_keeps_how_long_search_took_to_find_a_new_patient(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    await _record(monkeypatch, "--create-patient")
+    await _record(monkeypatch, "--create-patient")
+
+    measured = json.loads((tmp_path / Environment.STAGING.value / "recordings"
+                           / "measurements.json").read_text(encoding="utf-8"))
+    assert len(measured) == 2
+    assert all(run["searchFindsCreatedPatientAfterSeconds"] >= 0 for run in measured)

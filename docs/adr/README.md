@@ -7,9 +7,9 @@ session.
 
 - Files are `NNNN-short-topic.md`, numbered in sequence. A number is never reused. A retired ADR is
   deleted, and every citation of its number is reworded in the same change.
-- The first line is the rule in one sentence. **Rules** follow, then **Observed**.
-- **Observed** lists only mistakes actually seen, each with the commit that shows it. It may be
-  empty; nothing is invented to fill it.
+- The first line is the rule in one sentence. **Rules** follow.
+- An ADR states rules as they are now. It records no history: no mistakes seen, commits or
+  dates.
 - An ADR lands in its own commit, apart from any code it authorises.
 - An ADR is in force once the owner merges the pull request that adds it.
 
@@ -23,3 +23,6 @@ session.
 | [0004](0004-tests-state-behaviour.md) | Tests state behaviour |
 | [0005](0005-promote-working-scripts.md) | Promote working scripts |
 | [0006](0006-read-from-production.md) | Read from production |
+| [0007](0007-record-every-interface.md) | Record every interface |
+| [0008](0008-every-change-proves-itself.md) | Every change proves itself |
+| [0009](0009-tolerate-real-pauses.md) | Tolerate real pauses |
