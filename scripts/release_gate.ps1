@@ -30,7 +30,11 @@ if ($script:Failed.Count) { exit 1 }
 Stage 'Installed application' { uv run --locked python -c "from dental_practice_admin.app import create_app" }
 # The Caddyfile names its site from ADMIN_HOST, which only the server's .env holds; without one the
 # site has no name and Caddy refuses the file. The installer validates with the real hostname.
-Stage 'Caddy configuration' { $env:ADMIN_HOST = 'admin.example.invalid'; caddy validate --config deploy\Caddyfile --adapter caddyfile }
+Stage 'Caddy configuration' {
+    $saved = $env:ADMIN_HOST
+    $env:ADMIN_HOST = 'admin.example.invalid'
+    try { caddy validate --config deploy\Caddyfile --adapter caddyfile } finally { $env:ADMIN_HOST = $saved }
+}
 Stage 'Lint' { uv run --locked ruff check . }
 Stage 'Types' { uv run --locked mypy }
 Stage 'Released Principle interface' { uv run --locked python -m scripts.refresh_spec --check }
