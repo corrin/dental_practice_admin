@@ -374,3 +374,79 @@ async def test_installed_task_imports_the_practice_shared_modules(tmp_path: Path
     loaded = task_files.load(configured, "fake_report", REVISION, {"numbers": []}, "staff")
     result = await scripts.execute(configured, loaded)
     assert result.detail == {"total": 7}
+
+
+async def _due_now(configured: Any, schedule: schedules.Schedule, at: datetime) -> None:
+    schedules.save(configured, schedule, "fake-staff")
+    with schedules.open_schedules(configured) as scheduler:
+        scheduler.get_job(schedule.id).modify(next_run_time=at)
+
+
+async def test_a_long_task_does_not_stop_the_next_launch_running_another(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR 0009: a long run does not hold up others."""
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    install_fake(tmp_path, "other_report")
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def work(_settings: Any, script: scripts.Script, _run_id: str) -> scripts.Result:
+        if script.inputs == {"numbers": [2]}:
+            started.set()
+            await release.wait()
+        return scripts.Result(summary="fake", detail={}, coverage="complete")
+
+    monkeypatch.setattr(scripts, "worker_run", work)
+    at = datetime.now(UTC)
+    await _due_now(configured, schedules.Schedule(name="fake_report", inputs={"numbers": [2]}),
+                   at)
+    long_run = asyncio.create_task(schedules.run_due(configured, at))
+    try:
+        await asyncio.wait_for(started.wait(), 5)
+        await _due_now(configured, schedules.Schedule(name="other_report",
+                                                      inputs={"numbers": [3]}), at)
+        assert await asyncio.wait_for(schedules.run_due(configured, at), 10) == 0
+        store = Storage(configured.database_path)
+        try:
+            outcomes = {run.task: run.outcome for run in store.recent_runs()}
+        finally:
+            store.close()
+        assert outcomes["other_report"] is Outcome.SUCCEEDED
+        assert outcomes["fake_report"] is Outcome.RUNNING
+    finally:
+        release.set()
+        await long_run
+
+
+async def test_a_task_still_running_is_not_started_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR 0009: a task never runs twice at once."""
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    started, release = asyncio.Event(), asyncio.Event()
+    runs = 0
+
+    async def work(*_args: Any) -> scripts.Result:
+        nonlocal runs
+        runs += 1
+        started.set()
+        await release.wait()
+        return scripts.Result(summary="fake", detail={}, coverage="complete")
+
+    monkeypatch.setattr(scripts, "worker_run", work)
+    schedule = schedules.Schedule(name="fake_report", inputs={"numbers": [2]})
+    first = datetime.now(UTC)
+    await _due_now(configured, schedule, first)
+    long_run = asyncio.create_task(schedules.run_due(configured, first))
+    try:
+        await asyncio.wait_for(started.wait(), 5)
+        second = first + timedelta(minutes=1)
+        with schedules.open_schedules(configured) as scheduler:
+            scheduler.get_job(schedule.id).modify(next_run_time=second)
+        assert await asyncio.wait_for(schedules.run_due(configured, second), 10) == 1
+        assert runs == 1
+    finally:
+        release.set()
+        await long_run
