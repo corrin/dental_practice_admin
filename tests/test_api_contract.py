@@ -297,3 +297,25 @@ async def test_a_new_patient_search_never_finds_is_refused_once_the_lag_has_pass
     async with PrincipleClient(fake_settings, transport=httpx.MockTransport(respond)) as client:
         with pytest.raises(CallError, match="outside"):
             await client.call("getPatient", {"patientId": patient["id"]})
+
+
+async def test_a_patient_just_renamed_is_read_once_search_catches_up(
+    fake_settings: Settings,
+) -> None:
+    """Principle's search lags an update as it lags a create, so a rename is waited out too."""
+    renamed = datetime.now(UTC).isoformat()
+    patient = {"id": "fake-renamed", "name": "Fake Renamed", "email": "fake@example.invalid",
+               "gender": "notSpecified", "address": "", "dateOfBirth": "2000-01-01",
+               "createdAt": "2020-01-01T00:00:00+00:00", "updatedAt": renamed}
+    searches = 0
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal searches
+        if request.url.path.endswith("/fake-renamed"):
+            return httpx.Response(200, json=patient)
+        searches += 1
+        return httpx.Response(200, json={"data": [patient] if searches > 1 else []})
+
+    async with PrincipleClient(fake_settings, transport=httpx.MockTransport(respond)) as client:
+        read = await client.call("getPatient", {"patientId": patient["id"]})
+    assert read["id"] == patient["id"]

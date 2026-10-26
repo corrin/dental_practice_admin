@@ -27,6 +27,8 @@ staging's `recordings/measurements.json`.
 **Gotchas:**
 - The client's practice check is a name search, so it waits up to 60 s for a patient that new
   rather than refusing them (ADR 0009).
+- It waits the same after `updatedAt`, so a renamed patient is not refused while search still
+  holds the old name. The lag after a rename is unmeasured; the recorder's update keeps the name.
 - The fake models it only with `SIMULATE_PRINCIPLE_SPEED=1`; otherwise it indexes at once.
 
 ## The address the website saves

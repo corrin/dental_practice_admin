@@ -210,15 +210,21 @@ def _index_later(store: FakeStore, patient_id: str) -> None:
     if os.environ.get("SIMULATE_PRINCIPLE_SPEED") != "1":
         store.index_patient(patient_id)
         return
-    asyncio.get_running_loop().call_later(SEARCH_INDEX_LAG.total_seconds(),
-                                          store.index_patient, patient_id)
+    store.pending.append(asyncio.get_running_loop().call_later(
+        SEARCH_INDEX_LAG.total_seconds(), store.index_patient, patient_id))
+
+
+UPDATE_REQUIRED = frozenset({"practiceId", "name", "dateOfBirth", "gender", "email"})
 
 
 def update_patient(store: FakeStore, request: Request, match: re.Match[str]) -> Response:
     _only(request, frozenset())
     body = request.json()
-    if not isinstance(body, dict) or body.get("practiceId") != FAKE_PRACTICE_ID:
+    if (not isinstance(body, dict) or body.get("practiceId") != FAKE_PRACTICE_ID
+            or not body.keys() >= UPDATE_REQUIRED):
         raise FakeRefusalNotRecordedError("update_patient_invalid")
+    if store.practice_of(match.group("patient_id")) not in (None, FAKE_PRACTICE_ID):
+        raise FakeRefusalNotRecordedError("update_patient_other_practice")
     updated = store.update_patient(match.group("patient_id"), body, firestore_now())
     if updated is None:
         return _refusal("patient_not_found")

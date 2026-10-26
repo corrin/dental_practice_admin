@@ -16,10 +16,10 @@ Reads go to production and writes to staging (ADR 0006). With --create-patient t
 makes a `[TEST] Fake` patient on staging, which the API cannot delete, and updates it, so the
 fake's patient writes are checked against what Principle answers. The patient carries the
 owner's own mobile and email (ADMIN_OWNER_MOBILE, ADMIN_OWNER_EMAIL), so anything Principle
-sends it reaches the owner and no patient. The writes run after every read, and nothing is
-written to disk until the whole run has succeeded, so a failed run leaves no patient for its
-re-run to duplicate and the previous recordings as they were. Staging's exchanges go in
-staging's own data folder.
+sends it reaches the owner and no patient. The writes run after every read, so a run that
+fails while reading creates no patient and leaves the previous recordings as they were. Once the
+patient exists it stays on staging whatever follows, so every exchange of the writes is kept,
+in staging's own data folder, even when one of them fails.
 
 Refusals are Principle's and Firestore's own wording, and are also written into
 `tests/recordings/refusals/`, which tests/fake/server.py reads. There a Firestore refusal's
@@ -337,9 +337,9 @@ async def record_patient(client: PrincipleClient, appointment: dict[str, Any]) -
 async def record_writes(staging: Settings, capture: Capture) -> dict[str, float]:
     """Create a `[TEST]` patient on staging carrying the owner's details, then update it.
 
-    It runs only with --create-patient, and last, so a run that fails leaves no patient behind
-    for its re-run to duplicate. The patient is read back before it is written to again, and
-    the update is refused unless it carries the owner's mobile and email (ADR 0007).
+    It runs only with --create-patient, and last, so a run that fails while reading creates no
+    patient. The patient is read back before it is written to again, and the update is refused
+    unless it carries the owner's mobile and email (ADR 0007).
     """
     async with PrincipleClient(staging, transport=capture) as writer:
         created = await writer.call("createPatient", {
@@ -518,16 +518,18 @@ async def main() -> None:
     refusals = await record_refusals(settings, capture)
     await record_firestore(settings, capture, appointments)
     refusals += await record_firestore_refusals(settings, capture)
-    if staging is not None:
-        writing = Capture(transport_for(staging))
-        measured = await record_writes(staging, writing)
-        write_recordings(writing.exchanges, recordings_of(staging))
-        keep_measurement(recordings_of(staging) / "measurements.json", measured)
     write_recordings(capture.exchanges, recordings_of(settings))
     for target, text in refusals:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text, encoding="utf-8")
         print(f"  wrote {target}")
+    if staging is not None:
+        writing = Capture(transport_for(staging))
+        try:
+            measured = await record_writes(staging, writing)
+        finally:
+            write_recordings(writing.exchanges, recordings_of(staging))
+        keep_measurement(recordings_of(staging) / "measurements.json", measured)
 
 
 if __name__ == "__main__":

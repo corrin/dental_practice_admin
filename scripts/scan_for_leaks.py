@@ -142,7 +142,8 @@ def secrets_from_env(env: dict[str, str]) -> dict[str, str]:
     found: dict[str, str] = {}
     for name in PHONE_SETTINGS & env.keys():
         # Shorter than any key, and written with or without its country code: the last eight
-        # digits are in every spelling, and long enough not to match by accident.
+        # digits are in every spelling once spaces and punctuation are taken out (`contains`),
+        # and long enough not to match by accident.
         digits = re.sub(r"\D", "", env[name])[-8:]
         if len(digits) == 8:
             found[digits] = name
@@ -157,6 +158,13 @@ def secrets_from_env(env: dict[str, str]) -> dict[str, str]:
             if len(part) >= MIN_SECRET_LENGTH:
                 found[part] = name
     return found
+
+
+def contains(text: str, value: str) -> bool:
+    """Whether `text` holds `value`; a phone number's digits however they are spaced."""
+    if value.isdigit():
+        return value in re.sub(r"[\s\-().]", "", text)
+    return value in text
 
 
 def tracked_files(staged: bool) -> list[str]:
@@ -216,7 +224,7 @@ def scan_for(staged: bool, secrets: dict[str, str]) -> list[Finding]:
             continue
 
         for value, name in secrets.items():
-            if value in text:
+            if contains(text, value):
                 findings.append(Finding(path, f"contains the value of {name} from .env"))
         for description, pattern in SHAPES:
             match = pattern.search(text)

@@ -170,19 +170,28 @@ def task_lock(settings: Settings, name: str) -> portalocker.Lock:
     return portalocker.Lock(str(folder / f"task-{name}.lock"), timeout=0)
 
 
-async def run_due(settings: Settings, at: datetime | None = None) -> int:
+async def run_due(settings: Settings, at: datetime | None = None,
+                  claim_wait: float = 30) -> int:
     """Claim each occurrence before execution; interrupted claims are never replayed.
 
     The launcher lock covers only the claiming. Claimed tasks run side by side, each under its
     own task lock, so a long run holds up neither another task nor the next launch (ADR 0009).
+    Occurrences of one task claimed together run one after the other under its lock.
     """
     observed_at = at or datetime.now(UTC)
     store = Storage(settings.database_path)
     failed = 0
-    pending = []
+    pending: dict[str, tuple[portalocker.Lock, list[tuple[str, Any]]]] = {}
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    claiming = portalocker.Lock(str(settings.data_dir / "launcher.lock"), timeout=claim_wait)
     try:
-        with (portalocker.Lock(str(settings.data_dir / "launcher.lock"), timeout=30),
-              open_schedules(settings) as scheduler):
+        try:
+            claiming.acquire()
+        except portalocker.AlreadyLocked:
+            Audit(settings, "launcher-failed").write("failed", reason="claiming_locked",
+                                                     waited_seconds=claim_wait)
+            return 1
+        with claiming, open_schedules(settings) as scheduler:
             running = store.db.execute(
                 "SELECT run_id, task FROM task_runs"
                 " WHERE initiator='scheduler' AND outcome='running'")
@@ -216,6 +225,8 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
                         store.finish_run(identifier, Outcome.MISSED, Coverage.PARTIAL,
                                          f"Missed scheduled work from {due.isoformat()}")
                         failed += 1
+                    elif job.name in pending:
+                        pending[job.name][1].append((identifier, job))
                     else:
                         # Taken now, before the launcher lock is let go, so no launch can see
                         # this claimed run with its task lock free and call it interrupted.
@@ -230,38 +241,45 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
                                              " still going")
                             failed += 1
                         else:
-                            pending.append((identifier, job, lock))
+                            pending[job.name] = (lock, [(identifier, job)])
                     due = next_due
-        runs = [run_claimed(settings, store, identifier, job, lock)
-                for identifier, job, lock in pending]
-        pending = []  # Each run releases its own lock from here on.
+        runs = [run_claimed(settings, store, claimed, lock)
+                for lock, claimed in pending.values()]
+        pending = {}  # Each task's runs release its lock from here on.
         outcomes = await asyncio.gather(*runs)
         failed += sum(outcomes)
         Audit(settings, "launcher").write("checked", failures=failed)
     finally:
-        for _identifier, _job, lock in pending:
+        for lock, _claimed in pending.values():
             lock.release()
         store.close()
     return int(failed > 0)
 
 
-async def run_claimed(settings: Settings, store: Storage, identifier: str, job: Any,
+async def run_claimed(settings: Settings, store: Storage, claimed: list[tuple[str, Any]],
                       lock: portalocker.Lock) -> int:
-    """Run one claimed occurrence, releasing its task lock at the end; 1 if it did not succeed."""
+    """Run one task's claimed occurrences in turn, then release its lock; how many failed."""
+    try:
+        return sum([await _run_one(settings, store, identifier, job)
+                    for identifier, job in claimed])
+    finally:
+        lock.release()
+
+
+async def _run_one(settings: Settings, store: Storage, identifier: str, job: Any) -> int:
+    """Run one claimed occurrence; 1 if it did not succeed."""
     try:
         name, inputs = job.args
         script = task_files.load(settings, name, task_files.current(settings, name),
                                  inputs, "scheduler")
         await scripts.recorded(settings, script, job.name,
             partial(scripts.worker_run, settings, script), identifier)
+        result = store.run(identifier)
     except Exception:
         Audit(settings, identifier).write("failed", schedule=job.id)
         store.finish_run(identifier, Outcome.UNCERTAIN, Coverage.PARTIAL,
                          "Scheduled execution incomplete; inspect its audit")
         return 1
-    finally:
-        lock.release()
-    result = store.run(identifier)
     return int(result is None or not result.is_trustworthy)
 
 

@@ -193,6 +193,20 @@ async def test_the_update_is_refused_unless_the_patient_carries_the_owners_detai
     assert _updates(sent) == []
 
 
+async def test_a_write_that_fails_keeps_what_every_system_sent(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore,
+        sent: Sent) -> None:
+    """The patient it created stays on staging, so the exchanges that show why are kept."""
+    create = fake_store.create_patient
+    monkeypatch.setattr(fake_store, "create_patient", lambda body, at: create(
+        body | {"email": "someone.else@example.invalid"}, at))
+
+    with pytest.raises(SystemExit):
+        await _record(monkeypatch, "--create-patient")
+    assert "createPatient" in _hosts(tmp_path / Environment.STAGING.value / "recordings")
+    assert "listPractices" in _hosts(_recordings(tmp_path))
+
+
 async def test_the_created_patient_carries_the_fake_marker(
         monkeypatch: pytest.MonkeyPatch, sent: Sent) -> None:
     await _record(monkeypatch, "--create-patient")

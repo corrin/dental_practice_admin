@@ -27,6 +27,7 @@ In-memory, one store per test. `seed()` builds a small practice whose name carri
 
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
@@ -224,8 +225,12 @@ class FakeStore:
         self.db.row_factory = sqlite3.Row
         if self.db.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0] == 0:
             self.db.executescript(SCHEMA)
+        # Index updates waiting to happen (SIMULATE_PRINCIPLE_SPEED); a closed store drops them.
+        self.pending: list[asyncio.TimerHandle] = []
 
     def close(self) -> None:
+        for handle in self.pending:
+            handle.cancel()
         self.db.close()
 
     # -- reads ---------------------------------------------------------------
@@ -380,9 +385,15 @@ class FakeStore:
                         " FROM patients WHERE id = ?", (patient_id,))
         self.db.commit()
 
+    def practice_of(self, patient_id: str) -> str | None:
+        """The practice a patient belongs to, or None for no such patient."""
+        row = self.db.execute("SELECT practice_id FROM patients WHERE id = ?",
+                              (patient_id,)).fetchone()
+        return None if row is None else str(row[0])
+
     def update_patient(self, patient_id: str, body: dict[str, Any],
                        at: str) -> dict[str, object] | None:
-        """`PATCH /v1/patients/{id}`: the fields sent replace the stored ones.
+        """`PATCH /v1/patients/{id}`: the required fields replace the stored ones.
 
         docs/principle/patient-writes.md: contact numbers and address not sent are kept.
         """

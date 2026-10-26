@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+from datetime import timedelta
 from pathlib import Path
 
 import httpx2 as httpx
@@ -10,8 +13,13 @@ from pydantic import SecretStr
 
 from dental_practice_admin.config import Settings
 from dental_practice_admin.principle import CallError, PrincipleClient, PrincipleError
-from tests.fake import FAKE_PRACTICE_ID, FakeStore, dispatch, transport
-from tests.fake.server import FakeUnhandledParameterError, Request
+from tests.fake import FAKE_PRACTICE_ID, FakeStore, dispatch, server, transport
+from tests.fake.server import (
+    FakePrinciple,
+    FakeRefusalNotRecordedError,
+    FakeUnhandledParameterError,
+    Request,
+)
 from tests.fake.store import FAKE_API_KEY
 from tests.settings import fake_settings
 
@@ -287,3 +295,50 @@ async def test_a_patient_created_in_one_chat_tool_call_can_be_read_in_the_next(
         read = await reading.call("getPatient", {"patientId": created["id"]})
 
     assert read["id"] == created["id"]
+
+
+def _update(patient_id: str, body: dict[str, object]) -> Request:
+    return Request(method="PATCH", path=f"/v1/patients/{patient_id}", query={},
+                   headers={"x-api-key": FAKE_API_KEY}, body=json.dumps(body).encode())
+
+
+def test_an_update_missing_a_required_field_is_not_answered_with_an_invented_reply(
+        fake_store: FakeStore) -> None:
+    """The spec requires practiceId, name, dateOfBirth, gender and email on updatePatient."""
+    patient_id = fake_store.db.execute("SELECT id FROM patients LIMIT 1").fetchone()[0]
+    request = _update(patient_id, {"practiceId": FAKE_PRACTICE_ID, "name": "Fake Partial"})
+    with pytest.raises(FakeRefusalNotRecordedError):
+        dispatch(fake_store, request)
+
+
+def test_an_update_to_another_practices_patient_is_not_accepted(fake_store: FakeStore) -> None:
+    """The fake must not let a write cross the practice boundary that Principle keeps."""
+    fake_store.add_patient("fake-elsewhere", "fake-practice-0002", "Fake Elsewhere",
+                           "2020-01-01T00:00:00+00:00")
+    request = _update("fake-elsewhere", {
+        "practiceId": FAKE_PRACTICE_ID, "name": "Fake Elsewhere", "dateOfBirth": "1980-02-03",
+        "gender": "female", "email": "elsewhere@fake.invalid"})
+    with pytest.raises(FakeRefusalNotRecordedError):
+        dispatch(fake_store, request)
+
+
+@pytest.mark.usefixtures("principle_speed")
+async def test_a_reset_drops_index_updates_still_pending(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """An index update scheduled before a reset never reaches the closed database."""
+    monkeypatch.setattr(server, "SEARCH_INDEX_LAG", timedelta(milliseconds=50))
+    loop = asyncio.get_running_loop()
+    errors: list[dict[str, object]] = []
+    loop.set_exception_handler(lambda _loop, context: errors.append(context))
+    try:
+        app = FakePrinciple()
+        dispatch(app.store, Request(
+            method="POST", path="/v1/patients", query={}, headers={"x-api-key": FAKE_API_KEY},
+            body=json.dumps({"practiceId": FAKE_PRACTICE_ID, "name": "Fake Reset",
+                             "dateOfBirth": "1980-02-03", "gender": "female",
+                             "email": "reset@fake.invalid"}).encode()))
+        app.control(Request(method="POST", path="/__fake/reset", query={}, headers={}))
+        await asyncio.sleep(0.2)
+    finally:
+        loop.set_exception_handler(None)
+    assert errors == []

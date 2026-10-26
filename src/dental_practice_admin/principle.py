@@ -342,15 +342,16 @@ class PrincipleClient:
     async def _in_practice(self, patient_id: str, patient: dict[str, Any]) -> None:
         """Refuse a patient the practice-scoped search by their name does not return.
 
-        Principle's search finds a new patient only some seconds after it is created, so while
-        the patient is younger than `SEARCH_LAG` a miss is asked again rather than refused.
+        Principle's search finds a patient by a name only some seconds after the patient is
+        created or renamed, so within `SEARCH_LAG` of the patient's last change a miss is asked
+        again rather than refused.
         """
         name = patient.get("name")
         if not isinstance(name, str):
             raise CallError("Patient is outside this practice or search is inconclusive")
-        created = patient.get("createdAt")
-        searchable = (datetime.fromisoformat(created) + SEARCH_LAG if isinstance(created, str)
-                      else datetime.now(UTC))
+        changed = [datetime.fromisoformat(value) for value in
+                   (patient.get("createdAt"), patient.get("updatedAt")) if isinstance(value, str)]
+        searchable = max(changed) + SEARCH_LAG if changed else datetime.now(UTC)
         while not await self._found(patient_id, name):
             if datetime.now(UTC) >= searchable:
                 raise CallError("Patient is outside this practice or search is inconclusive")
