@@ -232,11 +232,15 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
                         else:
                             pending.append((identifier, job, lock))
                     due = next_due
-        outcomes = await asyncio.gather(*(run_claimed(settings, store, identifier, job, lock)
-                                          for identifier, job, lock in pending))
+        runs = [run_claimed(settings, store, identifier, job, lock)
+                for identifier, job, lock in pending]
+        pending = []  # Each run releases its own lock from here on.
+        outcomes = await asyncio.gather(*runs)
         failed += sum(outcomes)
         Audit(settings, "launcher").write("checked", failures=failed)
     finally:
+        for _identifier, _job, lock in pending:
+            lock.release()
         store.close()
     return int(failed > 0)
 
