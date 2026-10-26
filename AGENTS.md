@@ -22,7 +22,8 @@ can recognise every patient, so real data has no place here at all.
   specification"), never as records, names or identifiers.
 - Tests run on the practice's own data: the fake Principle loads a snapshot of production
   ([ADR 0007](docs/adr/0007-record-every-interface.md)). The snapshot stays under
-  `ADMIN_DATA_ROOT`; only its anonymised copy, every value in it invented, is committed.
+  `ADMIN_DATA_ROOT`. Only its anonymised copy is committed: production exactly, with names and
+  numbers replaced.
 - The only patient anything here creates is the recorder's staging patient, named with the
   `Fake` marker and carrying the owner's own phone and email from `.env`.
 
