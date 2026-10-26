@@ -53,6 +53,10 @@ Check 'Application schedule launcher is configured for unattended execution' {
     if ($task.State -eq 'Disabled') { throw 'task is disabled' }
     if ($task.Principal.LogonType -ne 'Password') { throw 'task needs an unattended Password logon' }
     if ($task.Principal.UserId -notmatch '(^|\\)practice-app$') { throw "task runs as $($task.Principal.UserId), not practice-app" }
+    # ADR 0009: a launch starts beside one still running, and none is stopped for taking long.
+    if ($task.Settings.MultipleInstances -ne 'Parallel' -or $task.Settings.ExecutionTimeLimit -ne 'PT0S') {
+        throw "task has an earlier definition (runs $($task.Settings.MultipleInstances), limit $($task.Settings.ExecutionTimeLimit)); run install_server.ps1 in an interactive PowerShell with the practice-app password"
+    }
     if ($task.Actions.Count -ne 1) { throw 'expected one launcher action' }
     $action = $task.Actions[0]
     $expected = Join-Path $InstallRoot '.venv\Scripts\python.exe'
