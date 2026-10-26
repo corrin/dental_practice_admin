@@ -19,8 +19,7 @@ if (-not (Get-LocalUser $account -ErrorAction SilentlyContinue) -or -not $servic
     $password = Read-Host "Password for the $account account (a new one creates it; otherwise its existing password)"
     if (-not $password) { throw 'No password entered.' }
 }
-# The app's own account, not an administrator. It keeps a fault in the app from administering the
-# server and protects no patient or business data: the app reaches all of it with the Principle key.
+# The app's own account, not an administrator; ARCHITECTURE.md says what that does and doesn't protect.
 if (-not (Get-LocalUser $account -ErrorAction SilentlyContinue)) {
     New-LocalUser $account -Password (ConvertTo-SecureString $password -AsPlainText -Force) -PasswordNeverExpires -AccountNeverExpires | Out-Null
 }
