@@ -1,10 +1,14 @@
 # 0007 — Record every interface
 
-Every operation of every external system the application uses (Principle's API, Firestore and
-Firebase, Akahu, Google, OpenAI, GitHub) has a recording of exactly what that system sent and a
-route in its fake, and the fakes answer from a snapshot of production.
+Every external system the application talks to has a fake implementation and recordings of
+exactly what the real system sent, and a system is added to the application with both.
 
 ## Rules
+
+- One mechanism serves every system: a `Capture` transport under the system's client records
+  it, and a fake answers from state. A new system (an accounting service, a payment gateway)
+  registers its settings, its fake and its recorder in one place, and a test fails for any
+  external address in `Settings` that is not registered.
 
 - A recording is what the external system sent, bit for bit: the status, the headers and the
   body bytes as they came off the wire, captured at the transport before anything parses them.
