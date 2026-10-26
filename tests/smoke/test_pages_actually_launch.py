@@ -19,6 +19,7 @@ Run: `uv run pytest -m smoke`, or via scripts/release_gate.ps1.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from urllib.parse import urlsplit
 
@@ -52,6 +53,9 @@ IGNORED_CONSOLE = (
     # ADMIN_CHATKIT_DOMAIN_KEY must hold a key registered for the practice's hostname.
     "Domain verification skipped",
 )
+
+# The ChatKit requests that send a staff message, each answered by a reply stream.
+REPLY_STREAMS = frozenset({"threads.create", "threads.add_user_message"})
 
 # How long the CDN component is given to register and render. Generous because it is someone
 # else's network, and a flaky failure here would get the tier disabled.
@@ -94,8 +98,10 @@ class PageProblems:
         # ChatKit stops reading a reply stream at its final event, milliseconds before
         # `chatkit.response.end` and before the server's end of stream arrives, and Chromium
         # reports that as ERR_ABORTED. The server does end the stream: the end-to-end tier reads
-        # it to the end. A reply cut short still fails here, because the tests assert its text.
-        if urlsplit(request.url).path == "/chatkit" and request.failure == "net::ERR_ABORTED":
+        # it to the end. Only sending a message opens a reply stream, and the test that sends one
+        # asserts the reply's text, so a reply cut short still fails.
+        if (urlsplit(request.url).path == "/chatkit" and request.failure == "net::ERR_ABORTED"
+                and json.loads(request.post_data or "{}").get("type") in REPLY_STREAMS):
             return
         self.problems.append(f"request failed: {request.url[:150]} ({request.failure})")
 
