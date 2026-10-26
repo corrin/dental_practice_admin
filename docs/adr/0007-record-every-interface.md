@@ -15,8 +15,10 @@ the fake, and the fake answers from a snapshot of production.
 - The anonymised copy represents production exactly except for names and numbers. Every time,
   date, duration, status, amount, treatment and appointment type is kept as Principle sent it.
   Replaced, the same way wherever it appears: names of people and the practice, phone numbers,
-  emails, addresses, dates of birth, ids, and free text (notes, message bodies), which can hold
-  any name or number. Before writing the copy the recorder checks every replaced value: if any
+  emails, addresses, dates of birth, ids, and the words of free text (notes, message bodies),
+  which can hold any name or number; free text keeps its length and line breaks. Accuracy comes
+  before privacy for anything else: a value is replaced only when the owner agrees it could
+  identify a patient. Before writing the copy the recorder checks every replaced value: if any
   original still appears anywhere in the copy, it refuses to write. The commit hook's leak scan
   then checks the copy as it checks any staged file.
 - A test states behaviour over whatever the snapshot holds ("every appointment in the diary is
