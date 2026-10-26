@@ -1,9 +1,8 @@
 """The fake Principle as an ASGI application: every answer computed from the store.
 
-One dispatch core, two ways in -- `transport()` for pytest (no socket at all) and
-`uvicorn tests.fake.server:app` for Playwright and manual sessions. The application above
-the transport is identical on fake, staging and production, so auth, paging, timeouts and
-error mapping are exercised for real here.
+It runs in its own process, `uvicorn tests.fake.server:app`, and everything reaches it at its
+URL, as everything reaches Principle. The application is identical on fake, staging and
+production, so auth, paging, timeouts and error mapping are exercised for real here.
 
 Three things this refuses rather than guesses, because each guess would be a belief about
 Principle wearing a green tick:
@@ -29,8 +28,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
-
-import httpx2 as httpx
 
 from tests.fake import firestore
 from tests.fake.store import (
@@ -403,11 +400,6 @@ class FakePrinciple:
             }
         )
         await send({"type": "http.response.body", "body": body})
-
-
-def transport(store: FakeStore | None = None) -> httpx.ASGITransport:
-    """The fake installed where the socket would be, for the real client to use."""
-    return httpx.ASGITransport(app=FakePrinciple(store))
 
 
 app = FakePrinciple()

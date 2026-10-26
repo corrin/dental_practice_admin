@@ -1,7 +1,7 @@
-"""The running application and its two simulations, as pytest fixtures.
+"""The running application and its simulations, as pytest fixtures.
 
-Shared by the end-to-end and smoke tiers: both need the same three processes, and starting a
-separate pair per tier would double the runtime to prove the same thing.
+The fake Principle runs in its own process and is reached only at its URL, as Principle is.
+Every tier shares that process; the end-to-end and smoke tiers add the application beside it.
 
 `dental_practice_admin.app:create_app --factory` is the production entry point. These fixtures
 configure simulated providers and explicitly opt out of Google login.
@@ -15,7 +15,9 @@ import subprocess
 import sys
 import time
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import httpx2 as httpx
 import pytest
@@ -90,11 +92,80 @@ def _await_http(url: str, process: subprocess.Popen[bytes], expect_status: set[i
     pytest.fail(f"{url} was not ready within {STARTUP_TIMEOUT}s: {last}")
 
 
+@dataclass
+class FakePrincipleServer:
+    """One running fake Principle: its address, and its log for what it refused."""
+
+    url: str
+    log: Path
+    read_to: int = 0
+
+    def reset(self) -> None:
+        """Back to the seed, with the log read from here on."""
+        httpx.post(f"{self.url}/__fake/reset", timeout=10).raise_for_status()
+        self.read_to = self.log.stat().st_size
+
+    def sql(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+        """One statement against the fake's database, to set up or inspect its state."""
+        response = httpx.post(f"{self.url}/__fake/sql", json={"sql": sql, "params": list(params)},
+                              timeout=10)
+        response.raise_for_status()
+        rows: list[dict[str, Any]] = response.json()["rows"]
+        return rows
+
+    def take_log(self) -> str:
+        """What the fake has logged since this was last read.
+
+        A refusal (FakeUnhandledRouteError and the rest) reaches the client as a bare 500 and
+        is named only here, so a test expecting one reads it, and every other test is failed if
+        one appears.
+        """
+        with self.log.open("rb") as log:
+            log.seek(self.read_to)
+            text = log.read()
+        self.read_to += len(text)
+        return text.decode(errors="replace")
+
+
+def _fake_principle(tmp_path_factory: pytest.TempPathFactory,
+                    speed: dict[str, str]) -> Iterator[FakePrincipleServer]:
+    folder = tmp_path_factory.mktemp("fake-principle")
+    port = _free_port()
+    log = folder / "fake.log"
+    env = ({name: value for name, value in os.environ.items()
+            if name != "SIMULATE_PRINCIPLE_SPEED"}
+           | {"PYTHONPATH": str(REPO), "PYTHONUNBUFFERED": "1"} | speed)
+    process = _serve("tests.fake.server:app", port, env, log)
+    try:
+        # Principle's authentication refusal proves its request handler is ready.
+        _await_http(f"http://127.0.0.1:{port}/v1/practices", process, {401, 403}, log)
+        yield FakePrincipleServer(f"http://127.0.0.1:{port}", log)
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+
+
 @pytest.fixture(scope="session")
-def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
-    """The fake Principle and the web application, each in its own process."""
+def principle_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[FakePrincipleServer]:
+    """The fake Principle at full speed, shared by the whole session."""
+    yield from _fake_principle(tmp_path_factory, {})
+
+
+@pytest.fixture(scope="session")
+def slow_principle_server(
+        tmp_path_factory: pytest.TempPathFactory) -> Iterator[FakePrincipleServer]:
+    """The fake Principle pausing as Principle was measured pausing (ADR 0009)."""
+    yield from _fake_principle(tmp_path_factory, {"SIMULATE_PRINCIPLE_SPEED": "1"})
+
+
+@pytest.fixture(scope="session")
+def spine(tmp_path_factory: pytest.TempPathFactory,
+          principle_server: FakePrincipleServer) -> Iterator[dict[str, str]]:
+    """The web application and its simulations, each in its own process."""
     data_root = tmp_path_factory.mktemp("e2e-data")
-    fake_port = _free_port()
     fake_ai_port = _free_port()
     fake_bank_port = _free_port()
     app_port = _free_port()
@@ -106,27 +177,23 @@ def spine(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
     # from each request.
     env = dict(os.environ) | fake_environment(
         data_root,
-        api_base_url=f"http://127.0.0.1:{fake_port}",
+        api_base_url=principle_server.url,
         openai_base_url=f"http://127.0.0.1:{fake_ai_port}/v1",
         akahu_base_url=f"http://127.0.0.1:{fake_bank_port}/v1",
     ) | {"PYTHONPATH": str(REPO)}
 
-    logs = {name: data_root / f"{name}.log" for name in ("fake", "fake_ai", "fake_bank", "app")}
-    fake = _serve("tests.fake.server:app", fake_port, env, logs["fake"])
+    logs = {name: data_root / f"{name}.log" for name in ("fake_ai", "fake_bank", "app")}
     fake_ai = _serve("tests.fake_ai.server:app", fake_ai_port, env, logs["fake_ai"])
     fake_bank = _serve("tests.fake_akahu.server:app", fake_bank_port, env, logs["fake_bank"])
     application = _serve("dental_practice_admin.app:create_app", app_port, env, logs["app"])
     try:
-        # Principle's authentication refusal proves its request handler is ready.
-        _await_http(f"http://127.0.0.1:{fake_port}/v1/practices", fake, {401, 403, 500},
-                    logs["fake"])
         _await_http(f"http://127.0.0.1:{fake_ai_port}/health", fake_ai, {200}, logs["fake_ai"])
         _await_http(f"http://127.0.0.1:{fake_bank_port}/v1/me", fake_bank, {401},
                     logs["fake_bank"])
         _await_http(f"http://127.0.0.1:{app_port}/health", application, {200}, logs["app"])
         yield {**env, "APP_URL": f"http://127.0.0.1:{app_port}"}
     finally:
-        for process in (application, fake_bank, fake_ai, fake):
+        for process in (application, fake_bank, fake_ai):
             process.terminate()
             try:
                 process.wait(timeout=10)
