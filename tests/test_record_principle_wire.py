@@ -224,3 +224,47 @@ async def test_a_patient_breaking_the_specification_is_recorded_as_sent(
     await _record(monkeypatch)
 
     assert {"patient", "search_patients"} <= _sources(_recordings(tmp_path)).keys()
+
+
+def _recorded_days_ago(folder: Path, days: int) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "listPractices.json").write_text(json.dumps(
+        {"capturedOn": (TODAY - timedelta(days=days)).isoformat()}), encoding="utf-8")
+
+
+async def test_a_recording_older_than_sixty_days_fails_the_age_check(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    _recorded_days_ago(_recordings(tmp_path), 61)
+
+    with pytest.raises(SystemExit) as refused:
+        await _record(monkeypatch, "--older-than")
+    assert refused.value.code == 1
+    assert sent == []
+
+
+async def test_recordings_within_sixty_days_pass_the_age_check(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    _recorded_days_ago(_recordings(tmp_path), 59)
+
+    await _record(monkeypatch, "--older-than")
+    assert sent == []
+
+
+async def test_the_age_check_takes_its_limit_in_days(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    _recorded_days_ago(_recordings(tmp_path), 10)
+
+    with pytest.raises(SystemExit) as refused:
+        await _record(monkeypatch, "--older-than", "7")
+    assert refused.value.code == 1
+
+
+async def test_a_recording_carries_the_day_it_was_taken_on_this_machine(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    """The day the age check measures from; a UTC day is yesterday for a New Zealand morning."""
+    await _record(monkeypatch)
+
+    days = {json.loads(path.read_text(encoding="utf-8"))["capturedOn"]
+            for folder in (_recordings(tmp_path), tmp_path / "refusals")
+            for path in folder.rglob("*.json")}
+    assert days == {TODAY.isoformat()}

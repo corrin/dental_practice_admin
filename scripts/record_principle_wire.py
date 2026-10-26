@@ -335,7 +335,7 @@ def write_shape(name: str, settings: Settings, documents: list[dict[str, Any]]) 
         raise SystemExit(f"{name}: no documents to take a shape from; pick another day")
     shape = joined([shape_of(d.get("fields", {})) for d in documents])[0]
     return recordings_of(settings) / "firestore" / f"{name}.json", as_text({
-        "capturedOn": datetime.now(tz=UTC).date().isoformat(),
+        "capturedOn": date.today().isoformat(),
         "source": f"firestore ({settings.environment.value})",
         "documents": len(documents), "shape": shape,
     })
@@ -350,7 +350,7 @@ def write(
     practice's diary narrows down when that diary was read.
     """
     return into / f"{name}.json", as_text({
-        "capturedOn": datetime.now(tz=UTC).date().isoformat(),
+        "capturedOn": date.today().isoformat(),
         "source": api_host(settings.api_base_url),
         "status": status,
         "body": names.scrub(body),
@@ -441,7 +441,7 @@ async def record_firestore_refusals(settings: Settings) -> list[Recording]:
             if firestore.root in text or settings.firebase_project in text:
                 raise SystemExit(f"{name}: the refusal still names the real database")
             written.append((REFUSALS / f"{name}.json", as_text({
-                "capturedOn": datetime.now(tz=UTC).date().isoformat(),
+                "capturedOn": date.today().isoformat(),
                 "source": f"firestore ({settings.environment.value})",
                 "status": response.status_code,
                 "body": json.loads(text)})))
@@ -595,12 +595,32 @@ async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Reco
     return written
 
 
+def report_old(days: int) -> None:
+    """Name every recording taken more than `days` ago, and fail if there is one."""
+    folders = (recordings_of(Settings(environment=Environment.PRODUCTION)), REFUSALS)
+    old = [path for folder in folders for path in sorted(folder.rglob("*.json"))
+           if date.today() - date.fromisoformat(
+               json.loads(path.read_text(encoding="utf-8"))["capturedOn"])
+           > timedelta(days=days)]
+    for path in old:
+        print(f"  older than {days} days: {path}")
+    if old:
+        raise SystemExit(1)
+
+
 async def main() -> None:
     """Capture every recording the fake needs, successes and refusals alike."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--create-patient", action="store_true",
                         help="also create an undeletable [TEST] patient on staging")
-    create = parser.parse_args().create_patient
+    parser.add_argument("--older-than", type=int, nargs="?", const=60, metavar="DAYS",
+                        help="list recordings older than DAYS (60) and fail if any; records"
+                             " nothing")
+    arguments = parser.parse_args()
+    if arguments.older_than is not None:
+        report_old(arguments.older_than)
+        return
+    create = arguments.create_patient
     settings = configured(Environment.PRODUCTION)
     staging = configured(Environment.STAGING) if create else None
     if staging is not None:
