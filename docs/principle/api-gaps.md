@@ -30,6 +30,12 @@ Principle has one unconfirmed state where Open Dental had several ("1 week sent"
 confirmations were not migrated as status: on 15/09 Principle shows each appointment marked
 `confirmed` minutes before it started, as the patient arrived.
 
+`listPractitioners` gives each practitioner only `id`, `name`, `treatmentOptions`,
+`createdAt` and `updatedAt`. Nothing says whether they still work at the practice, so the
+report form's practitioner list (`GET /tasks/practitioners`) offers everyone Principle lists,
+including anyone who has left. Who has left shows only as their roster ending (see
+[firestore.md](firestore.md)). **Verified:** production, read only; 5 practitioners.
+
 ## Text messages
 
 `listSMSMessages` rows carry `patientId`, which the interface requires, and it is the patient

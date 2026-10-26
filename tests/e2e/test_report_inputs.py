@@ -29,6 +29,9 @@ def test_the_date_defaults_to_today_and_a_schedule_keeps_it(page: Page,
 
     day.fill("2026-10-30")
     expect(period).to_have_value("")
+    day.fill("")
+    page.get_by_role("button", name="Run now", exact=True).click()
+    expect(page.locator("#status")).to_contain_text("Choose a date for Date")
     period.select_option("today")
     expect(day).to_have_value(date.today().isoformat())
 

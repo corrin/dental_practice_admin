@@ -101,11 +101,12 @@ async function change(action, payload) {
 // a report period (Today, Tomorrow or a chosen date, as QuickBooks shows one), and a
 // practitioner picked from Principle's list. A period is sent as its word, so a schedule saved
 // for Today runs for the day it runs; the server turns the word into a date (task_files.resolved).
-const PERIODS = {today: 0, tomorrow: 1};
+// The words and today's date come from the server, whose clock the run uses.
+const PERIODS = {{ periods|tojson }}, TODAY = {{ today|tojson }};
 let chosen = {}, choosing = Promise.resolve();
 const isChosen = field => field.format === 'date' || field.format === 'practitioner';
 function localDay(offset) {
-  const day = new Date();
+  const day = new Date(TODAY + 'T12:00:00');
   day.setDate(day.getDate() + offset);
   return [day.getFullYear(), String(day.getMonth() + 1).padStart(2, '0'),
           String(day.getDate()).padStart(2, '0')].join('-');
@@ -120,14 +121,20 @@ function chosenField(key, field, value) {
   if(field.format === 'date') {
     const day = document.createElement('input');
     day.type = 'date'; day.className = 'form-control mt-2'; day.setAttribute('aria-label', label.textContent + ' (date)');
-    for(const [word, text] of [['today', 'Today'], ['tomorrow', 'Tomorrow'], ['', 'Choose a date…']]) select.add(new Option(text, word));
+    for(const word of Object.keys(PERIODS)) select.add(new Option(word.charAt(0).toUpperCase() + word.slice(1), word));
+    select.add(new Option('Choose a date…', ''));
     const show = () => { if(select.value) day.value = localDay(PERIODS[select.value]); };
     select.onchange = () => { show(); if(!select.value) day.focus(); };
     day.onchange = () => { select.value = ''; };
     const start = value ?? field.default ?? '';
     if(start in PERIODS) { select.value = start; show(); } else { select.value = ''; day.value = start; }
     wrap.append(day);
-    chosen[key] = () => select.value || day.value;
+    // With a default, "Choose a date…" left empty is a date forgotten, not the default.
+    chosen[key] = () => {
+      if(!select.value && !day.value && field.default in PERIODS)
+        throw new Error('Choose a date for ' + label.textContent + ', or pick ' + select.options[0].text + '.');
+      return select.value || day.value;
+    };
   } else {
     select.add(new Option('All practitioners', ''));
     // A schedule's practitioner stays chosen even if Principle no longer lists them.

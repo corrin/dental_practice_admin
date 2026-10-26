@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from typing import Any
 
 import httpx2 as httpx
@@ -69,7 +70,8 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
         "staff": staff, "is_fake": settings.environment.value == "fake", "attention": attention,
         "interface_warnings": interface_warnings,
         "days": DAYS, "installed": installed, "jobs": jobs, "recent": recent, "titles": titles,
-        "launcher_recent": launcher_recent, "launcher_checked": checked})
+        "launcher_recent": launcher_recent, "launcher_checked": checked,
+        "periods": task_files.RELATIVE_DAYS, "today": date.today().isoformat()})
 
 
 @router.get("/tasks/practitioners")
