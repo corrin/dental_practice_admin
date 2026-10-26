@@ -132,7 +132,8 @@ function chosenField(key, field, value) {
     // With a default, "Choose a date…" left empty is a date forgotten, not the default.
     chosen[key] = () => {
       if(!select.value && !day.value && field.default in PERIODS)
-        throw new Error('Choose a date for ' + label.textContent + ', or pick ' + field.default.charAt(0).toUpperCase() + field.default.slice(1) + '.');
+        throw new Error('Choose a date for ' + label.textContent + ', or pick '
+          + [...select.options].find(option => option.value === field.default).text + '.');
       return select.value || day.value;
     };
   } else {
