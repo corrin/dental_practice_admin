@@ -164,7 +164,11 @@ def slow_principle_server(
 @pytest.fixture(scope="session")
 def spine_principle_server(
         tmp_path_factory: pytest.TempPathFactory) -> Iterator[FakePrincipleServer]:
-    """The fake Principle behind the running application, apart from the one tests reset."""
+    """The fake Principle behind the running application.
+
+    Its own process, so a test resetting or editing `fake_principle` never changes what the
+    application shows a browser test partway through.
+    """
     yield from _fake_principle(tmp_path_factory, {})
 
 
