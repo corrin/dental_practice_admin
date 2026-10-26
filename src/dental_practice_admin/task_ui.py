@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from typing import Any
 
+import httpx2 as httpx
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import APIRouter, HTTPException, Request
 from jsonschema import ValidationError as SchemaError
@@ -11,6 +13,7 @@ from jsonschema import ValidationError as SchemaError
 from dental_practice_admin import saved_scripts, schedules, scripts, task_files
 from dental_practice_admin.audit import Audit
 from dental_practice_admin.auth import CurrentStaff
+from dental_practice_admin.principle import PrincipleClient, PrincipleError
 
 router = APIRouter()
 DAYS = {"mon-fri": "Weekdays", "*": "Every day", "mon": "Monday", "tue": "Tuesday",
@@ -67,7 +70,19 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
         "staff": staff, "is_fake": settings.environment.value == "fake", "attention": attention,
         "interface_warnings": interface_warnings,
         "days": DAYS, "installed": installed, "jobs": jobs, "recent": recent, "titles": titles,
-        "launcher_recent": launcher_recent, "launcher_checked": checked})
+        "launcher_recent": launcher_recent, "launcher_checked": checked,
+        "periods": task_files.RELATIVE_DAYS, "today": date.today().isoformat()})
+
+
+@router.get("/tasks/practitioners")
+async def practitioners(request: Request, staff: CurrentStaff) -> list[str]:
+    """The practice's practitioners by name, for a report input with `format: practitioner`."""
+    try:
+        async with PrincipleClient(request.app.state.settings) as client:
+            rows = [row async for row in client.rows("listPractitioners")]
+    except (PrincipleError, httpx.HTTPError) as error:
+        raise HTTPException(502, "Principle's list of practitioners could not be read") from error
+    return sorted(str(row["name"]) for row in rows)
 
 
 @router.post("/tasks/{action}")
