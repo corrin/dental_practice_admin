@@ -30,4 +30,6 @@ the fake, and the fake answers from a snapshot of production.
   in `.env`. The recorder reads that patient back before each write and refuses unless both
   still match, so no text, email or call from it reaches a real patient.
 - Recordings and the snapshot are taken when someone runs the recorder, never automatically. It
-  records the operations it is named, or every one when none is named.
+  records the operations it is named, or every one when none is named; writes only with
+  `--write`. Each recording carries the day it was taken, and `--older-than N` (60 by default)
+  lists those older than `N` days and fails if there are any. The release gate runs that check.
