@@ -447,6 +447,37 @@ async def test_a_task_still_running_is_not_started_again(
             scheduler.get_job(schedule.id).modify(next_run_time=second)
         assert await asyncio.wait_for(schedules.run_due(configured, second), 10) == 1
         assert runs == 1
+        store = Storage(configured.database_path)
+        try:
+            assert Outcome.MISSED in [run.outcome for run in store.recent_runs()]
+        finally:
+            store.close()
     finally:
         release.set()
         await long_run
+
+
+async def test_a_launch_between_claiming_and_running_leaves_the_run_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run is claimed before it starts; a launch in that moment must not call it interrupted."""
+    configured = settings(tmp_path)
+    install_fake(tmp_path)
+    at = datetime.now(UTC)
+    await _due_now(configured, schedules.Schedule(name="fake_report", inputs={"numbers": [2]}),
+                   at)
+    claimed = schedules.run_claimed
+    seen_in_between: list[Outcome] = []
+
+    async def launch_in_between(*args: Any, **kwargs: Any) -> int:
+        await schedules.run_due(configured, at)
+        store = Storage(configured.database_path)
+        try:
+            seen_in_between.extend(run.outcome for run in store.recent_runs())
+        finally:
+            store.close()
+        return await claimed(*args, **kwargs)
+
+    monkeypatch.setattr(schedules, "run_claimed", launch_in_between)
+    assert await schedules.run_due(configured, at) == 0
+    assert seen_in_between == [Outcome.RUNNING]

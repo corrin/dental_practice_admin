@@ -217,10 +217,23 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
                                          f"Missed scheduled work from {due.isoformat()}")
                         failed += 1
                     else:
-                        pending.append((identifier, job))
+                        # Taken now, before the launcher lock is let go, so no launch can see
+                        # this claimed run with its task lock free and call it interrupted.
+                        lock = task_lock(settings, job.name)
+                        try:
+                            lock.acquire()
+                        except portalocker.AlreadyLocked:
+                            Audit(settings, identifier).write("missed", schedule=job.id,
+                                                              reason="still_running")
+                            store.finish_run(identifier, Outcome.MISSED, Coverage.PARTIAL,
+                                             "Not started: the previous run of this task is"
+                                             " still going")
+                            failed += 1
+                        else:
+                            pending.append((identifier, job, lock))
                     due = next_due
-        outcomes = await asyncio.gather(*(run_claimed(settings, store, identifier, job)
-                                          for identifier, job in pending))
+        outcomes = await asyncio.gather(*(run_claimed(settings, store, identifier, job, lock)
+                                          for identifier, job, lock in pending))
         failed += sum(outcomes)
         Audit(settings, "launcher").write("checked", failures=failed)
     finally:
@@ -228,25 +241,22 @@ async def run_due(settings: Settings, at: datetime | None = None) -> int:
     return int(failed > 0)
 
 
-async def run_claimed(settings: Settings, store: Storage, identifier: str, job: Any) -> int:
-    """Run one claimed occurrence under its task's lock; 1 if it did not succeed."""
+async def run_claimed(settings: Settings, store: Storage, identifier: str, job: Any,
+                      lock: portalocker.Lock) -> int:
+    """Run one claimed occurrence, releasing its task lock at the end; 1 if it did not succeed."""
     try:
-        with task_lock(settings, job.name):
-            name, inputs = job.args
-            script = task_files.load(settings, name, task_files.current(settings, name),
-                                     inputs, "scheduler")
-            await scripts.recorded(settings, script, job.name,
-                partial(scripts.worker_run, settings, script), identifier)
-    except portalocker.AlreadyLocked:
-        Audit(settings, identifier).write("missed", schedule=job.id, reason="still_running")
-        store.finish_run(identifier, Outcome.MISSED, Coverage.PARTIAL,
-                         "Not started: the previous run of this task is still going")
-        return 1
+        name, inputs = job.args
+        script = task_files.load(settings, name, task_files.current(settings, name),
+                                 inputs, "scheduler")
+        await scripts.recorded(settings, script, job.name,
+            partial(scripts.worker_run, settings, script), identifier)
     except Exception:
         Audit(settings, identifier).write("failed", schedule=job.id)
         store.finish_run(identifier, Outcome.UNCERTAIN, Coverage.PARTIAL,
                          "Scheduled execution incomplete; inspect its audit")
         return 1
+    finally:
+        lock.release()
     result = store.run(identifier)
     return int(result is None or not result.is_trustworthy)
 
