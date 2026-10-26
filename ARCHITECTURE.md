@@ -110,7 +110,10 @@ which makes the sign-in allowlist the only access control.
 `scripts/install_server.ps1` installs and upgrades everything (the README's "Installing at a
 practice"). The application runs as one Uvicorn process under WinSW, and Task Scheduler runs the
 due-task check every five minutes without an interactive logon, both as the non-administrator
-`practice-app` account. Caddy terminates HTTPS for `ADMIN_HOST`. `scripts/verify.ps1` checks the
+`practice-app` account. Running as `practice-app` rather than an administrator protects the
+server, not the data, and is theatre for the practice's purposes. The app holds the Principle key,
+so it reaches every patient and business record Principle holds or reaches. What guards that data
+is the Google sign-in allowlist and the app's code. Caddy terminates HTTPS for `ADMIN_HOST`. `scripts/verify.ps1` checks the
 result; `deploy/ACCEPTANCE.md` lists what a person signs off.
 
 ## References

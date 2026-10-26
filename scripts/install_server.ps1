@@ -19,7 +19,7 @@ if (-not (Get-LocalUser $account -ErrorAction SilentlyContinue) -or -not $servic
     $password = Read-Host "Password for the $account account (a new one creates it; otherwise its existing password)"
     if (-not $password) { throw 'No password entered.' }
 }
-# The app's own account: not an administrator, so a fault in it can't reach the rest of the server.
+# The app's own account, not an administrator; ARCHITECTURE.md says what that does and doesn't protect.
 if (-not (Get-LocalUser $account -ErrorAction SilentlyContinue)) {
     New-LocalUser $account -Password (ConvertTo-SecureString $password -AsPlainText -Force) -PasswordNeverExpires -AccountNeverExpires | Out-Null
 }
