@@ -71,7 +71,7 @@ def manage(request: Request, staff: CurrentStaff) -> Any:
         "interface_warnings": interface_warnings,
         "days": DAYS, "installed": installed, "jobs": jobs, "recent": recent, "titles": titles,
         "launcher_recent": launcher_recent, "launcher_checked": checked,
-        "periods": task_files.RELATIVE_DAYS, "today": date.today().isoformat()})
+        "periods": task_files.period_dates(date.today())})
 
 
 @router.get("/tasks/practitioners")
@@ -96,10 +96,7 @@ async def act(action: str, payload: dict[str, Any], request: Request, staff: Cur
             if action == "save":
                 saved_scripts.save(settings, payload["draft_id"], staff.email, payload["title"])
                 return {"url": "/tasks/manage"}
-            from jsonschema import FormatChecker, validate
-            validate(payload["inputs"], data["definition"]["inputs"],
-                     format_checker=FormatChecker())
-            script.inputs = payload["inputs"]
+            script.inputs = task_files.checked(payload["inputs"], data["definition"]["inputs"])
             await scripts.run(settings, script, "draft:" + payload["draft_id"])
             return {"url": "/tasks/prepare/" + payload["draft_id"]}
         if action == "submit":

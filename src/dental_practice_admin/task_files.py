@@ -85,22 +85,34 @@ def installed(settings: Settings, name: str, revision: str) -> tuple[Definition,
     return definition, source
 
 
-def resolved(inputs: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
-    """The inputs with each relative date word replaced by the date it means now."""
+def period_dates(today: date) -> dict[str, str]:
+    """Each period word and the date it means on `today`."""
+    return {word: (today + timedelta(days=days)).isoformat()
+            for word, days in RELATIVE_DAYS.items()}
+
+
+def checked(inputs: dict[str, Any], schema: dict[str, Any],
+            today: date | None = None) -> dict[str, Any]:
+    """The inputs with each period word replaced by its date, once they meet the contract.
+
+    `today` is the day a scheduled run was due, which may be before the moment it starts.
+    """
+    periods = period_dates(today or date.today())
     dates = {key for key, field in schema.get("properties", {}).items()
              if field.get("format") == "date"}
-    today = date.today()
-    return {key: (today + timedelta(days=RELATIVE_DAYS[value])).isoformat()
-            if key in dates and isinstance(value, str) and value in RELATIVE_DAYS else value
-            for key, value in inputs.items()}
+    inputs = {key: periods[value]
+              if key in dates and isinstance(value, str) and value in periods else value
+              for key, value in inputs.items()}
+    validate(inputs, schema, format_checker=FormatChecker())
+    return inputs
 
 
-def load(settings: Settings, name: str, revision: str, inputs: dict[str, Any], owner: str) -> Any:
+def load(settings: Settings, name: str, revision: str, inputs: dict[str, Any], owner: str,
+         today: date | None = None) -> Any:
     """Build an executable script from a pinned, installed task."""
     from dental_practice_admin.scripts import Script
     definition, source = installed(settings, name, revision)
-    inputs = resolved(inputs, definition.inputs)
-    validate(inputs, definition.inputs, format_checker=FormatChecker())
+    inputs = checked(inputs, definition.inputs, today)
     return Script(language=definition.language, source=source, inputs=inputs, owner=owner,
                   thread="", task_id=name, revision=revision)
 

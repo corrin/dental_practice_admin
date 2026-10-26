@@ -181,7 +181,7 @@ async def run_due(settings: Settings, at: datetime | None = None,
     observed_at = at or datetime.now(UTC)
     store = Storage(settings.database_path)
     failed = 0
-    pending: dict[str, tuple[portalocker.Lock, list[tuple[str, Any]]]] = {}
+    pending: dict[str, tuple[portalocker.Lock, list[tuple[str, Any, datetime]]]] = {}
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     claiming = portalocker.Lock(str(settings.data_dir / "launcher.lock"), timeout=claim_wait)
     try:
@@ -226,7 +226,7 @@ async def run_due(settings: Settings, at: datetime | None = None,
                                          f"Missed scheduled work from {due.isoformat()}")
                         failed += 1
                     elif job.name in pending:
-                        pending[job.name][1].append((identifier, job))
+                        pending[job.name][1].append((identifier, job, due))
                     else:
                         # Taken now, before the launcher lock is let go, so no launch can see
                         # this claimed run with its task lock free and call it interrupted.
@@ -241,7 +241,7 @@ async def run_due(settings: Settings, at: datetime | None = None,
                                              " still going")
                             failed += 1
                         else:
-                            pending[job.name] = (lock, [(identifier, job)])
+                            pending[job.name] = (lock, [(identifier, job, due)])
                     due = next_due
         runs = [run_claimed(settings, store, claimed, lock)
                 for lock, claimed in pending.values()]
@@ -256,22 +256,23 @@ async def run_due(settings: Settings, at: datetime | None = None,
     return int(failed > 0)
 
 
-async def run_claimed(settings: Settings, store: Storage, claimed: list[tuple[str, Any]],
-                      lock: portalocker.Lock) -> int:
+async def run_claimed(settings: Settings, store: Storage,
+                      claimed: list[tuple[str, Any, datetime]], lock: portalocker.Lock) -> int:
     """Run one task's claimed occurrences in turn, then release its lock; how many failed."""
     try:
-        return sum([await _run_one(settings, store, identifier, job)
-                    for identifier, job in claimed])
+        return sum([await _run_one(settings, store, identifier, job, due)
+                    for identifier, job, due in claimed])
     finally:
         lock.release()
 
 
-async def _run_one(settings: Settings, store: Storage, identifier: str, job: Any) -> int:
-    """Run one claimed occurrence; 1 if it did not succeed."""
+async def _run_one(settings: Settings, store: Storage, identifier: str, job: Any,
+                   due: datetime) -> int:
+    """Run one claimed occurrence, for the day it was due; 1 if it did not succeed."""
     try:
         name, inputs = job.args
         script = task_files.load(settings, name, task_files.current(settings, name),
-                                 inputs, "scheduler")
+                                 inputs, "scheduler", due.astimezone().date())
         await scripts.recorded(settings, script, job.name,
             partial(scripts.worker_run, settings, script), identifier)
         result = store.run(identifier)
