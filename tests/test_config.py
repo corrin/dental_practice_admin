@@ -25,7 +25,7 @@ from dental_practice_admin.config import (
     setting_name,
 )
 from dental_practice_admin.principle import PrincipleClient
-from tests.fake import FakeStore
+from tests.servers import FakePrincipleServer
 from tests.settings import (
     API_URLS,
     FAKE_SETTINGS,
@@ -370,12 +370,12 @@ def test_scoped_shell_overrides_dotenv_and_explicit_values_override_both(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("key", ["", "fake-principle-key", "00000000-0000-4000-8000-000000000002"])
-async def test_fake_server_rejects_incorrect_keys(key: str, fake_store: FakeStore) -> None:
+async def test_fake_server_rejects_incorrect_keys(
+        key: str, fake_principle: FakePrincipleServer) -> None:
     from dental_practice_admin.principle import PrincipleClient, PrincipleError
-    from tests.fake import transport
 
-    settings = _settings(api_key=SecretStr(key))
-    async with PrincipleClient(settings, transport=transport(fake_store)) as client:
+    settings = _settings(api_key=SecretStr(key), api_base_url=fake_principle.url)
+    async with PrincipleClient(settings) as client:
         with pytest.raises(PrincipleError) as error:
             await client.get("listPractices")
     assert error.value.status in {401, 403}

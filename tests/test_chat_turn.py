@@ -2,8 +2,8 @@
 
 The real `Runner`, the real ChatKit event conversion, the real store, the real tool functions, the
 real Principle client and the real OpenAI model class. Both external systems are simulated —
-Principle by `tests/fake/`, the model by `tests/fake_ai/` — and each is reached through the real
-transport, so only the socket is replaced.
+Principle by `tests/fake/`, reached at its URL in its own process, and the model by
+`tests/fake_ai/`, reached through the real transport with only the socket replaced.
 
 What this proves that a mocked tool call could not: the tool the model names actually runs, it
 reaches the Principle client, the client reaches the fake, and the
@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
-from pathlib import Path
 
 import httpx2
 import pytest
@@ -27,10 +26,8 @@ from dental_practice_admin.chat import ChatDeps, StaffChatServer, build_tools
 from dental_practice_admin.chat_store import SqliteChatStore
 from dental_practice_admin.config import Settings
 from dental_practice_admin.principle import CATALOGUE
-from tests.fake import FakeStore, seed
-from tests.fake import transport as fake_transport
 from tests.fake_ai import FAKE_AI_KEY, MARKER, FakeAi, transport
-from tests.settings import fake_settings
+from tests.servers import FakePrincipleServer
 
 STAFF = StaffUser(email="nurse@practice.nz", name="Nurse")
 
@@ -55,8 +52,8 @@ def fake_ai_model(instance: FakeAi) -> OpenAIResponsesModel:
 
 
 @pytest.fixture
-def chat_settings(tmp_path: Path) -> Settings:
-    return fake_settings(tmp_path)
+def chat_settings(principle_settings: Settings) -> Settings:
+    return principle_settings
 
 
 @pytest.fixture
@@ -70,7 +67,6 @@ async def _turn(
     store: SqliteChatStore,
     settings: Settings,
     ai: FakeAi,
-    fake_store: FakeStore | None = None,
     message: str = "List our practitioners",
 ) -> str:
     """One turn through `process`, the entry point the HTTP endpoint uses.
@@ -81,11 +77,7 @@ async def _turn(
     """
     server = StaffChatServer(
         store,
-        ChatDeps(
-            settings=settings,
-            model=fake_ai_model(ai),
-            transport=fake_transport(fake_store if fake_store is not None else seed()),
-        ),
+        ChatDeps(settings=settings, model=fake_ai_model(ai)),
     )
     request = json.dumps(
         {
@@ -218,17 +210,13 @@ async def test_tools_expose_integrations_and_generic_task_execution(
 
 @pytest.mark.parametrize("practitioners", [0, 1, 2])
 async def test_chat_reads_the_current_practitioner_records(
-    chat_store: SqliteChatStore, chat_settings: Settings, practitioners: int,
+    chat_store: SqliteChatStore, chat_settings: Settings,
+    fake_principle: FakePrincipleServer, practitioners: int,
 ) -> None:
-    fake = seed()
-    fake.db.execute("DELETE FROM practitioners WHERE id NOT IN "
-                    "(SELECT id FROM practitioners ORDER BY id LIMIT ?)", (practitioners,))
-    fake.db.commit()
+    fake_principle.sql("DELETE FROM practitioners WHERE id NOT IN "
+                       "(SELECT id FROM practitioners ORDER BY id LIMIT ?)", (practitioners,))
     ai = FakeAi()
-    try:
-        await _turn(chat_store, chat_settings, ai, fake_store=fake)
-    finally:
-        fake.close()
+    await _turn(chat_store, chat_settings, ai)
     outputs = [item["output"] for item in ai.requests[1]["input"]
                if item.get("type") == "function_call_output"]
     assert len(json.loads(outputs[0])["result"]["data"]) == practitioners

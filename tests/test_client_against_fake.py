@@ -301,7 +301,8 @@ def test_an_update_missing_a_required_field_is_not_answered_with_an_invented_rep
     response = _send(fake_principle, "PATCH", f"/v1/patients/{patient_id}",
                      body={"practiceId": FAKE_PRACTICE_ID, "name": "Fake Partial"})
     assert response.status_code == 500
-    assert "no recorded refusal 'update_patient_invalid'" in fake_principle.take_log()
+    log = fake_principle.take_log()
+    assert "FakeRefusalNotRecordedError" in log and "'update_patient_invalid'" in log
 
 
 def test_an_update_to_another_practices_patient_is_not_accepted(
@@ -315,8 +316,8 @@ def test_an_update_to_another_practices_patient_is_not_accepted(
         "practiceId": FAKE_PRACTICE_ID, "name": "Fake Elsewhere", "dateOfBirth": "1980-02-03",
         "gender": "female", "email": "elsewhere@fake.invalid"})
     assert response.status_code == 500
-    assert ("no recorded refusal 'update_patient_other_practice'"
-            in fake_principle.take_log())
+    log = fake_principle.take_log()
+    assert "FakeRefusalNotRecordedError" in log and "'update_patient_other_practice'" in log
 
 
 async def test_a_reset_drops_index_updates_still_pending(

@@ -162,8 +162,15 @@ def slow_principle_server(
 
 
 @pytest.fixture(scope="session")
+def spine_principle_server(
+        tmp_path_factory: pytest.TempPathFactory) -> Iterator[FakePrincipleServer]:
+    """The fake Principle behind the running application, apart from the one tests reset."""
+    yield from _fake_principle(tmp_path_factory, {})
+
+
+@pytest.fixture(scope="session")
 def spine(tmp_path_factory: pytest.TempPathFactory,
-          principle_server: FakePrincipleServer) -> Iterator[dict[str, str]]:
+          spine_principle_server: FakePrincipleServer) -> Iterator[dict[str, str]]:
     """The web application and its simulations, each in its own process."""
     data_root = tmp_path_factory.mktemp("e2e-data")
     fake_ai_port = _free_port()
@@ -177,7 +184,7 @@ def spine(tmp_path_factory: pytest.TempPathFactory,
     # from each request.
     env = dict(os.environ) | fake_environment(
         data_root,
-        api_base_url=principle_server.url,
+        api_base_url=spine_principle_server.url,
         openai_base_url=f"http://127.0.0.1:{fake_ai_port}/v1",
         akahu_base_url=f"http://127.0.0.1:{fake_bank_port}/v1",
     ) | {"PYTHONPATH": str(REPO)}
