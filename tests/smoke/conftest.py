@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 from playwright.sync_api import Playwright
 
-from tests.servers import DIARY_DATE, REPO, spine
+from tests.servers import DIARY_DATE, REPO, spine, spine_principle_server
 
 TEST_ID_ATTRIBUTE = "data-automation-id"
 
-__all__ = ["DIARY_DATE", "REPO", "spine"]
+__all__ = ["DIARY_DATE", "REPO", "spine", "spine_principle_server"]
 
 
 @pytest.fixture(scope="session", autouse=True)

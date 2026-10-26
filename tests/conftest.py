@@ -20,7 +20,9 @@ from dental_practice_admin.config import (
 )
 from dental_practice_admin.principle import PrincipleClient
 from tests import settings as test_settings
-from tests.fake import FakeStore, seed, transport
+from tests.servers import FakePrincipleServer, principle_server, slow_principle_server
+
+__all__ = ["principle_server", "slow_principle_server"]
 
 
 @pytest.fixture(autouse=True)
@@ -51,12 +53,24 @@ def _isolate_local_tests(
     monkeypatch.setitem(Settings.model_config, "env_file", None)
 
 
+def _reset(server: FakePrincipleServer) -> Iterator[FakePrincipleServer]:
+    server.reset()
+    yield server
+    log = server.take_log()
+    if "Traceback" in log:
+        pytest.fail(f"the fake Principle refused a request:\n{log}")
+
+
 @pytest.fixture
-def fake_store() -> Iterator[FakeStore]:
-    """A seeded fake practice, one per test."""
-    store = seed()
-    yield store
-    store.close()
+def fake_principle(principle_server: FakePrincipleServer) -> Iterator[FakePrincipleServer]:
+    """The fake Principle at its seed, failing the test if it refuses anything unread."""
+    yield from _reset(principle_server)
+
+
+@pytest.fixture
+def slow_principle(slow_principle_server: FakePrincipleServer) -> Iterator[FakePrincipleServer]:
+    """The fake Principle at Principle's measured speed, at its seed."""
+    yield from _reset(slow_principle_server)
 
 
 @pytest.fixture
@@ -65,11 +79,15 @@ def fake_settings(tmp_path: Path) -> Settings:
 
 
 @pytest.fixture
-async def fake_client(
-    fake_settings: Settings, fake_store: FakeStore
-) -> AsyncIterator[PrincipleClient]:
-    """The production client with the fake installed where its socket would be."""
-    client = PrincipleClient(fake_settings, transport=transport(fake_store))
+def principle_settings(tmp_path: Path, fake_principle: FakePrincipleServer) -> Settings:
+    """The fake environment's settings, addressing the running fake Principle."""
+    return test_settings.fake_settings(tmp_path, api_base_url=fake_principle.url)
+
+
+@pytest.fixture
+async def fake_client(principle_settings: Settings) -> AsyncIterator[PrincipleClient]:
+    """The production client, reaching the fake Principle at its URL."""
+    client = PrincipleClient(principle_settings)
     yield client
     await client.aclose()
 

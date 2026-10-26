@@ -5,8 +5,9 @@
 
 Loads and runs the task's `source.txt` with the application's own loader and `Services`,
 against the fake Principle by default. Shared modules come from the practice repository's
-`shared/` beside the task, where installation copies them from. The fake is one in-process
-store seeded for 2026-09-28, the day the day sheet's scenarios sit on. Prints the summary and
+`shared/` beside the task, where installation copies them from. The fake runs in its own
+process for the length of the run, seeded for 2026-09-28, the day the day sheet's scenarios
+sit on, and the task reaches it at its URL as it would Principle. Prints the summary and
 coverage and saves the result. When the result carries a printable page, the one the run page
 links to, it also prints it to an A4 PDF and opens it, the check a person does at the printer.
 
@@ -21,11 +22,16 @@ import asyncio
 import json
 import os
 import re
+import socket
+import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from pathlib import Path
 
 from pydantic import SecretStr
+from scripts.run import ROOT, wait_for_server
 
 from dental_practice_admin.config import (
     FAKE_API_KEY,
@@ -49,25 +55,47 @@ def arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def services(environment: Environment) -> Services:
-    """The application's integrations, with the fake in place of the sockets for FAKE."""
+@contextmanager
+def fake_principle() -> Iterator[str]:
+    """The fake Principle in its own process, at its seed, until the block ends; yields its URL."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = int(probe.getsockname()[1])
+    # Warnings and above only, so a refusal still shows and every request does not.
+    child = subprocess.Popen([sys.executable, "-m", "uvicorn", "tests.fake.server:app",
+                              "--host", "127.0.0.1", "--port", str(port),
+                              "--log-level", "warning"], cwd=ROOT)
+    try:
+        wait_for_server(f"http://127.0.0.1:{port}/v1/practices", child, {401, 403})
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        child.terminate()
+        try:
+            child.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            child.wait()
+
+
+def services(environment: Environment, fake_url: str | None) -> Services:
+    """The application's integrations, addressing the fake at `fake_url` for FAKE."""
     if environment is Environment.FAKE:
-        # Imported here so that a real run never loads test code.
-        from tests.fake import seed, transport
+        assert fake_url is not None
         settings = Settings(environment=environment, api_key=SecretStr(FAKE_API_KEY),
-                            practice_id=FAKE_PRACTICE_ID)
-        return Services(settings, transport=transport(seed()))
+                            practice_id=FAKE_PRACTICE_ID, api_base_url=fake_url)
+        return Services(settings)
     settings = Settings(environment=environment)
     settings.require_credentials()
     return Services(settings)
 
 
-async def run(task: Path, inputs: dict[str, str], environment: Environment) -> Result:
+async def run(task: Path, inputs: dict[str, str], environment: Environment,
+              fake_url: str | None) -> Result:
     """The task's result, held to the application's result contract."""
     sys.path.insert(0, str(task.resolve().parents[1] / "shared"))
     source = task / "source.txt"
     namespace = load_source(source.read_text(encoding="utf-8"), str(source))
-    integrations = services(environment)
+    integrations = services(environment, fake_url)
     try:
         return await run_loaded(namespace, integrations, inputs)
     finally:
@@ -100,7 +128,8 @@ def main() -> None:
     if malformed:
         raise SystemExit(f"inputs are NAME=VALUE: {', '.join(malformed)}")
     inputs = dict(item.split("=", 1) for item in args.inputs)
-    result = asyncio.run(run(args.task, inputs, args.environment))
+    with fake_principle() if args.environment is Environment.FAKE else nullcontext() as fake_url:
+        result = asyncio.run(run(args.task, inputs, args.environment, fake_url))
 
     print(f"{result.coverage.value}: {result.summary}")
     # Real runs carry patient data, so their output stays in the environment's data directory.

@@ -9,19 +9,19 @@ import pytest
 
 from dental_practice_admin.config import Settings
 from dental_practice_admin.scripts import Services
-from tests.fake import FakeStore, transport
-from tests.fake.firestore import ROOT, FirestoreUnhandledError
-from tests.fake.server import REFUSALS_DIR, FakeRefusalNotRecordedError
+from tests.fake.firestore import ROOT
+from tests.fake.server import REFUSALS_DIR
 from tests.fake.store import FAKE_PRACTICE_ID
+from tests.servers import FakePrincipleServer
 
 ADA, BO = "fake-practitioner-01", "fake-practitioner-02"
 DAY = "2026-09-28"
 
 
 @pytest.fixture
-async def services(fake_settings: Settings, fake_store: FakeStore) -> AsyncIterator[Services]:
-    """The task runner's integrations, with the fake where both sockets would be."""
-    services = Services(fake_settings, transport=transport(fake_store))
+async def services(principle_settings: Settings) -> AsyncIterator[Services]:
+    """The task runner's integrations, both reaching the fake Principle at its URL."""
+    services = Services(principle_settings)
     yield services
     await services.aclose()
 
@@ -141,22 +141,25 @@ async def test_a_block_moved_for_one_day_leaves_the_roster_for_a_calendar_event(
         "fieldFilter": {"field": {"fieldPath": "title"}, "op": "ARRAY_CONTAINS",
                         "value": {"stringValue": "Lunch"}}}}},
 ], ids=["unserved collection", "orderBy", "collection group", "OR", "unary", "array-contains"])
-async def test_a_query_the_fake_cannot_apply_is_refused(services: Services,
-                                                        body: dict[str, Any]) -> None:
+async def test_a_query_the_fake_cannot_apply_is_refused(
+        services: Services, fake_principle: FakePrincipleServer, body: dict[str, Any]) -> None:
     """Answering part of a query would be answering a different question."""
-    with pytest.raises(FirestoreUnhandledError):
+    with pytest.raises(RuntimeError, match="500"):
         await services.firestore.read("", body)
+    assert "FirestoreUnhandledError" in fake_principle.take_log()
 
 
-async def test_a_missing_document_refuses_in_recorded_words_only(services: Services) -> None:
+async def test_a_missing_document_refuses_in_recorded_words_only(
+        services: Services, fake_principle: FakePrincipleServer) -> None:
     """A missing document is refused in Firestore's recorded words, or not at all.
 
     With the 404 recorded the client sees the status; without it the fake refuses to invent
     the wording. Either way nothing is answered.
     """
     recorded = (REFUSALS_DIR / "firestore_not_found.json").exists()
-    expected = RuntimeError if recorded else FakeRefusalNotRecordedError
-    with pytest.raises(expected) as refused:
+    with pytest.raises(RuntimeError) as refused:
         await services.firestore.read("patients/nobody")
     if recorded:
         assert "404" in str(refused.value)
+    else:
+        assert "FakeRefusalNotRecordedError" in fake_principle.take_log()

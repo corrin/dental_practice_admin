@@ -15,8 +15,6 @@ from dental_practice_admin import akahu, reconcile
 from dental_practice_admin.app import create_app
 from dental_practice_admin.config import ConfigurationError, Settings
 from dental_practice_admin.storage import MatchRefusedError, MatchRow, Storage
-from tests.fake import FakeStore, seed
-from tests.fake import transport as principle_transport
 from tests.fake.store import canonical
 from tests.fake_akahu import (
     FAKE_AKAHU_ENV,
@@ -26,6 +24,7 @@ from tests.fake_akahu import (
     transport,
 )
 from tests.fake_akahu import transport as akahu_transport
+from tests.servers import FakePrincipleServer
 from tests.settings import fake_environment, fake_settings
 
 
@@ -160,31 +159,22 @@ def test_a_decided_deposit_keeps_the_amount_it_was_decided_on(store: Storage) ->
 
 
 @pytest.fixture
-def practice(tmp_path: Path) -> Settings:
-    return fake_settings(tmp_path)
+def practice(principle_settings: Settings) -> Settings:
+    return principle_settings
 
 
-@pytest.fixture
-def principle() -> Iterator[FakeStore]:
-    seeded = seed()
-    yield seeded
-    seeded.close()
-
-
-async def _fetch(settings: Settings, principle: FakeStore,
-                 bank: FakeAkahu | None = None) -> list[str]:
+async def _fetch(settings: Settings, bank: FakeAkahu | None = None) -> list[str]:
     store = Storage(settings.database_path)
     try:
-        return await reconcile.fetch(settings, store, akahu_transport(bank),
-                                     principle_transport(principle))
+        return await reconcile.fetch(settings, store, akahu_transport(bank))
     finally:
         store.close()
 
 
 async def test_fetch_reads_deposits_payments_unpaid_invoices_and_names(
-    practice: Settings, principle: FakeStore,
+    practice: Settings,
 ) -> None:
-    assert await _fetch(practice, principle) == []
+    assert await _fetch(practice) == []
     store = Storage(practice.database_path)
     payments, invoices = reconcile.open_items(store)
     assert len(store.deposits("open")) == 3
@@ -199,23 +189,23 @@ async def test_fetch_reads_deposits_payments_unpaid_invoices_and_names(
 
 
 async def test_a_paid_invoice_leaves_on_the_next_fetch(
-    practice: Settings, principle: FakeStore,
+    practice: Settings, fake_principle: FakePrincipleServer,
 ) -> None:
-    await _fetch(practice, principle)
-    principle.db.execute("UPDATE invoices SET status = 'paid', paid = total,"
-                         " updated_at = :now WHERE id = 'tom-1'",
-                         {"now": canonical(datetime.now(UTC).isoformat())})
-    await _fetch(practice, principle)
+    await _fetch(practice)
+    fake_principle.sql("UPDATE invoices SET status = 'paid', paid = total,"
+                       " updated_at = ? WHERE id = 'tom-1'",
+                       (canonical(datetime.now(UTC).isoformat()),))
+    await _fetch(practice)
     store = Storage(practice.database_path)
     assert {i["key"] for i in reconcile.open_items(store)[1]} == {"spaced-1"}
     store.close()
 
 
 async def test_a_failed_bank_read_is_kept_for_the_page(
-    practice: Settings, principle: FakeStore,
+    practice: Settings,
 ) -> None:
     revoked = practice.model_copy(update={"akahu_user_token": SecretStr("revoked")})
-    problems = await _fetch(revoked, principle)
+    problems = await _fetch(revoked)
     assert [p.split(":")[0] for p in problems] == ["Akahu"]
     store = Storage(practice.database_path)
     assert store.last_fetch()[1] == problems  # type: ignore[index]
@@ -223,8 +213,8 @@ async def test_a_failed_bank_read_is_kept_for_the_page(
 
 
 @pytest.fixture
-async def web(practice: Settings, principle: FakeStore) -> AsyncIterator[TestClient]:
-    await _fetch(practice, principle)
+async def web(practice: Settings) -> AsyncIterator[TestClient]:
+    await _fetch(practice)
     with TestClient(create_app(practice)) as client:
         yield client
 

@@ -2,7 +2,7 @@
 
 Three environments, and the difference between them is the whole safety story:
 
-    fake        the local simulation (tests/fake_principle.py) -- no network at all
+    fake        the local simulation (tests/fake/), its own process on this machine
     staging     api.staging.principle.dental -- a migrated copy of the real practice
     production  api.principle.dental -- live patient records
 
@@ -31,8 +31,8 @@ PRODUCTION_API_HOSTS = frozenset({urlsplit(PRODUCTION_API_URL).hostname, "app.pr
 
 STAGING_API_URL = "https://api.staging.principle.dental"
 
-# The fake answers in-process; the URL exists only so httpx can build a request, and the
-# host makes a stray real call obvious in a log or a traceback.
+# The fake's address when none is running, such as a test that answers with a mock: nothing
+# answers at it, and the host makes a stray real call obvious in a log or a traceback.
 FAKE_API_URL = "https://fake.principle.invalid"
 FAKE_API_KEY = "00000000-0000-4000-8000-000000000001"
 FAKE_PRACTICE_ID = "fake-practice-0001"

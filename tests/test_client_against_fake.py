@@ -1,30 +1,31 @@
-"""The client's contract, exercised through the fake over the real transport."""
+"""The client's contract, exercised against the fake Principle at its URL."""
 
 from __future__ import annotations
 
 import asyncio
-import json
-from datetime import timedelta
+from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 import httpx2 as httpx
 import pytest
 from pydantic import SecretStr
 
-from dental_practice_admin.config import Settings
 from dental_practice_admin.principle import CallError, PrincipleClient, PrincipleError
-from tests.fake import FAKE_PRACTICE_ID, FakeStore, dispatch, server, transport
-from tests.fake.server import (
-    FakePrinciple,
-    FakeRefusalNotRecordedError,
-    FakeUnhandledParameterError,
-    Request,
-)
-from tests.fake.store import FAKE_API_KEY
+from tests.fake import FAKE_PRACTICE_ID
+from tests.fake.store import FAKE_API_KEY, SEARCH_INDEX_LAG
+from tests.servers import FakePrincipleServer
 from tests.settings import fake_settings
 
 # Wide enough to cover the whole seeded diary, whose slots are NZ business hours.
 WINDOW = {"from": "2026-09-27T00:00:00Z", "to": "2026-10-02T00:00:00Z"}
+
+
+def _send(fake: FakePrincipleServer, method: str, path: str, query: dict[str, str] | None = None,
+          body: dict[str, Any] | None = None) -> httpx.Response:
+    """One request straight to the fake, past the client's own checks."""
+    return httpx.request(method, fake.url + path, params=query, json=body,
+                         headers={"x-api-key": FAKE_API_KEY}, timeout=10)
 
 
 def _page(row_id: str, next_offset: str) -> dict[str, object]:
@@ -57,7 +58,7 @@ async def test_lists_practices_and_says_it_is_fake(fake_client: PrincipleClient)
 
 
 async def test_pagination_returns_every_row_once(
-    fake_client: PrincipleClient, fake_store: FakeStore
+    fake_client: PrincipleClient, fake_principle: FakePrincipleServer
 ) -> None:
     """A paging refactor that dropped or repeated a page boundary is caught here.
 
@@ -74,8 +75,8 @@ async def test_pagination_returns_every_row_once(
     ]
     ids = [row["id"] for row in rows]
     expected = {
-        row[0]
-        for row in fake_store.db.execute("SELECT id FROM appointments")  # every seeded row
+        row["id"]
+        for row in fake_principle.sql("SELECT id FROM appointments")  # every seeded row
     }
     assert len(ids) == len(set(ids)), "a page boundary was repeated"
     assert set(ids) == expected
@@ -175,20 +176,16 @@ async def test_required_query_parameter_is_refused_when_absent(
         await fake_client.get("listAppointmentsByDateRange", query={"practiceId": FAKE_PRACTICE_ID})
 
 
-def test_fake_refuses_a_parameter_it_does_not_apply(fake_store: FakeStore) -> None:
+def test_fake_refuses_a_parameter_it_does_not_apply(fake_principle: FakePrincipleServer) -> None:
     """The fake must never accept a filter it silently ignores.
 
     A fake that dropped `status` would answer with every appointment and the test asserting
     the filter would pass, proving a belief about Principle rather than its behaviour.
     """
-    request = Request(
-        method="GET",
-        path="/v1/practices/fake-practice-0001/practitioners",
-        query={"status": "scheduled"},
-        headers={"x-api-key": FAKE_API_KEY},
-    )
-    with pytest.raises(FakeUnhandledParameterError, match="does not apply"):
-        dispatch(fake_store, request)
+    response = _send(fake_principle, "GET", "/v1/practices/fake-practice-0001/practitioners",
+                     {"status": "scheduled"})
+    assert response.status_code == 500
+    assert "FakeUnhandledParameterError" in fake_principle.take_log()
 
 
 async def test_status_filter_is_applied(fake_client: PrincipleClient) -> None:
@@ -251,94 +248,89 @@ async def test_an_update_replaces_the_fields_sent_and_keeps_the_rest(
     assert saved["contactNumbers"] == created["contactNumbers"]
     assert saved["updatedAt"] >= created["updatedAt"]
 
-
 @pytest.fixture
-def principle_speed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The fake pausing as Principle was measured pausing (ADR 0009)."""
-    monkeypatch.setenv("SIMULATE_PRINCIPLE_SPEED", "1")
+async def slow_client(tmp_path: Path,
+                      slow_principle: FakePrincipleServer) -> AsyncIterator[PrincipleClient]:
+    """The production client, reaching the fake Principle at Principle's measured speed."""
+    client = PrincipleClient(fake_settings(tmp_path, api_base_url=slow_principle.url))
+    yield client
+    await client.aclose()
 
 
-@pytest.mark.usefixtures("principle_speed")
 async def test_search_does_not_find_a_patient_straight_after_it_is_created(
-        fake_client: PrincipleClient) -> None:
+        slow_client: PrincipleClient) -> None:
     """Principle's name search lags a create by seconds (docs/principle/patient-writes.md)."""
-    created = await fake_client.call("createPatient", {
+    created = await slow_client.call("createPatient", {
         "name": "Lagging Fake", "dateOfBirth": "1980-02-03", "gender": "female",
         "email": "lag@fake.invalid"})
 
-    found = await fake_client.call("searchPatients", {"name": "Lagging Fake"})
+    found = await slow_client.call("searchPatients", {"name": "Lagging Fake"})
 
     assert created["id"] not in [row["id"] for row in found["data"]]
 
 
-@pytest.mark.usefixtures("principle_speed")
 async def test_a_patient_the_client_has_just_created_can_be_read_straight_away(
-        fake_client: PrincipleClient) -> None:
-    created = await fake_client.call("createPatient", {
+        slow_client: PrincipleClient) -> None:
+    created = await slow_client.call("createPatient", {
         "name": "Read Back Fake", "dateOfBirth": "1980-02-03", "gender": "female",
         "email": "readback@fake.invalid"})
 
-    read = await fake_client.call("getPatient", {"patientId": created["id"]})
+    read = await slow_client.call("getPatient", {"patientId": created["id"]})
 
     assert read["id"] == created["id"]
 
 
-@pytest.mark.usefixtures("principle_speed")
 async def test_a_patient_created_in_one_chat_tool_call_can_be_read_in_the_next(
-        fake_settings: Settings, fake_store: FakeStore) -> None:
+        tmp_path: Path, slow_principle: FakePrincipleServer) -> None:
     """Each chat tool call opens its own client (principle.api_tools)."""
-    async with PrincipleClient(fake_settings, transport=transport(fake_store)) as creating:
+    settings = fake_settings(tmp_path, api_base_url=slow_principle.url)
+    async with PrincipleClient(settings) as creating:
         created = await creating.call("createPatient", {
             "name": "Next Call Fake", "dateOfBirth": "1980-02-03", "gender": "female",
             "email": "nextcall@fake.invalid"})
-    async with PrincipleClient(fake_settings, transport=transport(fake_store)) as reading:
+    async with PrincipleClient(settings) as reading:
         read = await reading.call("getPatient", {"patientId": created["id"]})
 
     assert read["id"] == created["id"]
 
 
-def _update(patient_id: str, body: dict[str, object]) -> Request:
-    return Request(method="PATCH", path=f"/v1/patients/{patient_id}", query={},
-                   headers={"x-api-key": FAKE_API_KEY}, body=json.dumps(body).encode())
-
-
 def test_an_update_missing_a_required_field_is_not_answered_with_an_invented_reply(
-        fake_store: FakeStore) -> None:
+        fake_principle: FakePrincipleServer) -> None:
     """The spec requires practiceId, name, dateOfBirth, gender and email on updatePatient."""
-    patient_id = fake_store.db.execute("SELECT id FROM patients LIMIT 1").fetchone()[0]
-    request = _update(patient_id, {"practiceId": FAKE_PRACTICE_ID, "name": "Fake Partial"})
-    with pytest.raises(FakeRefusalNotRecordedError):
-        dispatch(fake_store, request)
+    patient_id = fake_principle.sql("SELECT id FROM patients LIMIT 1")[0]["id"]
+    response = _send(fake_principle, "PATCH", f"/v1/patients/{patient_id}",
+                     body={"practiceId": FAKE_PRACTICE_ID, "name": "Fake Partial"})
+    assert response.status_code == 500
+    log = fake_principle.take_log()
+    assert "FakeRefusalNotRecordedError" in log and "'update_patient_invalid'" in log
 
 
-def test_an_update_to_another_practices_patient_is_not_accepted(fake_store: FakeStore) -> None:
+def test_an_update_to_another_practices_patient_is_not_accepted(
+        fake_principle: FakePrincipleServer) -> None:
     """The fake must not let a write cross the practice boundary that Principle keeps."""
-    fake_store.add_patient("fake-elsewhere", "fake-practice-0002", "Fake Elsewhere",
-                           "2020-01-01T00:00:00+00:00")
-    request = _update("fake-elsewhere", {
+    fake_principle.sql(
+        "INSERT INTO patients (id, practice_id, name, created_at, updated_at, email)"
+        " VALUES ('fake-elsewhere', 'fake-practice-0002', 'Fake Elsewhere',"
+        " '2020-01-01T00:00:00.000Z', '2020-01-01T00:00:00.000Z', 'elsewhere@fake.invalid')")
+    response = _send(fake_principle, "PATCH", "/v1/patients/fake-elsewhere", body={
         "practiceId": FAKE_PRACTICE_ID, "name": "Fake Elsewhere", "dateOfBirth": "1980-02-03",
         "gender": "female", "email": "elsewhere@fake.invalid"})
-    with pytest.raises(FakeRefusalNotRecordedError):
-        dispatch(fake_store, request)
+    assert response.status_code == 500
+    log = fake_principle.take_log()
+    assert "FakeRefusalNotRecordedError" in log and "'update_patient_other_practice'" in log
 
 
-@pytest.mark.usefixtures("principle_speed")
 async def test_a_reset_drops_index_updates_still_pending(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    """An index update scheduled before a reset never reaches the closed database."""
-    monkeypatch.setattr(server, "SEARCH_INDEX_LAG", timedelta(milliseconds=50))
-    loop = asyncio.get_running_loop()
-    errors: list[dict[str, object]] = []
-    loop.set_exception_handler(lambda _loop, context: errors.append(context))
-    try:
-        app = FakePrinciple()
-        dispatch(app.store, Request(
-            method="POST", path="/v1/patients", query={}, headers={"x-api-key": FAKE_API_KEY},
-            body=json.dumps({"practiceId": FAKE_PRACTICE_ID, "name": "Fake Reset",
-                             "dateOfBirth": "1980-02-03", "gender": "female",
-                             "email": "reset@fake.invalid"}).encode()))
-        app.control(Request(method="POST", path="/__fake/reset", query={}, headers={}))
-        await asyncio.sleep(0.2)
-    finally:
-        loop.set_exception_handler(None)
-    assert errors == []
+        slow_client: PrincipleClient, slow_principle: FakePrincipleServer) -> None:
+    """An index update scheduled before a reset never reaches the closed database.
+
+    Waits out the real lag, about 20 s: the lag is fixed when the fake starts (ADR 0009).
+    """
+    await slow_client.call("createPatient", {
+        "name": "Reset Fake", "dateOfBirth": "1980-02-03", "gender": "female",
+        "email": "reset@fake.invalid"})
+    slow_principle.reset()
+
+    await asyncio.sleep(SEARCH_INDEX_LAG.total_seconds() + 1.5)
+
+    assert "Traceback" not in slow_principle.take_log()
