@@ -142,8 +142,8 @@ if (-not (Get-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -ErrorAction S
 $registered = 'C:\ProgramData\DentalPracticeAdmin\task-runner.registered'
 $definition = (Get-FileHash deploy\task-runner.xml).Hash
 if (-not $launcher -or $launcher.Principal.LogonType -ne 'Password' -or -not (Test-Path $registered) -or (Get-Content $registered) -ne $definition) {
-    # Read-Host throws in a remote session, which is not interactive.
-    if (-not $password) { try { $password = Read-Host "Password for the $account account (its existing password)" } catch {} }
+    # Read-Host throws RemoteException in a remote session, which is not interactive.
+    if (-not $password) { try { $password = Read-Host "Password for the $account account (its existing password)" } catch [System.Management.Automation.RemoteException] {} }
     if ($password) {
         Register-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner' -Xml (Get-Content deploy\task-runner.xml -Raw) -User $account -Password $password -Force | Out-Null
         Set-Content $registered $definition

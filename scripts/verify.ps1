@@ -53,8 +53,11 @@ Check 'Application schedule launcher is configured for unattended execution' {
     if ($task.State -eq 'Disabled') { throw 'task is disabled' }
     if ($task.Principal.LogonType -ne 'Password') { throw 'task needs an unattended Password logon' }
     if ($task.Principal.UserId -notmatch '(^|\\)practice-app$') { throw "task runs as $($task.Principal.UserId), not practice-app" }
-    # ADR 0009: a launch starts beside one still running, and none is stopped for taking long.
-    if ($task.Settings.MultipleInstances -ne 'Parallel' -or $task.Settings.ExecutionTimeLimit -ne 'PT0S') {
+    # The settings ADR 0009 rests on, as the installed deploy\task-runner.xml defines them.
+    [xml]$defined = Get-Content -LiteralPath (Join-Path $InstallRoot 'deploy\task-runner.xml') -Raw
+    $settings = $defined.Task.Settings
+    if ($task.Settings.MultipleInstances -ne $settings.MultipleInstancesPolicy -or
+        $task.Settings.ExecutionTimeLimit -ne $settings.ExecutionTimeLimit) {
         throw "task has an earlier definition (runs $($task.Settings.MultipleInstances), limit $($task.Settings.ExecutionTimeLimit)); run install_server.ps1 in an interactive PowerShell with the practice-app password"
     }
     if ($task.Actions.Count -ne 1) { throw 'expected one launcher action' }
