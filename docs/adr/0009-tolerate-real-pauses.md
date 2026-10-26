@@ -10,8 +10,8 @@ stopped for taking long.
   after 60 seconds, and fails with the system's name and how long it waited, in the chat or the
   run history, never silently.
 - A long run, such as reconciliation's first sync, runs to the end while each of its waits is
-  answered. A long run does not hold up others: the scheduler starts each due run whether or
-  not another is still going.
+  answered. A long run does not hold up others: the scheduler starts each due task whether or
+  not a different one is still going, and never starts a task that is already running.
 - The recorder keeps how long each exchange took and how long a read took to see a write, every
   run. The integration tier fails when one reaches half the limit, while there is still room.
 - Every fake runs at full speed by default. Started with `SIMULATE_<SYSTEM>_SPEED=1` (for
