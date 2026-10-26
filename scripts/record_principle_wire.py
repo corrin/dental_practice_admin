@@ -597,8 +597,11 @@ async def record_refusals(settings: Settings, names: Pseudonymiser) -> list[Reco
 
 def report_old(days: int) -> None:
     """Name every recording taken more than `days` ago, and fail if there is one."""
-    folders = (recordings_of(Settings(environment=Environment.PRODUCTION)), REFUSALS)
-    old = [path for folder in folders for path in sorted(folder.rglob("*.json"))
+    recordings = recordings_of(Settings(environment=Environment.PRODUCTION))
+    if not any(recordings.rglob("*.json")):
+        print(f"no recordings in {recordings}; record them, or check ADMIN_DATA_ROOT")
+        raise SystemExit(1)
+    old = [path for folder in (recordings, REFUSALS) for path in sorted(folder.rglob("*.json"))
            if date.today() - date.fromisoformat(
                json.loads(path.read_text(encoding="utf-8"))["capturedOn"])
            > timedelta(days=days)]
@@ -614,8 +617,8 @@ async def main() -> None:
     parser.add_argument("--create-patient", action="store_true",
                         help="also create an undeletable [TEST] patient on staging")
     parser.add_argument("--older-than", type=int, nargs="?", const=60, metavar="DAYS",
-                        help="list recordings older than DAYS (60) and fail if any; records"
-                             " nothing")
+                        help="list recordings older than DAYS (%(const)s) and fail if any;"
+                             " records nothing")
     arguments = parser.parse_args()
     if arguments.older_than is not None:
         report_old(arguments.older_than)

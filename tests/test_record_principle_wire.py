@@ -257,6 +257,15 @@ async def test_the_age_check_takes_its_limit_in_days(
     with pytest.raises(SystemExit) as refused:
         await _record(monkeypatch, "--older-than", "7")
     assert refused.value.code == 1
+    assert sent == []
+
+
+async def test_the_age_check_fails_when_there_are_no_recordings(
+        monkeypatch: pytest.MonkeyPatch, sent: Sent) -> None:
+    """A wrong data folder holds no recordings, which would otherwise pass as all being fresh."""
+    with pytest.raises(SystemExit) as refused:
+        await _record(monkeypatch, "--older-than")
+    assert refused.value.code == 1
 
 
 async def test_a_recording_carries_the_day_it_was_taken_on_this_machine(
