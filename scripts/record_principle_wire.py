@@ -365,8 +365,6 @@ async def record_writes(staging: Settings, capture: Capture) -> dict[str, float]
 def keep_measurement(path: Path, measured: dict[str, float]) -> None:
     """Add this run's measurements to every earlier run's (ADR 0009)."""
     runs = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
-    if isinstance(runs, dict):
-        runs = [runs]
     path.write_text(as_text([*runs, {"capturedOn": date.today().isoformat(), **measured}]),
                     encoding="utf-8")
 

@@ -146,7 +146,7 @@ def test_principles_search_lag_stays_within_what_the_fake_simulates_and_half_the
         pytest.fail(f"{path} is missing; record it with"
                     " `uv run python -m scripts.record_principle_wire --create-patient`")
     runs = json.loads(path.read_text(encoding="utf-8"))
-    for run in runs if isinstance(runs, list) else [runs]:
+    for run in runs:
         lag = run["searchFindsCreatedPatientAfterSeconds"]
         assert lag <= SEARCH_INDEX_LAG.total_seconds(), f"{run['capturedOn']}: fake too fast"
         assert lag < SEARCH_LAG.total_seconds() / 2, f"{run['capturedOn']}: near the limit"
