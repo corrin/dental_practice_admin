@@ -136,18 +136,27 @@ if ($caddyfileChanged -and (Get-Service caddy).Status -eq 'Running') { Restart-S
 Start-Service caddy
 if (-not (Get-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -ErrorAction SilentlyContinue)) { New-NetFirewallRule -DisplayName 'Caddy HTTP and HTTPS' -Direction Inbound -Protocol TCP -LocalPort 80, 443 -Action Allow -Profile Any | Out-Null }
 # The launcher keeps the password Windows stored for it, so it is registered again only when it is
-# missing or deploy\task-runner.xml has changed since; otherwise it is switched back on. S4U, which
+# missing, or was registered from anything but this deploy\task-runner.xml (with no record of what
+# it was registered from, it counts as different); otherwise it is switched back on. S4U, which
 # stores no password, is refused here: Access is denied, even to an administrator.
 $registered = 'C:\ProgramData\DentalPracticeAdmin\task-runner.registered'
 $definition = (Get-FileHash deploy\task-runner.xml).Hash
-if (-not $launcher -or $launcher.Principal.LogonType -ne 'Password' -or ((Test-Path $registered) -and (Get-Content $registered) -ne $definition)) {
-    if (-not $password) { $password = Read-Host "Password for the $account account (its existing password)" }
-    if (-not $password) { throw 'No password entered; the scheduled launcher stays paused.' }
-    Register-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner' -Xml (Get-Content deploy\task-runner.xml -Raw) -User $account -Password $password -Force | Out-Null
+if (-not $launcher -or $launcher.Principal.LogonType -ne 'Password' -or -not (Test-Path $registered) -or (Get-Content $registered) -ne $definition) {
+    # Read-Host throws RemoteException in a remote session, which is not interactive.
+    if (-not $password) { try { $password = Read-Host "Password for the $account account (its existing password)" } catch [System.Management.Automation.RemoteException] {} }
+    if ($password) {
+        Register-ScheduledTask -TaskPath '\Dental Practice Admin\' -TaskName 'Task runner' -Xml (Get-Content deploy\task-runner.xml -Raw) -User $account -Password $password -Force | Out-Null
+        Set-Content $registered $definition
+    } elseif ($launcher) {
+        # Schedules keep running on the launcher as it was; verify.ps1 fails until it is registered.
+        $launcher | Enable-ScheduledTask | Out-Null
+        Write-Warning "The launcher keeps its previous definition. Run this again in an interactive PowerShell, with the $account password, to update it."
+    } else {
+        throw "No password entered, so there is no scheduled launcher; run this again in an interactive PowerShell."
+    }
 } else {
     $launcher | Enable-ScheduledTask | Out-Null
 }
-Set-Content $registered $definition
 Remove-Item $env:TEMP\winsw.exe
 Remove-Item -Recurse -Force $env:TEMP\chocolatey -ErrorAction SilentlyContinue
 Write-Host "Done: $(git rev-parse --short HEAD)." -ForegroundColor Green
