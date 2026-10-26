@@ -29,6 +29,5 @@ the fake, and the fake answers from a snapshot of production.
   whose phone and email are the owner's, read from `ADMIN_OWNER_MOBILE` and `ADMIN_OWNER_EMAIL`
   in `.env`. The recorder reads that patient back before each write and refuses unless both
   still match, so no text, email or call from it reaches a real patient.
-- The release gate re-records every read and the writes the practice makes, such as text
-  messages, and takes a new snapshot. A write the practice does not make keeps its recording
-  until the interface changes it.
+- Recordings and the snapshot are taken when someone runs the recorder, never automatically. It
+  records the operations it is named, or every one when none is named.
