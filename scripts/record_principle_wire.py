@@ -36,6 +36,7 @@ import asyncio
 import json
 import re
 import shutil
+import time
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -333,7 +334,7 @@ async def record_patient(client: PrincipleClient, appointment: dict[str, Any]) -
     await as_sent("searchPatients", query={"name": patient["name"]})
 
 
-async def record_writes(staging: Settings, capture: Capture) -> None:
+async def record_writes(staging: Settings, capture: Capture) -> dict[str, float]:
     """Create a `[TEST]` patient on staging carrying the owner's details, then update it.
 
     It runs only with --create-patient, and last, so a run that fails leaves no patient behind
@@ -347,6 +348,7 @@ async def record_writes(staging: Settings, capture: Capture) -> None:
             "dateOfBirth": "1970-01-01", "gender": "notSpecified",
             "contactNumbers": [{"label": "mobile", "number": staging.owner_mobile}],
             "email": staging.owner_email})
+        searched = await search_lag(writer, created)
         patient = await writer.call("getPatient", {"patientId": created["id"]})
         numbers = [number["number"] for number in patient["contactNumbers"]]
         if staging.owner_mobile not in numbers or patient["email"] != staging.owner_email:
@@ -357,6 +359,23 @@ async def record_writes(staging: Settings, capture: Capture) -> None:
             **{key: patient[key] for key in ("name", "dateOfBirth", "gender", "email")},
             "address": "[TEST] 1 Fake Street"})
         await writer.call("getPatient", {"patientId": created["id"]})
+    return {"searchFindsCreatedPatientAfterSeconds": searched}
+
+
+# Longer than Principle has ever taken to index a new patient, so a run that waits this long
+# has found a fault rather than a delay.
+SEARCH_GIVE_UP = 60.0
+
+
+async def search_lag(writer: PrincipleClient, created: dict[str, Any]) -> float:
+    """Seconds until Principle's name search finds a patient just created."""
+    started = time.monotonic()
+    while time.monotonic() - started < SEARCH_GIVE_UP:
+        rows = (await writer.call("searchPatients", {"name": created["name"]}))["data"]
+        if any(row["id"] == created["id"] for row in rows):
+            return round(time.monotonic() - started, 1)
+        await asyncio.sleep(0.25)
+    raise SystemExit(f"search did not find {created['id']} within {SEARCH_GIVE_UP:.0f} s")
 
 
 async def record_successes(client: PrincipleClient, practice_id: str) -> None:
@@ -494,8 +513,10 @@ async def main() -> None:
     refusals += await record_firestore_refusals(settings, capture)
     if staging is not None:
         writing = Capture(transport_for(staging))
-        await record_writes(staging, writing)
+        measured = await record_writes(staging, writing)
         write_recordings(writing.exchanges, recordings_of(staging))
+        (recordings_of(staging) / "measurements.json").write_text(
+            as_text({"capturedOn": date.today().isoformat(), **measured}), encoding="utf-8")
     write_recordings(capture.exchanges, recordings_of(settings))
     for target, text in refusals:
         target.parent.mkdir(parents=True, exist_ok=True)

@@ -17,14 +17,21 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-from scripts.record_principle_wire import FIRESTORE_CATALOGUE, covers, joined, shape_of
+from scripts.record_principle_wire import (
+    FIRESTORE_CATALOGUE,
+    covers,
+    joined,
+    recordings_of,
+    shape_of,
+)
 from scripts.record_principle_wire import recorded as answers
 
 from dental_practice_admin.config import Environment, Settings
+from dental_practice_admin.principle import SEARCH_LAG
 from tests.fake import FakeStore, dispatch
 from tests.fake import firestore as fake_firestore
 from tests.fake.server import Request
-from tests.fake.store import FAKE_API_KEY, FAKE_PRACTICE_ID
+from tests.fake.store import FAKE_API_KEY, FAKE_PRACTICE_ID, SEARCH_INDEX_LAG
 
 pytestmark = pytest.mark.integration
 
@@ -130,3 +137,15 @@ def test_the_fake_firestore_sends_only_recorded_shapes(fake_store: FakeStore,
     for document in documents:
         assert document is not None
         assert covers(real, shape_of(document["fields"])) == []
+
+
+def test_principles_search_lag_is_no_longer_than_the_fake_and_client_allow() -> None:
+    """The staging write run times how long search takes to find a patient just created."""
+    path = (recordings_of(Settings(environment=Environment.STAGING)) / "measurements.json")
+    if not path.exists():
+        pytest.fail(f"{path} is missing; record it with"
+                    " `uv run python -m scripts.record_principle_wire --create-patient`")
+    measured = json.loads(path.read_text(encoding="utf-8"))
+    lag = measured["searchFindsCreatedPatientAfterSeconds"]
+    assert lag <= SEARCH_INDEX_LAG.total_seconds()
+    assert lag < SEARCH_LAG.total_seconds()

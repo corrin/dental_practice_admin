@@ -103,7 +103,7 @@ def _recordings(tmp_path: Path) -> Path:
 def _hosts(folder: Path) -> dict[str, set[str]]:
     """Each recorded operation, with the hosts that answered it."""
     hosts: dict[str, set[str]] = {}
-    for path in folder.rglob("*.json"):
+    for path in folder.glob("**/*/*.json"):
         url = json.loads(path.read_text(encoding="utf-8"))["url"]
         hosts.setdefault(path.parent.relative_to(folder).as_posix(), set()).add(
             httpx.URL(url).host)
@@ -386,3 +386,12 @@ async def test_a_run_records_what_bank_reconciliation_reads(
 
     assert {"listInvoicesByDateRange", "listTransactionsByDateRange"} <= _hosts(
         _recordings(tmp_path)).keys()
+
+
+async def test_the_write_run_records_how_long_search_takes_to_find_a_new_patient(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    await _record(monkeypatch, "--create-patient")
+
+    measured = json.loads((tmp_path / Environment.STAGING.value / "recordings"
+                           / "measurements.json").read_text(encoding="utf-8"))
+    assert measured["searchFindsCreatedPatientAfterSeconds"] > 0
