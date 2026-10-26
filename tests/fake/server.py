@@ -21,7 +21,6 @@ import asyncio
 import json
 import os
 import re
-import sys
 from collections.abc import Awaitable, Callable, Mapping, MutableMapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -276,11 +275,6 @@ ROUTES: tuple[tuple[str, re.Pattern[str], Handler], ...] = (
 )
 
 
-def routes_served() -> frozenset[tuple[str, str]]:
-    """Every (method, path pattern) the table answers, for the catalogue-coverage test."""
-    return frozenset((method, pattern.pattern) for method, pattern, _ in ROUTES)
-
-
 FIRESTORE_PATH = re.compile(
     "^/v1/" + re.escape(firestore.ROOT) + r"(?:/(?P<path>[^:]+?))?(?P<query>:runQuery)?$")
 
@@ -341,17 +335,14 @@ class FakePrinciple:
     its seed and set up the state they need there. Nothing in the application calls it.
     """
 
-    def __init__(self, store: FakeStore | None = None, path: Path | None = None) -> None:
-        self.path = path
-        self.store = store if store is not None else seed()
+    def __init__(self) -> None:
+        self.store = seed()
 
     def control(self, request: Request) -> Response:
         """Reset to the seed, or run one statement against the database."""
         if request.method == "POST" and request.path == "/__fake/reset":
             self.store.close()
-            if self.path is not None:
-                self.path.unlink(missing_ok=True)
-            self.store = seed(FakeStore(self.path or ":memory:"))
+            self.store = seed()
             return Response(200, {"reset": True})
         if request.method == "POST" and request.path == "/__fake/sql":
             statement = request.json()
@@ -404,22 +395,3 @@ class FakePrinciple:
 
 app = FakePrinciple()
 
-
-def create_app() -> FakePrinciple:
-    """The fake as its own process, on the database in `FAKE_PRINCIPLE_DATA`.
-
-    The database survives a restart, as Principle's does; a new folder starts from the seed.
-    """
-    path = Path(os.environ["FAKE_PRINCIPLE_DATA"]) / "principle.sqlite3"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fresh = not path.exists()
-    store = FakeStore(path)
-    return FakePrinciple(seed(store) if fresh else store, path)
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    port, data = int(sys.argv[1]), sys.argv[2]
-    os.environ["FAKE_PRINCIPLE_DATA"] = data
-    uvicorn.run(create_app(), host="127.0.0.1", port=port)
