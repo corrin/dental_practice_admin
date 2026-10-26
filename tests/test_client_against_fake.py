@@ -244,6 +244,13 @@ async def test_an_update_replaces_the_fields_sent_and_keeps_the_rest(
     assert saved["updatedAt"] >= created["updatedAt"]
 
 
+@pytest.fixture
+def principle_speed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The fake pausing as Principle was measured pausing (ADR 0009)."""
+    monkeypatch.setenv("SIMULATE_PRINCIPLE_SPEED", "1")
+
+
+@pytest.mark.usefixtures("principle_speed")
 async def test_search_does_not_find_a_patient_straight_after_it_is_created(
         fake_client: PrincipleClient) -> None:
     """Principle's name search lags a create by seconds (docs/principle/patient-writes.md)."""
@@ -256,6 +263,7 @@ async def test_search_does_not_find_a_patient_straight_after_it_is_created(
     assert created["id"] not in [row["id"] for row in found["data"]]
 
 
+@pytest.mark.usefixtures("principle_speed")
 async def test_a_patient_the_client_has_just_created_can_be_read_straight_away(
         fake_client: PrincipleClient) -> None:
     created = await fake_client.call("createPatient", {
@@ -267,6 +275,7 @@ async def test_a_patient_the_client_has_just_created_can_be_read_straight_away(
     assert read["id"] == created["id"]
 
 
+@pytest.mark.usefixtures("principle_speed")
 async def test_a_patient_created_in_one_chat_tool_call_can_be_read_in_the_next(
         fake_settings: Settings, fake_store: FakeStore) -> None:
     """Each chat tool call opens its own client (principle.api_tools)."""

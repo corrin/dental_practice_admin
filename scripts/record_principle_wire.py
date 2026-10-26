@@ -362,6 +362,15 @@ async def record_writes(staging: Settings, capture: Capture) -> dict[str, float]
     return {"searchFindsCreatedPatientAfterSeconds": searched}
 
 
+def keep_measurement(path: Path, measured: dict[str, float]) -> None:
+    """Add this run's measurements to every earlier run's (ADR 0009)."""
+    runs = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    if isinstance(runs, dict):
+        runs = [runs]
+    path.write_text(as_text([*runs, {"capturedOn": date.today().isoformat(), **measured}]),
+                    encoding="utf-8")
+
+
 # Longer than Principle has ever taken to index a new patient, so a run that waits this long
 # has found a fault rather than a delay.
 SEARCH_GIVE_UP = 60.0
@@ -515,8 +524,7 @@ async def main() -> None:
         writing = Capture(transport_for(staging))
         measured = await record_writes(staging, writing)
         write_recordings(writing.exchanges, recordings_of(staging))
-        (recordings_of(staging) / "measurements.json").write_text(
-            as_text({"capturedOn": date.today().isoformat(), **measured}), encoding="utf-8")
+        keep_measurement(recordings_of(staging) / "measurements.json", measured)
     write_recordings(capture.exchanges, recordings_of(settings))
     for target, text in refusals:
         target.parent.mkdir(parents=True, exist_ok=True)

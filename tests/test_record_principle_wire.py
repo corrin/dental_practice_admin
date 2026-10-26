@@ -388,10 +388,12 @@ async def test_a_run_records_what_bank_reconciliation_reads(
         _recordings(tmp_path)).keys()
 
 
-async def test_the_write_run_records_how_long_search_takes_to_find_a_new_patient(
+async def test_every_write_run_keeps_how_long_search_took_to_find_a_new_patient(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    await _record(monkeypatch, "--create-patient")
     await _record(monkeypatch, "--create-patient")
 
     measured = json.loads((tmp_path / Environment.STAGING.value / "recordings"
                            / "measurements.json").read_text(encoding="utf-8"))
-    assert measured["searchFindsCreatedPatientAfterSeconds"] > 0
+    assert len(measured) == 2
+    assert all(run["searchFindsCreatedPatientAfterSeconds"] >= 0 for run in measured)

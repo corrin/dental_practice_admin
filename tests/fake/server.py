@@ -206,7 +206,10 @@ def create_patient(store: FakeStore, request: Request, _match: re.Match[str]) ->
 
 
 def _index_later(store: FakeStore, patient_id: str) -> None:
-    """Principle's search index catches up with a written patient `SEARCH_INDEX_LAG` later."""
+    """Bring the search index up to date now, or at Principle's measured speed (ADR 0009)."""
+    if os.environ.get("SIMULATE_PRINCIPLE_SPEED") != "1":
+        store.index_patient(patient_id)
+        return
     asyncio.get_running_loop().call_later(SEARCH_INDEX_LAG.total_seconds(),
                                           store.index_patient, patient_id)
 

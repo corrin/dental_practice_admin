@@ -139,13 +139,14 @@ def test_the_fake_firestore_sends_only_recorded_shapes(fake_store: FakeStore,
         assert covers(real, shape_of(document["fields"])) == []
 
 
-def test_principles_search_lag_is_no_longer_than_the_fake_and_client_allow() -> None:
-    """The staging write run times how long search takes to find a patient just created."""
+def test_principles_search_lag_stays_within_what_the_fake_simulates_and_half_the_limit() -> None:
+    """Every staging write run times how long search took to find a patient just created."""
     path = (recordings_of(Settings(environment=Environment.STAGING)) / "measurements.json")
     if not path.exists():
         pytest.fail(f"{path} is missing; record it with"
                     " `uv run python -m scripts.record_principle_wire --create-patient`")
-    measured = json.loads(path.read_text(encoding="utf-8"))
-    lag = measured["searchFindsCreatedPatientAfterSeconds"]
-    assert lag <= SEARCH_INDEX_LAG.total_seconds()
-    assert lag < SEARCH_LAG.total_seconds()
+    runs = json.loads(path.read_text(encoding="utf-8"))
+    for run in runs if isinstance(runs, list) else [runs]:
+        lag = run["searchFindsCreatedPatientAfterSeconds"]
+        assert lag <= SEARCH_INDEX_LAG.total_seconds(), f"{run['capturedOn']}: fake too fast"
+        assert lag < SEARCH_LAG.total_seconds() / 2, f"{run['capturedOn']}: near the limit"

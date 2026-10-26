@@ -108,9 +108,9 @@ BY_NAME = {call.name: call for call in CATALOGUE}
 # payment's `id` and that invoice's share, so `id` alone repeats within a correct walk.
 ROW_KEYS = {"listTransactionsByDateRange": ("id", "invoiceId")}
 
-# How long after createPatient Principle's name search may still miss the new patient. The
-# recorder's staging write run measures it; the integration tier fails if Principle is slower.
-SEARCH_LAG = timedelta(seconds=5)
+# How long after createPatient the practice check waits for Principle's name search to find the
+# new patient: the 60 s every wait on an external system gets (ADR 0009).
+SEARCH_LAG = timedelta(seconds=60)
 SEARCH_POLL = timedelta(milliseconds=500)
 
 

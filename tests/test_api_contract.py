@@ -1,6 +1,6 @@
 """Practice boundaries, response contracts and persistent incompatibility notices."""
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +10,13 @@ from agents.tool_context import ToolContext
 from pydantic import SecretStr
 
 from dental_practice_admin.config import Environment, Settings
-from dental_practice_admin.principle import CallError, PrincipleClient, PrincipleError, api_tools
+from dental_practice_admin.principle import (
+    SEARCH_LAG,
+    CallError,
+    PrincipleClient,
+    PrincipleError,
+    api_tools,
+)
 from dental_practice_admin.storage import Storage
 from tests.settings import API_URLS, fake_settings
 
@@ -281,7 +287,7 @@ async def test_a_new_patient_search_never_finds_is_refused_once_the_lag_has_pass
     """Waiting out the search lag never brings a patient outside the practice into it."""
     patient = {"id": "fake-new", "name": "Fake Newcomer", "email": "fake@example.invalid",
                "gender": "notSpecified", "address": "", "dateOfBirth": "2000-01-01",
-               "createdAt": datetime.now(UTC).isoformat()}
+               "createdAt": (datetime.now(UTC) - SEARCH_LAG + timedelta(seconds=1)).isoformat()}
 
     def respond(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/fake-new"):

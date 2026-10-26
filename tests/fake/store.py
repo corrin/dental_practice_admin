@@ -66,8 +66,8 @@ CREATE TABLE patients (
     address       TEXT,
     date_of_birth TEXT
 );
--- What Principle's name search reads. A created patient reaches it only `SEARCH_INDEX_LAG`
--- later, so a search straight after a create misses the patient, as Principle's does.
+-- What Principle's name search reads. At Principle's speed a created patient reaches it only
+-- `SEARCH_INDEX_LAG` later, so a search straight after a create misses, as Principle's does.
 CREATE TABLE patient_search (
     patient_id  TEXT PRIMARY KEY REFERENCES patients(id),
     practice_id TEXT NOT NULL,
@@ -197,9 +197,9 @@ PRACTICE_TZ = ZoneInfo("Pacific/Auckland")
 # Principle's own default when a request omits `limit` (observed 2026-10-01).
 SERVER_DEFAULT_LIMIT = 20
 
-# How long after createPatient Principle's name search first finds the patient: 2.8 s, measured
-# on staging by the recorder's write run.
-SEARCH_INDEX_LAG = timedelta(seconds=3)
+# The slowest time the recorder's staging write runs have measured between createPatient and
+# the name search finding the patient. The fake pauses this long with SIMULATE_PRINCIPLE_SPEED=1.
+SEARCH_INDEX_LAG = timedelta(seconds=18.5)
 
 
 @dataclass(frozen=True)
