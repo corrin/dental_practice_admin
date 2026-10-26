@@ -150,11 +150,47 @@ async def test_creating_a_patient_writes_only_to_staging_and_last(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
     await _record(monkeypatch, "--create-patient")
 
+    environments = [environment for environment, _ in sent]
+    first = environments.index("staging")
     assert [environment for environment, _ in _creates(sent)] == ["staging"]
-    assert sent[-1] == _creates(sent)[0]
-    assert {environment for environment, _ in sent[:-1]} == {"production"}
-    assert _hosts(_recordings(tmp_path))["createPatient"] == {
-        STAGING_API_URL.removeprefix("https://")}
+    assert set(environments[:first]) == {"production"}
+    assert set(environments[first:]) == {"staging"}
+
+
+async def test_writes_are_recorded_in_stagings_own_data_folder(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    await _record(monkeypatch, "--create-patient")
+
+    staging = _hosts(tmp_path / Environment.STAGING.value / "recordings")
+    assert {"createPatient", "updatePatient"} <= staging.keys()
+    assert set().union(*staging.values()) == {STAGING_API_URL.removeprefix("https://")}
+    assert not {"createPatient", "updatePatient"} & _hosts(_recordings(tmp_path)).keys()
+
+
+def _updates(sent: Sent) -> list[httpx.Request]:
+    return [request for _, request in sent if request.method == "PATCH"]
+
+
+async def test_the_update_goes_only_to_the_patient_just_created(
+        monkeypatch: pytest.MonkeyPatch, fake_store: FakeStore, sent: Sent) -> None:
+    before = {row["id"] for row in fake_store.db.execute("SELECT id FROM patients")}
+
+    await _record(monkeypatch, "--create-patient")
+
+    created = {row["id"] for row in fake_store.db.execute("SELECT id FROM patients")} - before
+    assert [request.url.path for request in _updates(sent)] == [
+        f"/v1/patients/{patient}" for patient in created]
+
+
+async def test_the_update_is_refused_unless_the_patient_carries_the_owners_details(
+        monkeypatch: pytest.MonkeyPatch, fake_store: FakeStore, sent: Sent) -> None:
+    create = fake_store.create_patient
+    monkeypatch.setattr(fake_store, "create_patient", lambda body, at: create(
+        body | {"email": "someone.else@example.invalid"}, at))
+
+    with pytest.raises(SystemExit):
+        await _record(monkeypatch, "--create-patient")
+    assert _updates(sent) == []
 
 
 async def test_the_created_patient_carries_the_fake_marker(
@@ -334,7 +370,7 @@ async def test_a_run_replaces_the_recordings_of_operations_it_made(
     assert not stale.exists()
 
 
-@pytest.mark.parametrize("table", ["calendar_events", "roster_items"])
+@pytest.mark.parametrize("table", ["calendar_events", "roster_items", "invoices", "transactions"])
 async def test_a_collection_with_nothing_to_record_fails_the_run(
         monkeypatch: pytest.MonkeyPatch, fake_store: FakeStore, sent: Sent, table: str) -> None:
     fake_store.db.execute(f"DELETE FROM {table}")
@@ -342,3 +378,11 @@ async def test_a_collection_with_nothing_to_record_fails_the_run(
 
     with pytest.raises(SystemExit):
         await _record(monkeypatch)
+
+
+async def test_a_run_records_what_bank_reconciliation_reads(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, sent: Sent) -> None:
+    await _record(monkeypatch)
+
+    assert {"listInvoicesByDateRange", "listTransactionsByDateRange"} <= _hosts(
+        _recordings(tmp_path)).keys()

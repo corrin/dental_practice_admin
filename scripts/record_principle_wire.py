@@ -12,13 +12,14 @@ Firestore's are named by collection, `firestore/<collection>/`, and Firebase sig
 password. Firebase's sign-in answers are kept like any other, tokens included, so the
 recordings folder is as private as `.env`.
 
-Reads go to production and the one write to staging (ADR 0006). Creating a patient, only with
---create-patient, makes a `[TEST] Fake` patient on staging, which the API cannot delete, so the
-fake's `POST /v1/patients` is checked against what Principle answers. It carries the owner's
-own mobile and email (ADMIN_OWNER_MOBILE, ADMIN_OWNER_EMAIL), so anything Principle sends it
-reaches the owner and no patient. It runs after every read, and nothing is written to disk
-until the whole run has succeeded, so a failed run leaves no patient for its re-run to
-duplicate and the previous recordings as they were.
+Reads go to production and writes to staging (ADR 0006). With --create-patient the recorder
+makes a `[TEST] Fake` patient on staging, which the API cannot delete, and updates it, so the
+fake's patient writes are checked against what Principle answers. The patient carries the
+owner's own mobile and email (ADMIN_OWNER_MOBILE, ADMIN_OWNER_EMAIL), so anything Principle
+sends it reaches the owner and no patient. The writes run after every read, and nothing is
+written to disk until the whole run has succeeded, so a failed run leaves no patient for its
+re-run to duplicate and the previous recordings as they were. Staging's exchanges go in
+staging's own data folder.
 
 Refusals are Principle's and Firestore's own wording, and are also written into
 `tests/recordings/refusals/`, which tests/fake/server.py reads. There a Firestore refusal's
@@ -332,19 +333,30 @@ async def record_patient(client: PrincipleClient, appointment: dict[str, Any]) -
     await as_sent("searchPatients", query={"name": patient["name"]})
 
 
-async def record_created_patient(staging: Settings, capture: Capture) -> None:
-    """Create a `[TEST]` patient on staging, which the API cannot delete.
+async def record_writes(staging: Settings, capture: Capture) -> None:
+    """Create a `[TEST]` patient on staging carrying the owner's details, then update it.
 
     It runs only with --create-patient, and last, so a run that fails leaves no patient behind
-    for its re-run to duplicate.
+    for its re-run to duplicate. The patient is read back before it is written to again, and
+    the update is refused unless it carries the owner's mobile and email (ADR 0007).
     """
     async with PrincipleClient(staging, transport=capture) as writer:
-        await writer.call("createPatient", {
+        created = await writer.call("createPatient", {
             "practiceId": staging.practice_id,
             "name": f"[TEST] Fake Recording {date.today()}",
             "dateOfBirth": "1970-01-01", "gender": "notSpecified",
             "contactNumbers": [{"label": "mobile", "number": staging.owner_mobile}],
             "email": staging.owner_email})
+        patient = await writer.call("getPatient", {"patientId": created["id"]})
+        numbers = [number["number"] for number in patient["contactNumbers"]]
+        if staging.owner_mobile not in numbers or patient["email"] != staging.owner_email:
+            raise SystemExit(f"{created['id']} does not carry the owner's mobile and email;"
+                             " nothing more is written to it")
+        await writer.call("updatePatient", {
+            "patientId": created["id"], "practiceId": staging.practice_id,
+            **{key: patient[key] for key in ("name", "dateOfBirth", "gender", "email")},
+            "address": "[TEST] 1 Fake Street"})
+        await writer.call("getPatient", {"patientId": created["id"]})
 
 
 async def record_successes(client: PrincipleClient, practice_id: str) -> None:
@@ -353,6 +365,14 @@ async def record_successes(client: PrincipleClient, practice_id: str) -> None:
     await client.get("listPractitioners", path_params={"practiceId": practice_id})
     await client.get("listAppointmentsByDateRange",
                      query={"practiceId": practice_id, "limit": 2, **window()})
+
+
+async def record_reconciliation(client: PrincipleClient) -> None:
+    """Invoices and payments changed in the last week, read as bank reconciliation reads them."""
+    since = f"{date.today() - timedelta(days=7)}T00:00:00Z"
+    for name in ("listInvoicesByDateRange", "listTransactionsByDateRange"):
+        if not [row async for row in client.rows(name, query={"updatedFrom": since})]:
+            raise SystemExit(f"{name}: nothing changed since {since[:10]}; nothing to record")
 
 
 def query(collection: str, *filters: tuple[str, str, dict[str, Any]]) -> dict[str, Any]:
@@ -465,18 +485,18 @@ async def main() -> None:
     capture = Capture(transport_for(settings))
     async with PrincipleClient(settings, transport=capture) as client:
         await record_successes(client, settings.practice_id)
+        await record_reconciliation(client)
         appointment = await first_appointment(client, settings, capture)
         await record_patient(client, appointment)
         appointments = await sample(client, settings, appointment)
     refusals = await record_refusals(settings, capture)
     await record_firestore(settings, capture, appointments)
     refusals += await record_firestore_refusals(settings, capture)
-    exchanges = capture.exchanges
     if staging is not None:
         writing = Capture(transport_for(staging))
-        await record_created_patient(staging, writing)
-        exchanges = exchanges + writing.exchanges
-    write_recordings(exchanges, recordings_of(settings))
+        await record_writes(staging, writing)
+        write_recordings(writing.exchanges, recordings_of(staging))
+    write_recordings(capture.exchanges, recordings_of(settings))
     for target, text in refusals:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text, encoding="utf-8")

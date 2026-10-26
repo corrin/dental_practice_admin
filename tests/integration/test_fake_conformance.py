@@ -29,9 +29,12 @@ from tests.fake.store import FAKE_API_KEY, FAKE_PRACTICE_ID
 pytestmark = pytest.mark.integration
 
 
-def recorded(name: str) -> list[Any]:
-    """Every successful answer production gave, from the data folder the recorder keeps."""
-    found = answers(Settings(environment=Environment.PRODUCTION), name)
+def recorded(name: str, environment: Environment = Environment.PRODUCTION) -> list[Any]:
+    """Every successful answer the environment gave, from the data folder the recorder keeps.
+
+    Reads come from production and writes from staging (ADR 0006).
+    """
+    found = answers(Settings(environment=environment), name)
     if not found:
         pytest.fail(f"no recording of {name}; record it with"
                     " `uv run python -m scripts.record_principle_wire`")
@@ -54,9 +57,19 @@ API_CALLS = {
     "getPatient": ("GET", "/v1/patients/fake-patient-001", {}, None),
     "searchPatients": ("GET", "/v1/patients",
                         {"practiceId": FAKE_PRACTICE_ID, "name": "Patient 001"}, None),
+    "listInvoicesByDateRange": ("GET", "/v1/invoices", {
+        "practiceId": FAKE_PRACTICE_ID, "updatedFrom": "2026-01-01T00:00:00Z"}, None),
+    "listTransactionsByDateRange": ("GET", "/v1/transactions", {
+        "practiceId": FAKE_PRACTICE_ID, "updatedFrom": "2026-01-01T00:00:00Z"}, None),
+}
+
+WRITES: dict[str, tuple[str, str, dict[str, str], dict[str, Any]]] = {
     "createPatient": ("POST", "/v1/patients", {}, {
         "practiceId": FAKE_PRACTICE_ID, "name": "Conformance", "dateOfBirth": "1970-01-01",
         "gender": "notSpecified", "email": "conformance@fake.invalid"}),
+    "updatePatient": ("PATCH", "/v1/patients/fake-patient-001", {}, {
+        "practiceId": FAKE_PRACTICE_ID, "name": "Conformance", "dateOfBirth": "1970-01-01",
+        "gender": "notSpecified", "email": "conformance@fake.invalid", "address": "1 Fake St"}),
 }
 
 
@@ -64,6 +77,15 @@ API_CALLS = {
 def test_the_fake_api_sends_only_recorded_shapes(fake_store: FakeStore, name: str) -> None:
     method, path, query, body = API_CALLS[name]
     real = joined([shape_of(body) for body in recorded(name)])[0]
+    fake = shape_of(answer(fake_store, method, path, query, body))
+    assert covers(real, fake) == []
+
+
+@pytest.mark.parametrize("name", sorted(WRITES))
+def test_the_fake_answers_writes_only_in_recorded_shapes(fake_store: FakeStore,
+                                                        name: str) -> None:
+    method, path, query, body = WRITES[name]
+    real = joined([shape_of(body) for body in recorded(name, Environment.STAGING)])[0]
     fake = shape_of(answer(fake_store, method, path, query, body))
     assert covers(real, fake) == []
 

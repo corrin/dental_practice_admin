@@ -358,6 +358,26 @@ class FakeStore:
         self.db.executemany("INSERT INTO patient_notes VALUES (?, ?, ?)",
                             [(ident, n, text) for n, text in enumerate(notes)])
 
+    def update_patient(self, patient_id: str, body: dict[str, Any],
+                       at: str) -> dict[str, object] | None:
+        """`PATCH /v1/patients/{id}`: the fields sent replace the stored ones.
+
+        docs/principle/patient-writes.md: contact numbers and address not sent are kept.
+        """
+        if self.patient(patient_id) is None:
+            return None
+        columns = {"name": body["name"], "gender": body["gender"], "email": body["email"],
+                   "date_of_birth": body["dateOfBirth"], "updated_at": canonical(at)}
+        if "address" in body:
+            columns["address"] = body["address"]
+        if "contactNumbers" in body:
+            numbers = body["contactNumbers"]
+            columns["phone"] = numbers[0]["number"] if numbers else None
+        self.db.execute("UPDATE patients SET " + ", ".join(f"{c} = :{c}" for c in columns)
+                        + " WHERE id = :id", columns | {"id": patient_id})
+        self.db.commit()
+        return self.patient(patient_id)
+
     def create_patient(self, body: dict[str, Any], at: str) -> dict[str, object]:
         """A patient created through `POST /v1/patients`, with an id minted by the store."""
         count = self.db.execute("SELECT COUNT(*) FROM patients").fetchone()[0]

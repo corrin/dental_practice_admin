@@ -223,3 +223,21 @@ async def test_error_status_becomes_a_typed_failure(tmp_path: Path) -> None:
         with pytest.raises(PrincipleError) as raised:
             await client.get("listPractices")
     assert raised.value.status == 403
+
+
+async def test_an_update_replaces_the_fields_sent_and_keeps_the_rest(
+        fake_client: PrincipleClient) -> None:
+    """docs/principle/patient-writes.md: numbers, address and tags not sent are kept."""
+    created = await fake_client.call("createPatient", {
+        "name": "Update Fake", "dateOfBirth": "1980-02-03", "gender": "female",
+        "email": "update@fake.invalid", "address": "1 Fake Street",
+        "contactNumbers": [{"label": "mobile", "number": "+6421000001"}]})
+    required = {key: created[key] for key in ("name", "dateOfBirth", "gender", "email")}
+
+    await fake_client.call("updatePatient", {"patientId": created["id"], **required,
+                                             "address": "2 Fake Street"})
+    saved = await fake_client.call("getPatient", {"patientId": created["id"]})
+
+    assert saved["address"] == "2 Fake Street"
+    assert saved["contactNumbers"] == created["contactNumbers"]
+    assert saved["updatedAt"] >= created["updatedAt"]

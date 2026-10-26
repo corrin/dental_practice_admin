@@ -199,6 +199,17 @@ def create_patient(store: FakeStore, request: Request, _match: re.Match[str]) ->
     return Response(201, store.create_patient(body, firestore_now()))
 
 
+def update_patient(store: FakeStore, request: Request, match: re.Match[str]) -> Response:
+    _only(request, frozenset())
+    body = request.json()
+    if not isinstance(body, dict) or body.get("practiceId") != FAKE_PRACTICE_ID:
+        raise FakeRefusalNotRecordedError("update_patient_invalid")
+    updated = store.update_patient(match.group("patient_id"), body, firestore_now())
+    if updated is None:
+        return _refusal("patient_not_found")
+    return Response(200, updated)
+
+
 def search_patients(store: FakeStore, request: Request, _match: re.Match[str]) -> Response:
     """Every match at once, with no `meta`: the endpoint is not paginated."""
     _only(request, frozenset({"practiceId", "name"}))
@@ -240,6 +251,7 @@ ROUTES: tuple[tuple[str, re.Pattern[str], Handler], ...] = (
     _route("GET", r"/v1/patients", search_patients),
     _route("POST", r"/v1/patients", create_patient),
     _route("GET", r"/v1/patients/(?P<patient_id>[^/]+)", get_patient),
+    _route("PATCH", r"/v1/patients/(?P<patient_id>[^/]+)", update_patient),
     _route("GET", r"/v1/invoices", list_invoices),
     _route("GET", r"/v1/transactions", list_transactions),
 )
