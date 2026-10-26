@@ -16,7 +16,7 @@ from dental_practice_admin.config import (
     Environment,
     Settings,
 )
-from tests.fake import FakeStore, transport
+from tests.servers import FakePrincipleServer
 from tests.settings import fake_settings
 
 
@@ -42,11 +42,12 @@ def _environment(tmp_path: Path, environment: Environment, url: str) -> dict[str
 
 
 @pytest.fixture
-def sent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore) -> Sent:
+def sent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+         fake_principle: FakePrincipleServer) -> Sent:
     """Run the recorder against one fake Principle, noting each request's environment.
 
-    Production and staging differ by name only; the fake answers both, so a request reaching
-    the wrong one is visible here rather than in a wrong recording.
+    Production and staging differ by name only; the fake answers both at its own address, so a
+    request reaching the wrong one is visible here rather than in a wrong recording.
     """
     for name, value in (_environment(tmp_path, Environment.PRODUCTION, PRODUCTION_API_URL)
                         | _environment(tmp_path, Environment.STAGING, STAGING_API_URL)).items():
@@ -56,7 +57,7 @@ def sent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(recorder, "REFUSALS", tmp_path / "refusals")
     monkeypatch.setattr(recorder, "date", SeededDay)
-    fake = transport(fake_store)
+    fake = httpx.URL(fake_principle.url)
     seen = Sent()
     seen.bodies = []
 
@@ -78,12 +79,22 @@ def sent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore)
                 await self.inner.aclose()
 
         class Noting(httpx.AsyncBaseTransport):
+            def __init__(self) -> None:
+                self.network = httpx.AsyncHTTPTransport()
+
             async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
                 seen.append((settings.environment.value, request))
-                response = await fake.handle_async_request(request)
+                forwarded = httpx.Request(
+                    request.method,
+                    request.url.copy_with(scheme=fake.scheme, host=fake.host, port=fake.port),
+                    headers=request.headers, content=await request.aread())
+                response = await self.network.handle_async_request(forwarded)
                 assert isinstance(response.stream, httpx.AsyncByteStream)
                 response.stream = Teed(response.stream)
                 return response
+
+            async def aclose(self) -> None:
+                await self.network.aclose()
         return Noting()
 
     monkeypatch.setattr(recorder, "transport_for", noting)
@@ -172,21 +183,28 @@ def _updates(sent: Sent) -> list[httpx.Request]:
 
 
 async def test_the_update_goes_only_to_the_patient_just_created(
-        monkeypatch: pytest.MonkeyPatch, fake_store: FakeStore, sent: Sent) -> None:
-    before = {row["id"] for row in fake_store.db.execute("SELECT id FROM patients")}
+        monkeypatch: pytest.MonkeyPatch, fake_principle: FakePrincipleServer,
+        sent: Sent) -> None:
+    before = {row["id"] for row in fake_principle.sql("SELECT id FROM patients")}
 
     await _record(monkeypatch, "--create-patient")
 
-    created = {row["id"] for row in fake_store.db.execute("SELECT id FROM patients")} - before
+    created = {row["id"] for row in fake_principle.sql("SELECT id FROM patients")} - before
     assert [request.url.path for request in _updates(sent)] == [
         f"/v1/patients/{patient}" for patient in created]
 
 
+def _created_with_someone_elses_email(fake: FakePrincipleServer) -> None:
+    """Principle saving a new patient with an email other than the one sent."""
+    fake.sql("CREATE TRIGGER someone_else AFTER INSERT ON patients BEGIN"
+             " UPDATE patients SET email = 'someone.else@example.invalid' WHERE id = NEW.id;"
+             " END")
+
+
 async def test_the_update_is_refused_unless_the_patient_carries_the_owners_details(
-        monkeypatch: pytest.MonkeyPatch, fake_store: FakeStore, sent: Sent) -> None:
-    create = fake_store.create_patient
-    monkeypatch.setattr(fake_store, "create_patient", lambda body, at: create(
-        body | {"email": "someone.else@example.invalid"}, at))
+        monkeypatch: pytest.MonkeyPatch, fake_principle: FakePrincipleServer,
+        sent: Sent) -> None:
+    _created_with_someone_elses_email(fake_principle)
 
     with pytest.raises(SystemExit):
         await _record(monkeypatch, "--create-patient")
@@ -194,12 +212,10 @@ async def test_the_update_is_refused_unless_the_patient_carries_the_owners_detai
 
 
 async def test_a_write_that_fails_keeps_what_every_system_sent(
-        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore,
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_principle: FakePrincipleServer,
         sent: Sent) -> None:
     """The patient it created stays on staging, so the exchanges that show why are kept."""
-    create = fake_store.create_patient
-    monkeypatch.setattr(fake_store, "create_patient", lambda body, at: create(
-        body | {"email": "someone.else@example.invalid"}, at))
+    _created_with_someone_elses_email(fake_principle)
 
     with pytest.raises(SystemExit):
         await _record(monkeypatch, "--create-patient")
@@ -236,13 +252,12 @@ async def test_creating_without_the_owners_contact_details_refuses_before_readin
 
 
 async def test_a_failed_run_creates_nothing_and_keeps_the_previous_recordings(
-        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore,
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_principle: FakePrincipleServer,
         sent: Sent) -> None:
     previous = _recordings(tmp_path) / "listPractices" / "001.body"
     previous.parent.mkdir(parents=True)
     previous.write_text("previous", encoding="utf-8")
-    fake_store.db.execute("DELETE FROM calendar_events")
-    fake_store.db.commit()
+    fake_principle.sql("DELETE FROM calendar_events")
 
     with pytest.raises(SystemExit):
         await _record(monkeypatch, "--create-patient")
@@ -299,10 +314,9 @@ async def test_creating_without_staging_settings_refuses_before_reading(
 
 
 async def test_a_patient_breaking_the_specification_is_recorded_as_sent(
-        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_store: FakeStore,
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_principle: FakePrincipleServer,
         sent: Sent) -> None:
-    fake_store.db.execute("UPDATE patients SET phone = '021 123 4567'")
-    fake_store.db.commit()
+    fake_principle.sql("UPDATE patients SET phone = '021 123 4567'")
 
     await _record(monkeypatch)
 
@@ -386,9 +400,9 @@ async def test_a_run_replaces_the_recordings_of_operations_it_made(
 
 @pytest.mark.parametrize("table", ["calendar_events", "roster_items", "invoices", "transactions"])
 async def test_a_collection_with_nothing_to_record_fails_the_run(
-        monkeypatch: pytest.MonkeyPatch, fake_store: FakeStore, sent: Sent, table: str) -> None:
-    fake_store.db.execute(f"DELETE FROM {table}")
-    fake_store.db.commit()
+        monkeypatch: pytest.MonkeyPatch, fake_principle: FakePrincipleServer, sent: Sent,
+        table: str) -> None:
+    fake_principle.sql(f"DELETE FROM {table}")
 
     with pytest.raises(SystemExit):
         await _record(monkeypatch)

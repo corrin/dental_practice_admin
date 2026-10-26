@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import re
 
+import httpx2 as httpx
 import pytest
 
 from dental_practice_admin.principle import CATALOGUE, Call
-from tests.fake import FakeStore, dispatch
-from tests.fake.server import ROUTES, FakeUnhandledRouteError, Request
+from tests.fake.server import ROUTES
 from tests.fake.store import FAKE_API_KEY
+from tests.servers import FakePrincipleServer
 
 SAMPLE_SEGMENT = "sample"
 
@@ -88,17 +89,14 @@ def test_every_catalogue_call_is_routed(call: Call) -> None:
     )
 
 
-def test_unrouted_call_refuses(fake_store: FakeStore) -> None:
+def test_unrouted_call_refuses(fake_principle: FakePrincipleServer) -> None:
     """A future edit that makes the fake answer an unknown path would be caught here.
 
     Guessing an answer is the failure this fake exists to avoid: it would return a shape
     nobody verified and the suite would go green on it.
     """
-    request = Request(
-        method="GET",
-        path="/v1/not-in-the-interface",
-        query={},
-        headers={"x-api-key": FAKE_API_KEY},
-    )
-    with pytest.raises(FakeUnhandledRouteError, match="no route for"):
-        dispatch(fake_store, request)
+    response = httpx.get(f"{fake_principle.url}/v1/not-in-the-interface",
+                         headers={"x-api-key": FAKE_API_KEY}, timeout=10)
+    assert response.status_code == 500
+    log = fake_principle.take_log()
+    assert "FakeUnhandledRouteError" in log and "no route for" in log

@@ -16,6 +16,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
+import httpx2 as httpx
 import pytest
 from scripts.record_principle_wire import (
     FIRESTORE_CATALOGUE,
@@ -28,10 +29,9 @@ from scripts.record_principle_wire import recorded as answers
 
 from dental_practice_admin.config import Environment, Settings
 from dental_practice_admin.principle import SEARCH_LAG
-from tests.fake import FakeStore, dispatch
 from tests.fake import firestore as fake_firestore
-from tests.fake.server import Request
 from tests.fake.store import FAKE_API_KEY, FAKE_PRACTICE_ID, SEARCH_INDEX_LAG
+from tests.servers import FakePrincipleServer
 
 pytestmark = pytest.mark.integration
 
@@ -48,11 +48,26 @@ def recorded(name: str, environment: Environment = Environment.PRODUCTION) -> li
     return found
 
 
-def answer(store: FakeStore, method: str, path: str, query: dict[str, str] | None = None,
-           body: dict[str, Any] | None = None) -> Any:
-    response = dispatch(store, Request(method, path, query or {}, {"x-api-key": FAKE_API_KEY},
-                                       json.dumps(body).encode() if body else b""))
-    return response.body
+def answer(fake: FakePrincipleServer, method: str, path: str,
+           query: dict[str, str] | None = None, body: dict[str, Any] | None = None) -> Any:
+    """The fake's answer, signed in both as the API and as Firestore."""
+    response = httpx.request(method, fake.url + path, params=query, json=body, timeout=10,
+                             headers={"x-api-key": FAKE_API_KEY,
+                                      "authorization": f"Bearer {fake_firestore.ID_TOKEN}"})
+    response.raise_for_status()
+    return response.json()
+
+
+def firestore_query(fake: FakePrincipleServer, parent: str,
+                    collection: str) -> list[dict[str, Any] | None]:
+    path = f"/v1/{fake_firestore.ROOT}{'/' + parent if parent else ''}:runQuery"
+    rows = answer(fake, "POST", path,
+                  body={"structuredQuery": {"from": [{"collectionId": collection}]}})
+    return [row["document"] for row in rows]
+
+
+def firestore_document(fake: FakePrincipleServer, path: str) -> list[dict[str, Any] | None]:
+    return [answer(fake, "GET", f"/v1/{fake_firestore.ROOT}/{path}")]
 
 
 API_CALLS = {
@@ -81,42 +96,37 @@ WRITES: dict[str, tuple[str, str, dict[str, str], dict[str, Any]]] = {
 
 
 @pytest.mark.parametrize("name", sorted(API_CALLS))
-def test_the_fake_api_sends_only_recorded_shapes(fake_store: FakeStore, name: str) -> None:
+def test_the_fake_api_sends_only_recorded_shapes(fake_principle: FakePrincipleServer,
+                                                 name: str) -> None:
     method, path, query, body = API_CALLS[name]
     real = joined([shape_of(body) for body in recorded(name)])[0]
-    fake = shape_of(answer(fake_store, method, path, query, body))
+    fake = shape_of(answer(fake_principle, method, path, query, body))
     assert covers(real, fake) == []
 
 
 @pytest.mark.parametrize("name", sorted(WRITES))
-def test_the_fake_answers_writes_only_in_recorded_shapes(fake_store: FakeStore,
+def test_the_fake_answers_writes_only_in_recorded_shapes(fake_principle: FakePrincipleServer,
                                                         name: str) -> None:
     method, path, query, body = WRITES[name]
     real = joined([shape_of(body) for body in recorded(name, Environment.STAGING)])[0]
-    fake = shape_of(answer(fake_store, method, path, query, body))
+    fake = shape_of(answer(fake_principle, method, path, query, body))
     assert covers(real, fake) == []
 
 
-FIRESTORE_READS: dict[str, Callable[[FakeStore], list[dict[str, Any] | None]]] = {
-    "patients": lambda store: [fake_firestore.get_document(store, "patients/fake-patient-001")],
-    "appointments": lambda store: [fake_firestore.get_document(
-        store, "patients/fake-patient-001/appointments/fake-appointment-001")],
-    "treatmentSteps": lambda store: [fake_firestore.get_document(
-        store, "patients/fake-patient-001/treatmentPlans/plan-fake-appointment-001"
-        "/treatmentSteps/step-fake-appointment-001")],
-    "treatmentCategories": lambda store: [fake_firestore.get_document(
-        store, "treatmentCategories/fake-category-hygiene")],
-    "scheduleSummaries": lambda store: [
-        row["document"] for row in fake_firestore.run_query(
-            store, f"practices/{FAKE_PRACTICE_ID}",
-            {"structuredQuery": {"from": [{"collectionId": "scheduleSummaries"}]}})],
-    "rosterSchedules": lambda store: [
-        row["document"] for row in fake_firestore.run_query(
-            store, "staff/fake-practitioner-02",
-            {"structuredQuery": {"from": [{"collectionId": "rosterSchedules"}]}})],
-    "calendarEvents": lambda store: [
-        row["document"] for row in fake_firestore.run_query(
-            store, "", {"structuredQuery": {"from": [{"collectionId": "calendarEvents"}]}})],
+FIRESTORE_READS: dict[str, Callable[[FakePrincipleServer], list[dict[str, Any] | None]]] = {
+    "patients": lambda fake: firestore_document(fake, "patients/fake-patient-001"),
+    "appointments": lambda fake: firestore_document(
+        fake, "patients/fake-patient-001/appointments/fake-appointment-001"),
+    "treatmentSteps": lambda fake: firestore_document(
+        fake, "patients/fake-patient-001/treatmentPlans/plan-fake-appointment-001"
+        "/treatmentSteps/step-fake-appointment-001"),
+    "treatmentCategories": lambda fake: firestore_document(
+        fake, "treatmentCategories/fake-category-hygiene"),
+    "scheduleSummaries": lambda fake: firestore_query(
+        fake, f"practices/{FAKE_PRACTICE_ID}", "scheduleSummaries"),
+    "rosterSchedules": lambda fake: firestore_query(
+        fake, "staff/fake-practitioner-02", "rosterSchedules"),
+    "calendarEvents": lambda fake: firestore_query(fake, "", "calendarEvents"),
 }
 
 
@@ -125,14 +135,14 @@ def test_every_recorded_collection_is_checked() -> None:
 
 
 @pytest.mark.parametrize("name", FIRESTORE_CATALOGUE)
-def test_the_fake_firestore_sends_only_recorded_shapes(fake_store: FakeStore,
+def test_the_fake_firestore_sends_only_recorded_shapes(fake_principle: FakePrincipleServer,
                                                        name: str) -> None:
     # A document read answers the document; a query answers rows, each holding one.
     real = joined([shape_of(document.get("fields", {}))
                    for body in recorded(f"firestore/{name}")
                    for document in ([row["document"] for row in body if "document" in row]
                                     if isinstance(body, list) else [body])])[0]
-    documents = FIRESTORE_READS[name](fake_store)
+    documents = FIRESTORE_READS[name](fake_principle)
     assert documents and all(documents)
     for document in documents:
         assert document is not None

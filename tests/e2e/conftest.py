@@ -5,14 +5,22 @@ from __future__ import annotations
 import pytest
 from playwright.sync_api import Playwright
 
-from tests.servers import DIARY_DATE, EXPECTED_BOOKED, EXPECTED_CANCELLED, REPO, spine
+from tests.servers import (
+    DIARY_DATE,
+    EXPECTED_BOOKED,
+    EXPECTED_CANCELLED,
+    REPO,
+    spine,
+    spine_principle_server,
+)
 
 # The templates mark testable elements with `data-automation-id`; Playwright's default is
 # `data-testid`, so without this every get_by_test_id silently matches nothing and the assertions
 # fail with a page dump rather than a missing-attribute message.
 TEST_ID_ATTRIBUTE = "data-automation-id"
 
-__all__ = ["DIARY_DATE", "EXPECTED_BOOKED", "EXPECTED_CANCELLED", "REPO", "spine"]
+__all__ = ["DIARY_DATE", "EXPECTED_BOOKED", "EXPECTED_CANCELLED", "REPO", "spine",
+           "spine_principle_server"]
 
 
 @pytest.fixture(scope="session", autouse=True)
