@@ -1,9 +1,15 @@
 # 0007 — Record every interface
 
-Every operation in the released Principle interface has a recording from Principle and a route in
-the fake, and the fake answers from a snapshot of production.
+Every operation of every external system the application uses (Principle's API, Firestore and
+Firebase, Akahu, Google, OpenAI, GitHub) has a recording of exactly what that system sent and a
+route in its fake, and the fakes answer from a snapshot of production.
 
 ## Rules
+
+- A recording is what the external system sent, bit for bit: the status, the headers and the
+  body bytes as they came off the wire, captured at the transport before anything parses them.
+  Nothing is redacted, remapped or reformatted, so a check against it is a check against the
+  system itself. Only the anonymised copy committed to GitHub is derived from recordings.
 
 - The fake is a working Principle, not a replay: it holds state, and every answer, write and
   refusal is computed from that state. The state is loaded from a snapshot of production that
