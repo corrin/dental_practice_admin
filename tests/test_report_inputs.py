@@ -1,17 +1,20 @@
 """A report's date can mean "today" when it runs, and its practitioner is chosen from Principle."""
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 from jsonschema import ValidationError as SchemaError
 from pydantic import SecretStr
 
-from dental_practice_admin import schedules, task_files
+from dental_practice_admin import saved_scripts, schedules, scripts, task_files
 from dental_practice_admin.app import create_app
-from dental_practice_admin.config import Settings
+from dental_practice_admin.auth import FAKE_STAFF
+from dental_practice_admin.config import Settings, SignIn
+from tests.fake_akahu import FAKE_AKAHU_SETTINGS
 from tests.test_automation import SOURCE, settings
 
 REVISION = "b" * 40
@@ -20,13 +23,13 @@ DAY_SHEET = {"type": "object", "additionalProperties": False, "properties": {
     "practitioner": {"type": "string", "minLength": 1, "format": "practitioner"}}}
 
 
-def install(root: Path) -> Settings:
+def install(root: Path, name: str = "day_report", inputs: dict[str, Any] = DAY_SHEET) -> Settings:
     configured = settings(root)
-    folder = configured.data_dir / "installed" / "day_report" / REVISION
+    folder = configured.data_dir / "installed" / name / REVISION
     folder.mkdir(parents=True)
     (folder / "task.json").write_text(task_files.Definition(
-        name="day_report", title="Day report", description="Synthetic",
-        inputs=DAY_SHEET).model_dump_json(), encoding="utf-8")
+        name=name, title=name.replace("_", " ").capitalize(), description="Synthetic",
+        inputs=inputs).model_dump_json(), encoding="utf-8")
     (folder / "source.txt").write_text(SOURCE, encoding="utf-8")
     (folder.parent / "current").write_text(REVISION, encoding="utf-8")
     return configured
@@ -77,3 +80,64 @@ def test_the_practitioner_list_is_principles_names_in_order(
         response = client.get("/tasks/practitioners")
     assert response.status_code == 200
     assert response.json() == ["Dr Ada Whitwell", "Dr Bo Ferriter"]
+
+
+DATED_SOURCE = '''from pathlib import Path
+async def run(services, inputs):
+    Path(inputs['marker']).write_text(inputs['date'])
+    return {'summary': 'Synthetic dated report', 'detail': {}, 'coverage': 'complete'}
+'''
+DATED_TESTS = '''import unittest, asyncio, tempfile
+from pathlib import Path
+namespace = {}
+exec(Path(__file__).with_name('source.txt').read_text(), namespace)
+class ScriptTest(unittest.TestCase):
+    def test_date(self):
+        with tempfile.TemporaryDirectory() as root:
+            marker = Path(root) / 'marker'
+            asyncio.run(namespace['run'](None, {'marker': str(marker), 'date': '2026-10-30'}))
+            self.assertEqual(marker.read_text(), '2026-10-30')
+'''
+DATED = task_files.Definition(name="dated_report", title="Dated report",
+    description="Write the date it was given", inputs={"type": "object",
+        "properties": {"marker": {"type": "string"},
+                       "date": {"type": "string", "format": "date", "default": "today"}},
+        "required": ["marker"], "additionalProperties": False})
+
+
+def test_a_draft_being_tried_gets_today_as_a_date(tmp_path: Path) -> None:
+    configured = settings(tmp_path).model_copy(update={
+        "sign_in": SignIn.DEVELOPER, "openai_api_key": SecretStr("fake-ai"),
+        **FAKE_AKAHU_SETTINGS})
+    script = scripts.Script(source=DATED_SOURCE, language="python", inputs={},
+                            owner=FAKE_STAFF, thread="private-thread")
+    identifier = saved_scripts.prepare(configured, script, DATED, DATED_TESTS)
+    marker = tmp_path / "marker"
+    with TestClient(create_app(configured)) as client:
+        response = client.post("/tasks/test", json={"draft_id": identifier,
+                               "inputs": {"marker": str(marker), "date": "today"}})
+    assert response.status_code == 200
+    assert marker.read_text() == date.today().isoformat()
+
+
+async def test_a_run_due_before_midnight_is_for_the_day_it_was_due(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The launcher may start a 23:58 run at 00:01; "today" still means the day it was due."""
+    configured = install(tmp_path)
+    schedule = schedules.Schedule(name="day_report", inputs={"date": "today"})
+    schedules.save(configured, schedule, "fake-staff")
+    local = datetime.now().astimezone().tzinfo
+    started = datetime(2026, 10, 5, 0, 1, tzinfo=local)
+    with schedules.open_schedules(configured) as scheduler:
+        scheduler.get_job(schedule.id).modify(next_run_time=started - timedelta(minutes=3))
+    given: list[str] = []
+    load = task_files.load
+
+    def noting(*args: Any, **kwargs: Any) -> Any:
+        script = load(*args, **kwargs)
+        given.append(script.inputs["date"])
+        return script
+
+    monkeypatch.setattr(task_files, "load", noting)
+    await schedules.run_due(configured, started)
+    assert given == ["2026-10-04"]

@@ -100,18 +100,21 @@ async function change(action, payload) {
 // Two kinds of input are shown as staff know them rather than as json-editor would: a date as
 // a report period (Today, Tomorrow or a chosen date, as QuickBooks shows one), and a
 // practitioner picked from Principle's list. A period is sent as its word, so a schedule saved
-// for Today runs for the day it runs; the server turns the word into a date (task_files.resolved).
-// The words and today's date come from the server, whose clock the run uses.
-const PERIODS = {{ periods|tojson }}, TODAY = {{ today|tojson }};
-let chosen = {}, choosing = Promise.resolve();
+// for Today runs for the day it runs; the server turns the word into a date (task_files.checked).
+// Each period's date comes from the server, whose clock the run uses.
+const PERIODS = {{ periods|tojson }};
+const isPeriod = word => typeof word === 'string' && Object.hasOwn(PERIODS, word);
+let chosen = {}, choosing = Promise.resolve(), practitioners;
 const isChosen = field => field.format === 'date' || field.format === 'practitioner';
-function localDay(offset) {
-  const day = new Date(TODAY + 'T12:00:00');
-  day.setDate(day.getDate() + offset);
-  return [day.getFullYear(), String(day.getMonth() + 1).padStart(2, '0'),
-          String(day.getDate()).padStart(2, '0')].join('-');
+// Principle's list is read once per page; a failed read is tried again next time it is needed.
+function practitionerNames() {
+  practitioners ??= fetch('/tasks/practitioners').then(response => {
+    if(!response.ok) throw new Error();
+    return response.json();
+  }).catch(error => { practitioners = undefined; throw error; });
+  return practitioners;
 }
-function chosenField(key, field, value) {
+function chosenField(key, field, value, required) {
   const wrap = document.createElement('div'), label = document.createElement('label');
   const select = document.createElement('select');
   wrap.className = 'mb-3'; label.className = 'form-label'; select.className = 'form-select';
@@ -123,32 +126,37 @@ function chosenField(key, field, value) {
     day.type = 'date'; day.className = 'form-control mt-2'; day.setAttribute('aria-label', label.textContent + ' (date)');
     for(const word of Object.keys(PERIODS)) select.add(new Option(word.charAt(0).toUpperCase() + word.slice(1), word));
     select.add(new Option('Choose a date…', ''));
-    const show = () => { if(select.value) day.value = localDay(PERIODS[select.value]); };
+    const show = () => { if(select.value) day.value = PERIODS[select.value]; };
     select.onchange = () => { show(); if(!select.value) day.focus(); };
     day.onchange = () => { select.value = ''; };
     const start = value ?? field.default ?? '';
-    if(start in PERIODS) { select.value = start; show(); } else { select.value = ''; day.value = start; }
+    if(isPeriod(start)) { select.value = start; show(); } else { select.value = ''; day.value = start; }
     wrap.append(day);
     // With a default, "Choose a date…" left empty is a date forgotten, not the default.
     chosen[key] = () => {
-      if(!select.value && !day.value && field.default in PERIODS)
-        throw new Error('Choose a date for ' + label.textContent + ', or pick '
-          + [...select.options].find(option => option.value === field.default).text + '.');
+      if(!select.value && !day.value && (required || isPeriod(field.default)))
+        throw new Error('Choose a date for ' + label.textContent
+          + (isPeriod(field.default) ? ', or pick ' + select.options[Object.keys(PERIODS).indexOf(field.default)].text : '') + '.');
       return select.value || day.value;
     };
   } else {
-    select.add(new Option('All practitioners', ''));
+    // A required practitioner has no "All": the task needs one named.
+    select.add(new Option(required ? 'Choose a practitioner…' : 'All practitioners', ''));
     // A schedule's practitioner stays chosen even if Principle no longer lists them.
     if(value) select.add(new Option(value, value));
     select.value = value || '';
     select.disabled = true;
-    choosing = fetch('/tasks/practitioners').then(async response => {
-      if(!response.ok) throw new Error();
-      for(const name of await response.json()) if(name !== value) select.add(new Option(name, name));
+    const task = el('task').value;
+    choosing = practitionerNames().then(names => {
+      for(const name of names) if(name !== value) select.add(new Option(name, name));
     }).catch(() => {
-      el('status').textContent = "Principle's list of practitioners could not be loaded, so only All practitioners can be chosen.";
+      if(el('task').value === task)
+        el('status').textContent = "Principle's list of practitioners could not be loaded. Refresh the page to try again.";
     }).finally(() => { select.disabled = false; });
-    chosen[key] = () => select.value;
+    chosen[key] = () => {
+      if(required && !select.value) throw new Error('Choose a practitioner for ' + label.textContent + '.');
+      return select.value;
+    };
   }
   el('chosen-inputs').append(wrap);
 }
@@ -175,7 +183,10 @@ function showInputs(value={}) {
   chosen = {}; choosing = Promise.resolve();
   const ordinary = {...task.inputs, properties:{}}, given = {};
   for(const [key, field] of Object.entries(task.inputs.properties || {})) {
-    if(isChosen(field)) { chosenField(key, field, value[key]); continue; }
+    if(isChosen(field)) {
+      chosenField(key, field, value[key], (task.inputs.required || []).includes(key));
+      continue;
+    }
     ordinary.properties[key] = field;
     if(key in value) given[key] = value[key];
   }

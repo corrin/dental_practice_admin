@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.test_report_inputs import install
+from tests.test_report_inputs import DAY_SHEET, install
 
 pytestmark = pytest.mark.e2e
 
@@ -45,3 +45,17 @@ def test_the_date_defaults_to_today_and_a_schedule_keeps_it(page: Page,
     row.get_by_role("button", name="Remove", exact=True).click()
     expect(row).to_have_count(0)
     assert not errors
+
+
+def test_a_required_practitioner_has_no_all_and_must_be_chosen(page: Page,
+                                                               spine: dict[str, str]) -> None:
+    install(Path(spine["ADMIN_DATA_ROOT"]), "named_report",
+            {**DAY_SHEET, "required": ["practitioner"]})
+    page.goto(spine["APP_URL"])
+    page.locator("#task").select_option(label="Named report")
+    practitioner = page.locator("#chosen-practitioner")
+    expect(practitioner).to_be_enabled()
+    expect(practitioner.locator("option")).to_have_text(
+        ["Choose a practitioner…", "Dr Ada Whitwell", "Dr Bo Ferriter"])
+    page.get_by_role("button", name="Run now", exact=True).click()
+    expect(page.locator("#status")).to_have_text("Choose a practitioner for Practitioner.")
