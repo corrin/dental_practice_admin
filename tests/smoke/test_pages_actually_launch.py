@@ -19,7 +19,9 @@ Run: `uv run pytest -m smoke`, or via scripts/release_gate.ps1.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
+from urllib.parse import urlsplit
 
 import pytest
 from playwright.sync_api import (
@@ -51,6 +53,9 @@ IGNORED_CONSOLE = (
     # ADMIN_CHATKIT_DOMAIN_KEY must hold a key registered for the practice's hostname.
     "Domain verification skipped",
 )
+
+# The ChatKit requests that send a staff message, each answered by a reply stream.
+REPLY_STREAMS = frozenset({"threads.create", "threads.add_user_message"})
 
 # How long the CDN component is given to register and render. Generous because it is someone
 # else's network, and a flaky failure here would get the tier disabled.
@@ -90,6 +95,14 @@ class PageProblems:
         if any(origin in request.url for origin in THIRD_PARTY_ORIGINS):
             self.third_party.append(f"{request.url[:120]} ({request.failure})")
             return
+        # ChatKit stops reading a reply stream at its final event, milliseconds before
+        # `chatkit.response.end` and before the server's end of stream arrives, and Chromium
+        # reports that as ERR_ABORTED. The server does end the stream: the end-to-end tier reads
+        # it to the end. Only sending a message opens a reply stream, and the test that sends one
+        # asserts the reply's text, so a reply cut short still fails.
+        if (urlsplit(request.url).path == "/chatkit" and request.failure == "net::ERR_ABORTED"
+                and json.loads(request.post_data or "{}").get("type") in REPLY_STREAMS):
+            return
         self.problems.append(f"request failed: {request.url[:150]} ({request.failure})")
 
     def assert_clean(self, where: str) -> None:
@@ -107,15 +120,15 @@ def watched(page: Page) -> Iterator[PageProblems]:
     yield problems
 
 
-def test_the_runs_page_loads_clean(
+def test_the_home_page_loads_clean(
     page: Page, watched: PageProblems, spine: dict[str, str]
 ) -> None:
     """The page staff land on must render with nothing broken in the console."""
     page.goto(spine["APP_URL"], wait_until="load")
-    expect(page.get_by_role("heading", name="Recent runs")).to_be_visible()
+    expect(page.get_by_role("heading", name="Reports")).to_be_visible()
     expect(page.get_by_test_id("fake-banner")).to_be_visible()
     expect(page.get_by_test_id("staff-identity")).to_be_visible()
-    watched.assert_clean("the runs page")
+    watched.assert_clean("the home page")
 
 
 def chat_ui(page: Page) -> FrameLocator:
@@ -176,7 +189,7 @@ def test_a_staff_member_can_ask_a_question_and_get_an_answer(
     watched.assert_clean("asking a question")
 
 
-def test_every_link_on_the_runs_page_resolves(
+def test_every_link_on_the_home_page_resolves(
     page: Page, watched: PageProblems, spine: dict[str, str]
 ) -> None:
     """A link to a page that 404s is a broken application, however green the suite is."""
