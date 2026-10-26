@@ -370,8 +370,7 @@ class FakeStore:
             {"id": ident, "practice": body["practiceId"], "name": body["name"],
              "phone": numbers[0]["number"] if numbers else None, "at": canonical(at),
              "gender": body["gender"], "email": body["email"],
-             # Principle answers a string when no address was sent, and the fake an empty
-             # one; the createPatient recording holds exactly which string Principle sends.
+             # With no address sent, Principle answers an empty one (createPatient recording).
              "address": body.get("address", ""), "dob": body["dateOfBirth"]})
         self.db.commit()
         created = self.patient(ident)
