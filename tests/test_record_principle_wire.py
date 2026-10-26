@@ -332,3 +332,13 @@ async def test_a_run_replaces_the_recordings_of_operations_it_made(
     await _record(monkeypatch)
 
     assert not stale.exists()
+
+
+@pytest.mark.parametrize("table", ["calendar_events", "roster_items"])
+async def test_a_collection_with_nothing_to_record_fails_the_run(
+        monkeypatch: pytest.MonkeyPatch, fake_store: FakeStore, sent: Sent, table: str) -> None:
+    fake_store.db.execute(f"DELETE FROM {table}")
+    fake_store.db.commit()
+
+    with pytest.raises(SystemExit):
+        await _record(monkeypatch)

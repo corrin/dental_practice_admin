@@ -33,7 +33,8 @@ def recorded(name: str) -> list[Any]:
     """Every successful answer production gave, from the data folder the recorder keeps."""
     found = answers(Settings(environment=Environment.PRODUCTION), name)
     if not found:
-        pytest.fail(f"no recording of {name}; record it with scripts/record_principle_wire.py")
+        pytest.fail(f"no recording of {name}; record it with"
+                    " `uv run python -m scripts.record_principle_wire`")
     return found
 
 

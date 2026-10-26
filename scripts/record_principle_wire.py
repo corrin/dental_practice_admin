@@ -8,7 +8,9 @@ them. Nothing is redacted, remapped or reformatted. The recordings therefore hol
 records and live in production's data folder, never in this checkout. Each operation's
 exchanges are `<operationId>/NNN.json` (when, which request, status, headers) and `NNN.body`;
 Firestore's are named by collection, `firestore/<collection>/`, and Firebase sign-in's
-`firebase/<call>/`. Request headers and bodies are not kept: they carry the credentials.
+`firebase/<call>/`. Request headers and bodies are not kept: they carry the API key and the
+password. Firebase's sign-in answers are kept like any other, tokens included, so the
+recordings folder is as private as `.env`.
 
 Reads go to production and the one write to staging (ADR 0006). Creating a patient, only with
 --create-patient, makes a `[TEST] Fake` patient on staging, which the API cannot delete, so the
@@ -140,15 +142,19 @@ def write_recordings(exchanges: list[Exchange], into: Path) -> None:
     counts: dict[str, int] = {}
     for exchange in exchanges:
         if exchange.name not in counts:
-            shutil.rmtree(into / exchange.name, ignore_errors=True)
+            shutil.rmtree(into / f"{exchange.name}.new", ignore_errors=True)
         counts[exchange.name] = counts.get(exchange.name, 0) + 1
-        stem = into / exchange.name / f"{counts[exchange.name]:03d}"
+        stem = into / f"{exchange.name}.new" / f"{counts[exchange.name]:03d}"
         stem.parent.mkdir(parents=True, exist_ok=True)
         stem.with_suffix(".body").write_bytes(exchange.body)
         stem.with_suffix(".json").write_text(as_text({
             "capturedOn": date.today().isoformat(), "method": exchange.method,
             "url": exchange.url, "status": exchange.status, "headers": exchange.headers}),
             encoding="utf-8")
+    # Every operation is written in full before any recording is replaced.
+    for name in counts:
+        shutil.rmtree(into / name, ignore_errors=True)
+        (into / f"{name}.new").rename(into / name)
     print(f"  wrote {len(exchanges)} exchanges to {into}")
 
 
@@ -271,8 +277,9 @@ async def record_firestore(settings: Settings, capture: Capture,
         for category in sorted({a["treatmentCategory"]["id"] for a in appointments
                                 if a.get("treatmentCategory")}):
             await firestore.read(f"treatmentCategories/{category}")
-        for staff in sorted({a["practitionerId"] for a in appointments}):
-            await firestore.read(f"staff/{staff}", query("rosterSchedules"))
+        rosters = [row for staff in sorted({a["practitionerId"] for a in appointments})
+                   for row in await firestore.read(f"staff/{staff}", query("rosterSchedules"))]
+        found("rosterSchedules", rosters)
         found("scheduleSummaries", await firestore.read(
             f"practices/{settings.practice_id}",
             query("scheduleSummaries", ("day", "EQUAL", {"stringValue": day.isoformat()}))))
