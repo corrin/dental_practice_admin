@@ -28,7 +28,9 @@ Stage 'Locked browser server' { npm.cmd ci }
 Stage 'Locked dependencies' { uv sync --locked }
 if ($script:Failed.Count) { exit 1 }
 Stage 'Installed application' { uv run --locked python -c "from dental_practice_admin.app import create_app" }
-Stage 'Caddy configuration' { caddy validate --config deploy\Caddyfile --adapter caddyfile }
+# The Caddyfile names its site from ADMIN_HOST, which only the server's .env holds; without one the
+# site has no name and Caddy refuses the file. The installer validates with the real hostname.
+Stage 'Caddy configuration' { $env:ADMIN_HOST = 'admin.example.invalid'; caddy validate --config deploy\Caddyfile --adapter caddyfile }
 Stage 'Lint' { uv run --locked ruff check . }
 Stage 'Types' { uv run --locked mypy }
 Stage 'Released Principle interface' { uv run --locked python -m scripts.refresh_spec --check }
