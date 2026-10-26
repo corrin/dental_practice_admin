@@ -18,8 +18,11 @@ from the real API (scripts/record_principle_wire.py), never in words we invented
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import re
+import sys
 from collections.abc import Awaitable, Callable, Mapping, MutableMapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -33,6 +36,7 @@ from tests.fake import firestore
 from tests.fake.store import (
     FAKE_API_KEY,
     FAKE_PRACTICE_ID,
+    SEARCH_INDEX_LAG,
     SERVER_DEFAULT_LIMIT,
     FakeStore,
     Page,
@@ -191,12 +195,20 @@ def firestore_now() -> str:
 
 
 def create_patient(store: FakeStore, request: Request, _match: re.Match[str]) -> Response:
-    """A new patient, readable at once through the API and Firestore alike."""
+    """A new patient, readable at once by id and through Firestore, by name search later."""
     _only(request, frozenset())
     body = request.json()
     if not isinstance(body, dict) or body.get("practiceId") != FAKE_PRACTICE_ID:
         raise FakeRefusalNotRecordedError("create_patient_invalid")
-    return Response(201, store.create_patient(body, firestore_now()))
+    created = store.create_patient(body, firestore_now())
+    _index_later(store, str(created["id"]))
+    return Response(201, created)
+
+
+def _index_later(store: FakeStore, patient_id: str) -> None:
+    """Principle's search index catches up with a written patient `SEARCH_INDEX_LAG` later."""
+    asyncio.get_running_loop().call_later(SEARCH_INDEX_LAG.total_seconds(),
+                                          store.index_patient, patient_id)
 
 
 def update_patient(store: FakeStore, request: Request, match: re.Match[str]) -> Response:
@@ -207,6 +219,7 @@ def update_patient(store: FakeStore, request: Request, match: re.Match[str]) -> 
     updated = store.update_patient(match.group("patient_id"), body, firestore_now())
     if updated is None:
         return _refusal("patient_not_found")
+    _index_later(store, match.group("patient_id"))
     return Response(200, updated)
 
 
@@ -316,10 +329,30 @@ def dispatch(store: FakeStore, request: Request) -> Response:
 
 
 class FakePrinciple:
-    """ASGI application wrapping one store."""
+    """ASGI application wrapping one store.
 
-    def __init__(self, store: FakeStore | None = None) -> None:
+    `/__fake/` is its control interface, which Principle lacks: tests reset the practice to
+    its seed and set up the state they need there. Nothing in the application calls it.
+    """
+
+    def __init__(self, store: FakeStore | None = None, path: Path | None = None) -> None:
+        self.path = path
         self.store = store if store is not None else seed()
+
+    def control(self, request: Request) -> Response:
+        """Reset to the seed, or run one statement against the database."""
+        if request.method == "POST" and request.path == "/__fake/reset":
+            self.store.close()
+            if self.path is not None:
+                self.path.unlink(missing_ok=True)
+            self.store = seed(FakeStore(self.path or ":memory:"))
+            return Response(200, {"reset": True})
+        if request.method == "POST" and request.path == "/__fake/sql":
+            statement = request.json()
+            rows = self.store.db.execute(statement["sql"], statement.get("params", [])).fetchall()
+            self.store.db.commit()
+            return Response(200, {"rows": [dict(row) for row in rows]})
+        raise FakeUnhandledRouteError(f"no control route {request.method} {request.path}")
 
     async def __call__(
         self,
@@ -347,7 +380,8 @@ class FakePrinciple:
             },
             body=body,
         )
-        response = dispatch(self.store, request)
+        response = (self.control(request) if request.path.startswith("/__fake/")
+                    else dispatch(self.store, request))
         body = json.dumps(response.body).encode()
         await send(
             {
@@ -368,3 +402,23 @@ def transport(store: FakeStore | None = None) -> httpx.ASGITransport:
 
 
 app = FakePrinciple()
+
+
+def create_app() -> FakePrinciple:
+    """The fake as its own process, on the database in `FAKE_PRINCIPLE_DATA`.
+
+    The database survives a restart, as Principle's does; a new folder starts from the seed.
+    """
+    path = Path(os.environ["FAKE_PRINCIPLE_DATA"]) / "principle.sqlite3"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fresh = not path.exists()
+    store = FakeStore(path)
+    return FakePrinciple(seed(store) if fresh else store, path)
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    port, data = int(sys.argv[1]), sys.argv[2]
+    os.environ["FAKE_PRINCIPLE_DATA"] = data
+    uvicorn.run(create_app(), host="127.0.0.1", port=port)

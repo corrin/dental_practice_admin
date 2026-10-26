@@ -1,12 +1,14 @@
 """One released OpenAPI interface for chat, scripts and scheduled operations."""
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import re
 from collections.abc import AsyncIterator, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -105,6 +107,11 @@ BY_NAME = {call.name: call for call in CATALOGUE}
 # A transaction listing has one row per invoice a payment was split across, each with the
 # payment's `id` and that invoice's share, so `id` alone repeats within a correct walk.
 ROW_KEYS = {"listTransactionsByDateRange": ("id", "invoiceId")}
+
+# How long after createPatient Principle's name search may still miss the new patient. The
+# recorder's staging write run measures it; the integration tier fails if Principle is slower.
+SEARCH_LAG = timedelta(seconds=5)
+SEARCH_POLL = timedelta(milliseconds=500)
 
 
 ACCEPTED_WEB_BUILDS = frozenset({"main.ecfbec0077a05029.js", "main.8e7a8bfa2c5bf44c.js"})
@@ -318,7 +325,7 @@ class PrincipleClient:
             cause: BaseException | None = error
             while cause is not None:
                 if isinstance(cause, RecordError) and name == "getPatient":
-                    await self._in_practice(values["patientId"], cause.body.get("name"))
+                    await self._in_practice(values["patientId"], cause.body)
                 if isinstance(cause, RecordError) and call.method != "GET":
                     return cause.body  # Saved; the patient still holds details to fix.
                 if isinstance(cause, (PrincipleError, httpx.HTTPError)):
@@ -329,19 +336,33 @@ class PrincipleClient:
         if not isinstance(output, dict):
             raise self._incompatible(call, "missing_data")
         if name == "getPatient":
-            await self._in_practice(values["patientId"], output["name"])
+            await self._in_practice(values["patientId"], output)
         return output
 
-    async def _in_practice(self, patient_id: str, name: object) -> None:
-        """Refuse a patient the practice-scoped search by their name does not return."""
+    async def _in_practice(self, patient_id: str, patient: dict[str, Any]) -> None:
+        """Refuse a patient the practice-scoped search by their name does not return.
+
+        Principle's search finds a new patient only some seconds after it is created, so while
+        the patient is younger than `SEARCH_LAG` a miss is asked again rather than refused.
+        """
+        name = patient.get("name")
         if not isinstance(name, str):
             raise CallError("Patient is outside this practice or search is inconclusive")
+        created = patient.get("createdAt")
+        searchable = (datetime.fromisoformat(created) + SEARCH_LAG if isinstance(created, str)
+                      else datetime.now(UTC))
+        while not await self._found(patient_id, name):
+            if datetime.now(UTC) >= searchable:
+                raise CallError("Patient is outside this practice or search is inconclusive")
+            await asyncio.sleep(SEARCH_POLL.total_seconds())
+
+    async def _found(self, patient_id: str, name: str) -> bool:
+        """Whether the practice-scoped search by this name returns this patient."""
         try:
             rows = (await self.call("searchPatients", {"name": name}))["data"]
         except RecordError as error:
             rows = error.body["data"]
-        if not any(row["id"] == patient_id for row in rows):
-            raise CallError("Patient is outside this practice or search is inconclusive")
+        return any(row["id"] == patient_id for row in rows)
 
     async def get(self, name: str, *, path_params: Mapping[str, Any] | None = None,
                   query: Mapping[str, Any] | None = None) -> dict[str, Any]:

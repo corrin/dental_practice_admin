@@ -30,6 +30,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -64,6 +65,13 @@ CREATE TABLE patients (
     email         TEXT NOT NULL,
     address       TEXT,
     date_of_birth TEXT
+);
+-- What Principle's name search reads. A created patient reaches it only `SEARCH_INDEX_LAG`
+-- later, so a search straight after a create misses the patient, as Principle's does.
+CREATE TABLE patient_search (
+    patient_id  TEXT PRIMARY KEY REFERENCES patients(id),
+    practice_id TEXT NOT NULL,
+    name        TEXT NOT NULL
 );
 -- The patient's pinned notes, which Principle copies onto each timeline card.
 CREATE TABLE patient_notes (
@@ -189,8 +197,9 @@ PRACTICE_TZ = ZoneInfo("Pacific/Auckland")
 # Principle's own default when a request omits `limit` (observed 2026-10-01).
 SERVER_DEFAULT_LIMIT = 20
 
-# How long after createPatient its name search first finds the patient: 2.8 s on staging.
-SEARCH_DELAY = timedelta(seconds=3)
+# How long after createPatient Principle's name search first finds the patient: 2.8 s, measured
+# on staging by the recorder's write run.
+SEARCH_INDEX_LAG = timedelta(seconds=3)
 
 
 @dataclass(frozen=True)
@@ -209,10 +218,12 @@ class Page:
 class FakeStore:
     """The practice's state, queried the way the API lets a caller query it."""
 
-    def __init__(self) -> None:
-        self.db = sqlite3.connect(":memory:")
+    def __init__(self, path: Path | str = ":memory:") -> None:
+        """The database at `path`, created with the schema if it is new."""
+        self.db = sqlite3.connect(str(path), check_same_thread=False)
         self.db.row_factory = sqlite3.Row
-        self.db.executescript(SCHEMA)
+        if self.db.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0] == 0:
+            self.db.executescript(SCHEMA)
 
     def close(self) -> None:
         self.db.close()
@@ -360,6 +371,14 @@ class FakeStore:
         )
         self.db.executemany("INSERT INTO patient_notes VALUES (?, ?, ?)",
                             [(ident, n, text) for n, text in enumerate(notes)])
+        # Seeded long ago, so long since indexed.
+        self.index_patient(ident)
+
+    def index_patient(self, patient_id: str) -> None:
+        """Bring the search index up to date with one patient's record."""
+        self.db.execute("INSERT OR REPLACE INTO patient_search SELECT id, practice_id, name"
+                        " FROM patients WHERE id = ?", (patient_id,))
+        self.db.commit()
 
     def update_patient(self, patient_id: str, body: dict[str, Any],
                        at: str) -> dict[str, object] | None:
@@ -427,15 +446,11 @@ class FakeStore:
         return None if row is None else _render_patient(row)
 
     def search_patients(self, practice_id: str, name: str) -> list[dict[str, object]]:
-        """Patients whose name contains `name`, ignoring case. Not paginated.
-
-        A patient is found only once `SEARCH_DELAY` has passed since it was created, as in
-        Principle (docs/principle/patient-writes.md).
-        """
-        searchable = _iso(datetime.now(UTC) - SEARCH_DELAY)
+        """Patients the search index finds by name, ignoring case. Not paginated."""
         return [_render_patient(row) for row in self.db.execute(
-            "SELECT * FROM patients WHERE practice_id = ? AND name LIKE ? AND created_at <= ?"
-            " ORDER BY id", (practice_id, f"%{name}%", searchable))]
+            "SELECT patients.* FROM patient_search JOIN patients ON patients.id = patient_id"
+            " WHERE patient_search.practice_id = ? AND patient_search.name LIKE ?"
+            " ORDER BY patients.id", (practice_id, f"%{name}%"))]
 
     def changed(self, table: str, practice_id: str, query: dict[str, str], limit: int,
                 offset_id: str | None) -> Page:
@@ -627,7 +642,8 @@ def _parse_cursor(offset_id: str | None) -> str | None:
         return None
 
 
-def seed(appointments_per_day: int = 8, days: int = 3) -> FakeStore:
+def seed(store: FakeStore | None = None, appointments_per_day: int = 8,
+         days: int = 3) -> FakeStore:
     """A small practice with a diary, sized to force more than one page.
 
     Names are invented. Nothing here comes from a real patient record, and the practice name
@@ -636,7 +652,7 @@ def seed(appointments_per_day: int = 8, days: int = 3) -> FakeStore:
     Each appointment gets a distinct `createdAt`, descending with its slot, because the paging
     cursor is a createdAt and rows sharing one would page unpredictably.
     """
-    store = FakeStore()
+    store = store if store is not None else FakeStore()
     first_day = date(2026, 9, 28)
     created_base = datetime(2026, 3, 31, 20, 55, tzinfo=UTC)
     at = _iso(datetime.combine(first_day, time(0), tzinfo=PRACTICE_TZ))

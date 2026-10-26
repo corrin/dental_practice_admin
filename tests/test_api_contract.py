@@ -1,5 +1,6 @@
 """Practice boundaries, response contracts and persistent incompatibility notices."""
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -272,3 +273,21 @@ async def test_a_split_payment_is_one_row_per_invoice(
         else:
             with pytest.raises(PrincipleError):
                 _ = [row async for row in walk]
+
+
+async def test_a_new_patient_search_never_finds_is_refused_once_the_lag_has_passed(
+    fake_settings: Settings,
+) -> None:
+    """Waiting out the search lag never brings a patient outside the practice into it."""
+    patient = {"id": "fake-new", "name": "Fake Newcomer", "email": "fake@example.invalid",
+               "gender": "notSpecified", "address": "", "dateOfBirth": "2000-01-01",
+               "createdAt": datetime.now(UTC).isoformat()}
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/fake-new"):
+            return httpx.Response(200, json=patient)
+        return httpx.Response(200, json={"data": []})
+
+    async with PrincipleClient(fake_settings, transport=httpx.MockTransport(respond)) as client:
+        with pytest.raises(CallError, match="outside"):
+            await client.call("getPatient", {"patientId": patient["id"]})

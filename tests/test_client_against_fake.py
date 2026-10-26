@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import httpx2 as httpx
@@ -245,18 +244,15 @@ async def test_an_update_replaces_the_fields_sent_and_keeps_the_rest(
     assert saved["updatedAt"] >= created["updatedAt"]
 
 
-def test_search_does_not_find_a_patient_straight_after_it_is_created(
-        fake_store: FakeStore) -> None:
-    """docs/principle/patient-writes.md: Principle's name search lags a create by seconds."""
-    created = dispatch(fake_store, Request("POST", "/v1/patients", {},
-                                           {"x-api-key": FAKE_API_KEY}, json.dumps({
-        "practiceId": FAKE_PRACTICE_ID, "name": "Lagging Fake", "dateOfBirth": "1980-02-03",
-        "gender": "female", "email": "lag@fake.invalid"}).encode())).body
-    found = dispatch(fake_store, Request("GET", "/v1/patients",
-                                         {"practiceId": FAKE_PRACTICE_ID, "name": "Lagging Fake"},
-                                         {"x-api-key": FAKE_API_KEY})).body
+async def test_search_does_not_find_a_patient_straight_after_it_is_created(
+        fake_client: PrincipleClient) -> None:
+    """Principle's name search lags a create by seconds (docs/principle/patient-writes.md)."""
+    created = await fake_client.call("createPatient", {
+        "name": "Lagging Fake", "dateOfBirth": "1980-02-03", "gender": "female",
+        "email": "lag@fake.invalid"})
 
-    assert isinstance(created, dict) and isinstance(found, dict)
+    found = await fake_client.call("searchPatients", {"name": "Lagging Fake"})
+
     assert created["id"] not in [row["id"] for row in found["data"]]
 
 
