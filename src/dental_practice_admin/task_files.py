@@ -5,7 +5,7 @@ import json
 import re
 import uuid
 from contextlib import suppress
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -19,6 +19,10 @@ from dental_practice_admin.config import Settings
 
 NAME = r"[a-z][a-z0-9_]{0,63}"
 IDENTIFIER = r"[0-9a-f]{32}"
+# Words a `format: date` input may hold, as a report period does in QuickBooks. Each becomes
+# this host's local date only when the task runs, so a schedule saved for "today" runs for the
+# day it runs, not the day it was saved. The host's clock is the scheduler's clock too.
+RELATIVE_DAYS = {"today": 0, "tomorrow": 1}
 
 
 class Definition(BaseModel):
@@ -81,10 +85,21 @@ def installed(settings: Settings, name: str, revision: str) -> tuple[Definition,
     return definition, source
 
 
+def resolved(inputs: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+    """The inputs with each relative date word replaced by the date it means now."""
+    dates = {key for key, field in schema.get("properties", {}).items()
+             if field.get("format") == "date"}
+    today = date.today()
+    return {key: (today + timedelta(days=RELATIVE_DAYS[value])).isoformat()
+            if key in dates and isinstance(value, str) and value in RELATIVE_DAYS else value
+            for key, value in inputs.items()}
+
+
 def load(settings: Settings, name: str, revision: str, inputs: dict[str, Any], owner: str) -> Any:
     """Build an executable script from a pinned, installed task."""
     from dental_practice_admin.scripts import Script
     definition, source = installed(settings, name, revision)
+    inputs = resolved(inputs, definition.inputs)
     validate(inputs, definition.inputs, format_checker=FormatChecker())
     return Script(language=definition.language, source=source, inputs=inputs, owner=owner,
                   thread="", task_id=name, revision=revision)

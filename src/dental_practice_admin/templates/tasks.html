@@ -18,6 +18,7 @@
 {% for task in installed %}<option value="{{ loop.index0 }}">{{ task.title }}</option>{% endfor %}
 </select>
 <p id="description" class="text-secondary"></p>
+<div id="chosen-inputs"></div>
 <div id="inputs"></div>
 <button id="run-button" type="submit" class="btn btn-primary btn-lg mt-3" disabled>Run now</button>
 <div id="run-progress" role="status" class="mt-3" hidden>
@@ -96,6 +97,53 @@ async function change(action, payload) {
   }
 }
 {% include "plain_field.js" %}
+// Two kinds of input are shown as staff know them rather than as json-editor would: a date as
+// a report period (Today, Tomorrow or a chosen date, as QuickBooks shows one), and a
+// practitioner picked from Principle's list. A period is sent as its word, so a schedule saved
+// for Today runs for the day it runs; the server turns the word into a date (task_files.resolved).
+const PERIODS = {today: 0, tomorrow: 1};
+let chosen = {}, choosing = Promise.resolve();
+const isChosen = field => field.format === 'date' || field.format === 'practitioner';
+function localDay(offset) {
+  const day = new Date();
+  day.setDate(day.getDate() + offset);
+  return [day.getFullYear(), String(day.getMonth() + 1).padStart(2, '0'),
+          String(day.getDate()).padStart(2, '0')].join('-');
+}
+function chosenField(key, field, value) {
+  const wrap = document.createElement('div'), label = document.createElement('label');
+  const select = document.createElement('select');
+  wrap.className = 'mb-3'; label.className = 'form-label'; select.className = 'form-select';
+  label.textContent = plainField(key, field).title;
+  select.id = 'chosen-' + key; label.htmlFor = select.id;
+  wrap.append(label, select);
+  if(field.format === 'date') {
+    const day = document.createElement('input');
+    day.type = 'date'; day.className = 'form-control mt-2'; day.setAttribute('aria-label', label.textContent + ' (date)');
+    for(const [word, text] of [['today', 'Today'], ['tomorrow', 'Tomorrow'], ['', 'Choose a date…']]) select.add(new Option(text, word));
+    const show = () => { if(select.value) day.value = localDay(PERIODS[select.value]); };
+    select.onchange = () => { show(); if(!select.value) day.focus(); };
+    day.onchange = () => { select.value = ''; };
+    const start = value ?? field.default ?? '';
+    if(start in PERIODS) { select.value = start; show(); } else { select.value = ''; day.value = start; }
+    wrap.append(day);
+    chosen[key] = () => select.value || day.value;
+  } else {
+    select.add(new Option('All practitioners', ''));
+    // A schedule's practitioner stays chosen even if Principle no longer lists them.
+    if(value) select.add(new Option(value, value));
+    select.value = value || '';
+    select.disabled = true;
+    choosing = fetch('/tasks/practitioners').then(async response => {
+      if(!response.ok) throw new Error();
+      for(const name of await response.json()) if(name !== value) select.add(new Option(name, name));
+    }).catch(() => {
+      el('status').textContent = "Principle's list of practitioners could not be loaded, so only All practitioners can be chosen.";
+    }).finally(() => { select.disabled = false; });
+    chosen[key] = () => select.value;
+  }
+  el('chosen-inputs').append(wrap);
+}
 function showInputs(value={}) {
   if(editor) { editor.destroy(); editor = null; }
   el('run-button').disabled = true;
@@ -115,12 +163,21 @@ function showInputs(value={}) {
   el('submit-review').disabled = true;
   el('no-patient-data').onchange = () => { el('submit-review').disabled = !el('no-patient-data').checked; };
   el('submit-review').onclick = () => change('submit', {name:task.name, revision:task.revision, checked_for_patient_data:true});
-  editor = new JSONEditor(el('inputs'), {theme:'bootstrap5', schema:plainSchema(task.inputs),
+  el('chosen-inputs').replaceChildren();
+  chosen = {}; choosing = Promise.resolve();
+  const ordinary = {...task.inputs, properties:{}}, given = {};
+  for(const [key, field] of Object.entries(task.inputs.properties || {})) {
+    if(isChosen(field)) { chosenField(key, field, value[key]); continue; }
+    ordinary.properties[key] = field;
+    if(key in value) given[key] = value[key];
+  }
+  ordinary.required = (task.inputs.required || []).filter(key => key in ordinary.properties);
+  editor = new JSONEditor(el('inputs'), {theme:'bootstrap5', schema:plainSchema(ordinary),
     disable_edit_json:true, disable_properties:true, disable_collapse:true,
     show_errors:'interaction', no_additional_properties:true});
   editor.on('ready', () => {
-    editor.setValue({...editor.getValue(), ...value});
-    el('run-button').disabled = false;
+    editor.setValue({...editor.getValue(), ...given});
+    choosing.finally(() => { el('run-button').disabled = false; });
   });
 }
 function taskInputs() {
@@ -129,6 +186,10 @@ function taskInputs() {
   const inputs = editor.getValue();
   for(const key of Object.keys(inputs)) if(inputs[key] === '' && !(task.inputs.required || []).includes(key)) delete inputs[key];
   if(editor.validate(inputs).length) throw new Error('Please check the options you entered.');
+  for(const [key, value] of Object.entries(chosen)) {
+    const given = value();
+    if(given !== '' || (task.inputs.required || []).includes(key)) inputs[key] = given;
+  }
   return {name:task.name, revision:task.revision, inputs};
 }
 if(tasks.length) {

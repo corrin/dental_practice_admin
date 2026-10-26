@@ -125,6 +125,7 @@ def load(settings: Settings, name: str, revision: str, inputs: dict[str, Any],
     path = folder(settings, name, revision)
     definition = task_files.Definition.model_validate_json(
         (path / "task.json").read_text(encoding="utf-8"))
+    inputs = task_files.resolved(inputs, definition.inputs)
     validate(inputs, definition.inputs, format_checker=FormatChecker())
     return scripts.Script(language=definition.language,
         source=(path / "source.txt").read_text(encoding="utf-8"), inputs=inputs,
