@@ -15,10 +15,14 @@ exactly what the real system sent, and a system is added to the application with
   Nothing is redacted, remapped or reformatted, so a check against it is a check against the
   system itself. Only the anonymised copy committed to GitHub is derived from recordings.
 
-- Each fake is a working copy of its system, not a replay: it holds state, and every answer,
-  write and refusal is computed from that state. The state is loaded from a snapshot of
-  production that the recorder takes, so the fakes' patients, diary, messages and bank are the
-  practice's own.
+- Each fake is a working copy of its system, not a replay: a service of its own, with the
+  system's web interface (its HTTP API, and its website where the application drives one), a
+  service layer and a database. It runs as its own process and is reached only by its URL, so
+  every client (the application, a task, a test, the dev loop) talks to one central server, as
+  with the real system. Every answer, write and refusal is computed from its state, which is
+  loaded from a snapshot of production that the recorder takes, so the fakes' patients, diary,
+  messages and bank are the practice's own. Tests load a snapshot and reset through a control
+  interface the real system lacks; nothing in `src/` calls it.
 - The snapshot and the recordings derive from patient records, so they live under
   `ADMIN_DATA_ROOT`, never in this checkout. The same recorder run writes an anonymised copy of
   both into `tests/snapshot/`, which is committed and names the day it was taken. GitHub's
