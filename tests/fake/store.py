@@ -189,6 +189,9 @@ PRACTICE_TZ = ZoneInfo("Pacific/Auckland")
 # Principle's own default when a request omits `limit` (observed 2026-10-01).
 SERVER_DEFAULT_LIMIT = 20
 
+# How long after createPatient its name search first finds the patient: 2.8 s on staging.
+SEARCH_DELAY = timedelta(seconds=3)
+
 
 @dataclass(frozen=True)
 class Page:
@@ -424,10 +427,15 @@ class FakeStore:
         return None if row is None else _render_patient(row)
 
     def search_patients(self, practice_id: str, name: str) -> list[dict[str, object]]:
-        """Patients whose name contains `name`, ignoring case. Not paginated."""
+        """Patients whose name contains `name`, ignoring case. Not paginated.
+
+        A patient is found only once `SEARCH_DELAY` has passed since it was created, as in
+        Principle (docs/principle/patient-writes.md).
+        """
+        searchable = _iso(datetime.now(UTC) - SEARCH_DELAY)
         return [_render_patient(row) for row in self.db.execute(
-            "SELECT * FROM patients WHERE practice_id = ? AND name LIKE ? ORDER BY id",
-            (practice_id, f"%{name}%"))]
+            "SELECT * FROM patients WHERE practice_id = ? AND name LIKE ? AND created_at <= ?"
+            " ORDER BY id", (practice_id, f"%{name}%", searchable))]
 
     def changed(self, table: str, practice_id: str, query: dict[str, str], limit: int,
                 offset_id: str | None) -> Page:

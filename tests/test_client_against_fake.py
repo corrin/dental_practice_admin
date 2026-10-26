@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import httpx2 as httpx
 import pytest
 from pydantic import SecretStr
 
+from dental_practice_admin.config import Settings
 from dental_practice_admin.principle import CallError, PrincipleClient, PrincipleError
-from tests.fake import FAKE_PRACTICE_ID, FakeStore, dispatch
+from tests.fake import FAKE_PRACTICE_ID, FakeStore, dispatch, transport
 from tests.fake.server import FakeUnhandledParameterError, Request
 from tests.fake.store import FAKE_API_KEY
 from tests.settings import fake_settings
@@ -241,3 +243,42 @@ async def test_an_update_replaces_the_fields_sent_and_keeps_the_rest(
     assert saved["address"] == "2 Fake Street"
     assert saved["contactNumbers"] == created["contactNumbers"]
     assert saved["updatedAt"] >= created["updatedAt"]
+
+
+def test_search_does_not_find_a_patient_straight_after_it_is_created(
+        fake_store: FakeStore) -> None:
+    """docs/principle/patient-writes.md: Principle's name search lags a create by seconds."""
+    created = dispatch(fake_store, Request("POST", "/v1/patients", {},
+                                           {"x-api-key": FAKE_API_KEY}, json.dumps({
+        "practiceId": FAKE_PRACTICE_ID, "name": "Lagging Fake", "dateOfBirth": "1980-02-03",
+        "gender": "female", "email": "lag@fake.invalid"}).encode())).body
+    found = dispatch(fake_store, Request("GET", "/v1/patients",
+                                         {"practiceId": FAKE_PRACTICE_ID, "name": "Lagging Fake"},
+                                         {"x-api-key": FAKE_API_KEY})).body
+
+    assert isinstance(created, dict) and isinstance(found, dict)
+    assert created["id"] not in [row["id"] for row in found["data"]]
+
+
+async def test_a_patient_the_client_has_just_created_can_be_read_straight_away(
+        fake_client: PrincipleClient) -> None:
+    created = await fake_client.call("createPatient", {
+        "name": "Read Back Fake", "dateOfBirth": "1980-02-03", "gender": "female",
+        "email": "readback@fake.invalid"})
+
+    read = await fake_client.call("getPatient", {"patientId": created["id"]})
+
+    assert read["id"] == created["id"]
+
+
+async def test_a_patient_created_in_one_chat_tool_call_can_be_read_in_the_next(
+        fake_settings: Settings, fake_store: FakeStore) -> None:
+    """Each chat tool call opens its own client (principle.api_tools)."""
+    async with PrincipleClient(fake_settings, transport=transport(fake_store)) as creating:
+        created = await creating.call("createPatient", {
+            "name": "Next Call Fake", "dateOfBirth": "1980-02-03", "gender": "female",
+            "email": "nextcall@fake.invalid"})
+    async with PrincipleClient(fake_settings, transport=transport(fake_store)) as reading:
+        read = await reading.call("getPatient", {"patientId": created["id"]})
+
+    assert read["id"] == created["id"]
