@@ -45,10 +45,11 @@ class PhoneStatus(BaseModel):
 
 
 class SmsBridge:
-    """The bridge's two reads. HTTP failures propagate."""
+    """The bridge's two reads; each refuses without its settings. HTTP failures propagate."""
 
     def __init__(self, settings: Settings,
                  transport: httpx.AsyncBaseTransport | None = None) -> None:
+        self.settings = settings
         self.client = httpx.AsyncClient(
             base_url=settings.sms_bridge_url, transport=transport, timeout=60,
             headers={"X-API-Key": settings.sms_bridge_api_key.get_secret_value()})
@@ -56,12 +57,14 @@ class SmsBridge:
     @observed("sms_bridge.failed_texts")
     async def failed_texts(self) -> list[FailedText]:
         """Every text given up on that no later text to the same number has made up for."""
+        self.settings.require_sms_bridge()
         response = (await self.client.get("/smsgateway/failed-sms")).raise_for_status()
         return _FailedTexts.model_validate_json(response.content).failed
 
     @observed("sms_bridge.phone_status")
     async def phone_status(self) -> PhoneStatus:
         """The phone's state, read live by the bridge."""
+        self.settings.require_sms_bridge()
         response = (await self.client.get("/smsgateway/phone-status")).raise_for_status()
         return PhoneStatus.model_validate_json(response.content)
 

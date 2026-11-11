@@ -60,6 +60,19 @@ if (-not (Test-Path .env)) {
     Copy-Item deploy\production.env.example .env
     throw "Fill in every '...' in $root\.env (its comments say what each is), then run this again."
 }
+# SMS_Bridge keeps its key where only administrators can read it, so each install copies it, with
+# the bridge's address from the template, into .env. Before SMS_Bridge is installed they stay empty.
+$bridgeSettings = 'C:\ProgramData\SMS_Bridge\install-settings.json'
+if (Test-Path $bridgeSettings) {
+    $bridge = @{
+        ADMIN_SMS_BRIDGE_URL = (Get-Content deploy\production.env.example | Where-Object { $_ -match '^ADMIN_SMS_BRIDGE_URL=' }) -replace '^ADMIN_SMS_BRIDGE_URL='
+        ADMIN_SMS_BRIDGE_API_KEY = (Get-Content $bridgeSettings -Raw | ConvertFrom-Json).BRIDGE_API_KEY
+    }
+    if (-not $bridge.ADMIN_SMS_BRIDGE_API_KEY) { throw "$bridgeSettings has no BRIDGE_API_KEY: reinstall SMS_Bridge, then run this again." }
+    $lines = @(Get-Content .env | Where-Object { $_ -notmatch '^ADMIN_SMS_BRIDGE_(URL|API_KEY)=' }) + @($bridge.Keys | Sort-Object | ForEach-Object { "$_=$($bridge[$_])" })
+    # Without a byte-order mark, which would become part of the first setting's name.
+    [IO.File]::WriteAllLines("$root\.env", [string[]]$lines)
+}
 if (Select-String -Path .env -Pattern '^[A-Z_]+=.*\.\.\.' -Quiet) { throw "$root\.env still has a '...' value: fill it in, then run this again." }
 $adminHost = (Get-Content .env | Where-Object { $_ -match '^ADMIN_HOST=' }) -replace '^ADMIN_HOST=' -replace '"'
 if (-not $adminHost) { throw "Add ADMIN_HOST=<the public hostname> to $root\.env (deploy\production.env.example says more), then run this again." }

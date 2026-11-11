@@ -138,14 +138,18 @@ def test_a_principle_address_must_be_set() -> None:
         _settings(environment=Environment.STAGING, api_base_url="")
 
 
-@pytest.mark.parametrize("missing", ["task_repository", "github_token", "openai_base_url",
-                                     "sms_bridge_url", "sms_bridge_api_key"])
+@pytest.mark.parametrize("missing", ["task_repository", "github_token", "openai_base_url"])
 def test_the_application_refuses_to_start_without_what_its_features_need(
     missing: str,
 ) -> None:
-    secret = missing in {"github_token", "sms_bridge_api_key"}
     with pytest.raises(ConfigurationError):
-        _settings(**{missing: SecretStr("") if secret else ""}).require_web_configured()
+        _settings(**{missing: SecretStr("") if missing == "github_token" else ""}
+                  ).require_web_configured()
+
+
+def test_the_application_starts_before_the_sms_bridge_is_installed() -> None:
+    """The app installs first; the bridge's install then adds itself to the app's Caddy."""
+    _settings(sms_bridge_url="", sms_bridge_api_key=SecretStr("")).require_web_configured()
 
 
 @pytest.mark.parametrize("environment", [Environment.FAKE, Environment.STAGING])

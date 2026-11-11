@@ -190,8 +190,11 @@ class Settings(BaseSettings):
     akahu_base_url: str = Field(validation_alias="AKAHU_BASE_URL")
 
     # The practice's SMS bridge (github.com/corrin/SMS_Bridge), which sends Principle's texts
-    # from the practice phone: its root, without /smsgateway, and its BRIDGE_API_KEY.
-    sms_bridge_url: str
+    # from the practice phone: its root, without /smsgateway, and its BRIDGE_API_KEY. Not
+    # checked at startup: this app installs before the bridge, whose install adds itself to this
+    # app's Caddy, so a new server has no bridge yet. The install copies the key in once the
+    # bridge is there, and the text check refuses to run without both.
+    sms_bridge_url: str = ""
     sms_bridge_api_key: SecretStr = SecretStr("")
 
     # Registered with OpenAI for the domain the chat page is served from, and required by the
@@ -406,9 +409,13 @@ class Settings(BaseSettings):
             ("AKAHU_USER_TOKEN", self.akahu_user_token.get_secret_value())) if not value]
         if missing:
             raise ConfigurationError(f"Bank reconciliation needs {', '.join(missing)}")
+
+    def require_sms_bridge(self) -> None:
+        """Refuse to ask the SMS bridge anything without its address and key."""
         if not self.sms_bridge_url or not self.sms_bridge_api_key.get_secret_value():
-            raise ConfigurationError("The text check needs ADMIN_SMS_BRIDGE_URL and"
-                                     " ADMIN_SMS_BRIDGE_API_KEY")
+            raise ConfigurationError("The SMS bridge needs ADMIN_SMS_BRIDGE_URL and"
+                                     " ADMIN_SMS_BRIDGE_API_KEY; run the install again once"
+                                     " SMS_Bridge is installed")
 
     def require_chat_configured(self) -> None:
         """Refuse chat without the model's key and address."""

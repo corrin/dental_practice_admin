@@ -8,7 +8,7 @@ import httpx2 as httpx
 import pytest
 from pydantic import SecretStr
 
-from dental_practice_admin.config import Settings
+from dental_practice_admin.config import ConfigurationError, Settings
 from dental_practice_admin.sms_bridge import SmsBridge
 from tests.fake_sms_bridge import FakeSmsBridge, failure, transport
 from tests.settings import fake_settings
@@ -43,6 +43,18 @@ async def test_a_phone_that_is_down_says_so_and_why(settings: Settings) -> None:
     async with SmsBridge(settings, transport(bridge)) as client:
         status = await client.phone_status()
     assert (status.up, status.detail) == (False, "Call Centre: Connected, phone: Unknown")
+
+
+@pytest.mark.parametrize("missing", ["sms_bridge_url", "sms_bridge_api_key"])
+async def test_without_the_bridges_settings_it_is_not_asked_and_the_refusal_names_them(
+        settings: Settings, missing: str) -> None:
+    unset = settings.model_copy(update={
+        missing: SecretStr("") if missing == "sms_bridge_api_key" else ""})
+    async with SmsBridge(unset, transport()) as client:
+        with pytest.raises(ConfigurationError, match="ADMIN_SMS_BRIDGE_API_KEY"):
+            await client.failed_texts()
+        with pytest.raises(ConfigurationError, match="ADMIN_SMS_BRIDGE_URL"):
+            await client.phone_status()
 
 
 async def test_a_refused_key_raises(settings: Settings) -> None:
