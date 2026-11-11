@@ -99,7 +99,10 @@ class Capture(httpx.AsyncBaseTransport):
 
 
 def name_of(request: httpx.Request) -> str:
-    """Which operation a request is: its operationId, Firestore collection, Firebase call or bridge route."""
+    """Which operation a request is.
+
+    Its operationId, Firestore collection, Firebase call or SMS bridge route.
+    """
     path = request.url.path
     if path.startswith("/smsgateway/"):
         return "sms-bridge/" + path.removeprefix("/smsgateway/")
