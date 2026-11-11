@@ -5073,6 +5073,11 @@
         "requestBody": {
           "content": {
             "multipart/form-data": {
+              "encoding": {
+                "metadata": {
+                  "contentType": "application/json"
+                }
+              },
               "schema": {
                 "properties": {
                   "file": {
@@ -5135,6 +5140,9 @@
           },
           "401": {
             "$ref": "#/components/responses/UnauthorisedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
           }
         },
         "security": [
