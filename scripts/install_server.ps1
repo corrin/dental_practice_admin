@@ -60,6 +60,22 @@ if (-not (Test-Path .env)) {
     Copy-Item deploy\production.env.example .env
     throw "Fill in every '...' in $root\.env (its comments say what each is), then run this again."
 }
+# SMS_Bridge keeps its address and key where only administrators can read them, so each install
+# copies them into .env. Before SMS_Bridge is installed they stay empty and the text check refuses.
+$bridgeSettings = 'C:\ProgramData\SMS_Bridge\install-settings.json'
+if (Test-Path $bridgeSettings) {
+    $settings = Get-Content $bridgeSettings -Raw | ConvertFrom-Json
+    # The first of the addresses it listens on, which is this machine's own.
+    $bridge = @{ ADMIN_SMS_BRIDGE_URL = "$($settings.Hosting.ListenUrl)".Split(';')[0]; ADMIN_SMS_BRIDGE_API_KEY = $settings.BRIDGE_API_KEY }
+    if ($bridge.ADMIN_SMS_BRIDGE_URL -match '//(\*|\+|0\.0\.0\.0|\[::\])([:/]|$)') { throw "$bridgeSettings listens first on $($bridge.ADMIN_SMS_BRIDGE_URL), which nothing can connect to: list an address such as http://localhost:5170 first in Hosting.ListenUrl." }
+    if (-not $bridge.ADMIN_SMS_BRIDGE_URL -or -not $bridge.ADMIN_SMS_BRIDGE_API_KEY) { throw "$bridgeSettings lacks Hosting.ListenUrl or BRIDGE_API_KEY: reinstall SMS_Bridge, then run this again." }
+    # Read as UTF-8, as it is written back: Get-Content would read it in the ANSI codepage and mangle any non-ASCII value.
+    $lines = @([IO.File]::ReadAllLines("$root\.env") | Where-Object { $_ -notmatch '^ADMIN_SMS_BRIDGE_(URL|API_KEY)=' }) + @($bridge.Keys | Sort-Object | ForEach-Object { "$_=$($bridge[$_])" })
+    # Without a byte-order mark, which would become part of the first setting's name.
+    [IO.File]::WriteAllLines("$root\.env", [string[]]$lines)
+} else {
+    Write-Warning "SMS_Bridge is not installed yet, so the text check can't run. Install it, then run this again."
+}
 if (Select-String -Path .env -Pattern '^[A-Z_]+=.*\.\.\.' -Quiet) { throw "$root\.env still has a '...' value: fill it in, then run this again." }
 $adminHost = (Get-Content .env | Where-Object { $_ -match '^ADMIN_HOST=' }) -replace '^ADMIN_HOST=' -replace '"'
 if (-not $adminHost) { throw "Add ADMIN_HOST=<the public hostname> to $root\.env (deploy\production.env.example says more), then run this again." }

@@ -1,4 +1,4 @@
-"""Capture exactly what Principle and Firestore send, so the fakes can be checked against it.
+"""Capture exactly what Principle, Firestore and the SMS bridge send, so the fakes can be checked.
 
     uv run python -m scripts.record_principle_wire [--create-patient] [--older-than [DAYS]]
 
@@ -7,10 +7,10 @@ they came off the wire, captured at the transport under every client before anyt
 them. Nothing is redacted, remapped or reformatted. The recordings therefore hold patient
 records and live in production's data folder, never in this checkout. Each operation's
 exchanges are `<operationId>/NNN.json` (when, which request, status, headers) and `NNN.body`;
-Firestore's are named by collection, `firestore/<collection>/`, and Firebase sign-in's
-`firebase/<call>/`. Request headers and bodies are not kept: they carry the API key and the
-password. Firebase's sign-in answers are kept like any other, tokens included, so the
-recordings folder is as private as `.env`.
+Firestore's are named by collection, `firestore/<collection>/`, Firebase sign-in's
+`firebase/<call>/`, and the SMS bridge's `sms-bridge/<route>/`. Request headers and bodies are
+not kept: they carry the API key and the password. Firebase's sign-in answers are kept like
+any other, tokens included, so the recordings folder is as private as `.env`.
 
 Reads go to production and writes to staging (ADR 0006). With --create-patient the recorder
 makes a `[TEST] Fake` patient on staging, which the API cannot delete, and updates it, so the
@@ -48,6 +48,7 @@ import httpx2 as httpx
 from dental_practice_admin.config import Environment, Settings
 from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.principle import CATALOGUE, PrincipleClient, RecordError
+from dental_practice_admin.sms_bridge import SmsBridge
 
 REFUSALS = Path(__file__).resolve().parent.parent / "tests" / "recordings" / "refusals"
 
@@ -98,8 +99,13 @@ class Capture(httpx.AsyncBaseTransport):
 
 
 def name_of(request: httpx.Request) -> str:
-    """Which operation a request is: its operationId, Firestore collection or Firebase call."""
+    """Which operation a request is.
+
+    Its operationId, Firestore collection, Firebase call or SMS bridge route.
+    """
     path = request.url.path
+    if path.startswith("/smsgateway/"):
+        return "sms-bridge/" + path.removeprefix("/smsgateway/")
     if "/documents/" in path:
         documents, _, queried = path.partition(":")
         if queried:
@@ -504,6 +510,8 @@ async def main() -> None:
         report_old(arguments.older_than)
         return
     settings = configured(Environment.PRODUCTION)
+    # Before any reading, so a host without the bridge's settings records nothing at all.
+    settings.require_sms_bridge()
     staging = configured(Environment.STAGING) if arguments.create_patient else None
     if staging is not None:
         staging.require_owner_contact()
@@ -515,6 +523,9 @@ async def main() -> None:
         appointment = await first_appointment(client, settings, capture)
         await record_patient(client, appointment)
         appointments = await sample(client, settings, appointment)
+    async with SmsBridge(settings, capture) as bridge:
+        await bridge.failed_texts()
+        await bridge.phone_status()
     refusals = await record_refusals(settings, capture)
     await record_firestore(settings, capture, appointments)
     refusals += await record_firestore_refusals(settings, capture)

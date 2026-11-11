@@ -24,6 +24,7 @@ HTTPS question in ARCHITECTURE.md rather than leaving it open.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Annotated, Any, cast
 
@@ -38,6 +39,15 @@ from dental_practice_admin.config import Settings, SignIn, current_settings
 from dental_practice_admin.storage import Storage
 
 GOOGLE_METADATA_URL = "https://accounts.google.com/.well-known/openid-configuration"
+
+# A signed-in session lasts a working day. Long enough that nobody signs in twice during a shift,
+# short enough that a laptop left at home is not signed in next week.
+SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
+
+
+def now() -> float:
+    """Seconds since the epoch: when a sign-in began, and how long ago that was."""
+    return time.time()
 
 # The explicit developer identity. The address is in a reserved TLD so it can
 # never collide with a real account, and its presence in a production database would be
@@ -85,6 +95,11 @@ def staff_from_session(request: Request, settings: Settings) -> StaffUser | None
         return None
     email, name = stored.get("email"), stored.get("name")
     if not isinstance(email, str) or not isinstance(name, str):
+        return None
+    # Starlette signs the cookie afresh on every response, so its own expiry slides with use and
+    # an open page polling for banners would never reach it. The sign-in time does not slide.
+    signed_in_at = stored.get("signed_in_at")
+    if not isinstance(signed_in_at, int | float) or now() - signed_in_at > SESSION_MAX_AGE_SECONDS:
         return None
     # A retained cookie must also satisfy the allowlist loaded at application startup.
     if not settings.admits(email, email_verified=True):
@@ -219,6 +234,7 @@ async def callback(
     request.session[SESSION_USER_KEY] = {
         "email": address,
         "name": str(claims.get("name") or email),
+        "signed_in_at": now(),
     }
 
     storage = Storage(settings.database_path)

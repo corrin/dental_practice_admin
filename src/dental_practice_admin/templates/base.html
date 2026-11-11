@@ -38,25 +38,28 @@
 </p>
 {% endif %}
 {% if staff %}
-{% if attention %}
-<div class="banner" role="alert" data-automation-id="staff-attention">
-  <ul>{% for note in attention %}
-    <li><a href="{{ note.href }}">{{ note.text }}</a></li>
-  {% endfor %}</ul>
-</div>
-{% endif %}
-{% if interface_warnings %}
-<div class="banner" role="alert" data-automation-id="principle-interface-warning">
-  Some Principle features may not work properly; your administrator needs to check.
-  <details><summary>Technical details</summary>
-  Some requests do not match this app's released interface. A developer needs to check
-  compatibility and release an update if required. The app has not changed its interface
-  automatically.
-  <ul>{% for warning in interface_warnings %}
-    <li>{{ warning.operation }} — {{ warning.reason }} (last seen {{ warning.last_seen }})</li>
-  {% endfor %}</ul></details>
-</div>
-{% endif %}
+{% include "_banners.html" %}
+<script>
+// Reception leaves a page open all day, so the banners are fetched again as often as the
+// launcher checks. Replacing only the banners keeps what staff are typing.
+// The element stays; only its contents change, and only when the app's answer has, so an open
+// "Technical details" stays open.
+const banners = document.getElementById('staff-banners');
+let shown = banners.innerHTML;
+setInterval(async () => {
+  try {
+    const response = await fetch('/banners', {redirect: 'error'});
+    if (!response.ok) throw new Error(String(response.status));
+    const answer = new DOMParser().parseFromString(await response.text(), 'text/html')
+      .getElementById('staff-banners');
+    if (!answer) throw new Error('no banners in the answer');
+    if (answer.innerHTML !== shown) banners.innerHTML = shown = answer.innerHTML;
+  } catch {
+    banners.innerHTML = shown = '<p class="banner" role="alert" data-automation-id="banners-stale">'
+      + 'This page has lost touch with the app, so warnings may be missing. Reload it.</p>';
+  }
+}, {{ poll_seconds * 1000 }});
+</script>
 <p class="quiet" style="float:right;font-size:.85rem" data-automation-id="staff-identity">
   {{ staff.name }}{% if not staff.is_fake %} &middot; <a href="/auth/logout">Sign out</a>{% endif %}
 </p>

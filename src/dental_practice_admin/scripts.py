@@ -23,6 +23,7 @@ from dental_practice_admin.config import Settings
 from dental_practice_admin.firestore import Firestore
 from dental_practice_admin.principle import PrincipleClient
 from dental_practice_admin.processes import own_process_tree
+from dental_practice_admin.sms_bridge import SmsBridge
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 
 
@@ -98,6 +99,7 @@ class Services:
         self.settings = settings
         self.api = PrincipleClient(settings, transport=transport)
         self.firestore = Firestore(settings, transport=transport)
+        self.sms_bridge = SmsBridge(settings)
 
     async def browser(self, source: str, inputs: dict[str, Any]) -> Any:
         """Run a deterministic Playwright function with exclusive browser ownership."""
@@ -107,6 +109,7 @@ class Services:
     async def aclose(self) -> None:
         await self.api.aclose()
         await self.firestore.aclose()
+        await self.sms_bridge.aclose()
 
 
 def load_source(source: str, filename: str = "<workflow>") -> dict[str, Any]:

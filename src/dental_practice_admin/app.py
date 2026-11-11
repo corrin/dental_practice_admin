@@ -21,7 +21,13 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from dental_practice_admin import akahu, schedules, task_files
-from dental_practice_admin.auth import AccessControl, CurrentStaff, StaffUser, build_oauth
+from dental_practice_admin.auth import (
+    SESSION_MAX_AGE_SECONDS,
+    AccessControl,
+    CurrentStaff,
+    StaffUser,
+    build_oauth,
+)
 from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
 from dental_practice_admin.chat_store import SqliteChatStore
@@ -41,10 +47,7 @@ def local_time(stamp: str | None) -> str:
 
 
 TEMPLATES.env.globals["local_time"] = local_time
-
-# A signed-in session lasts a working day. Long enough that nobody signs in twice during a shift,
-# short enough that a laptop left at home is not signed in next week.
-SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
+TEMPLATES.env.globals["poll_seconds"] = schedules.POLL_SECONDS
 
 settings = current_settings
 
@@ -131,6 +134,17 @@ def health(
         "principle": configured.environment.value,
         "baseUrl": configured.public_origin(request),
     }
+
+
+@router.get("/banners", response_class=HTMLResponse)
+def banners(
+    request: Request,
+    staff: CurrentStaff,
+    configured: Annotated[Settings, Depends(settings)],
+    store: Annotated[Storage, Depends(storage)],
+) -> HTMLResponse:
+    """The banners alone, as every staff page shows them, for a page left open."""
+    return render(request, "_banners.html", staff, configured, store)
 
 
 @router.get("/history", response_class=HTMLResponse)

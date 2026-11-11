@@ -418,6 +418,10 @@ The first run of the install script writes `C:\Program Files\DentalPracticeAdmin
 The template already holds the values that are the same for every practice, including
 Principle's public web-app Firebase settings.
 
+The install fills in `ADMIN_SMS_BRIDGE_URL` and `ADMIN_SMS_BRIDGE_API_KEY` itself, from
+[SMS_Bridge](https://github.com/corrin/SMS_Bridge)'s `C:\ProgramData\SMS_Bridge\install-settings.json`.
+SMS_Bridge installs after this app, so run this app's install again once it is in.
+
 ### Install and upgrade
 
 In an elevated PowerShell on the server, from any folder but the installation's own:

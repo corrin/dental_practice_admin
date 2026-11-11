@@ -147,6 +147,11 @@ def test_the_application_refuses_to_start_without_what_its_features_need(
                   ).require_web_configured()
 
 
+def test_the_application_starts_before_the_sms_bridge_is_installed() -> None:
+    """The app installs first; the bridge's install then adds itself to the app's Caddy."""
+    _settings(sms_bridge_url="", sms_bridge_api_key=SecretStr("")).require_web_configured()
+
+
 @pytest.mark.parametrize("environment", [Environment.FAKE, Environment.STAGING])
 def test_non_production_environment_may_not_address_production(
     environment: Environment,
