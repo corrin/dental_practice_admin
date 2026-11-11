@@ -31,6 +31,7 @@ from dental_practice_admin.config import Environment, Settings
 from dental_practice_admin.principle import SEARCH_LAG
 from tests.fake import firestore as fake_firestore
 from tests.fake.store import FAKE_API_KEY, FAKE_PRACTICE_ID, SEARCH_INDEX_LAG
+from tests.fake_sms_bridge import FAKE_SMS_BRIDGE_API_KEY, FakeSmsBridge
 from tests.servers import FakePrincipleServer
 
 pytestmark = pytest.mark.integration
@@ -147,6 +148,15 @@ def test_the_fake_firestore_sends_only_recorded_shapes(fake_principle: FakePrinc
     for document in documents:
         assert document is not None
         assert covers(real, shape_of(document["fields"])) == []
+
+
+@pytest.mark.parametrize("route", ["failed-sms", "phone-status"])
+def test_the_fake_sms_bridge_sends_only_recorded_shapes(route: str) -> None:
+    real = joined([shape_of(body) for body in recorded(f"sms-bridge/{route}")])[0]
+    status, document = FakeSmsBridge().answer(
+        f"/smsgateway/{route}", {"x-api-key": FAKE_SMS_BRIDGE_API_KEY})
+    assert status == 200
+    assert covers(real, shape_of(document)) == []
 
 
 def test_principles_search_lag_stays_within_what_the_fake_simulates_and_half_the_limit() -> None:
