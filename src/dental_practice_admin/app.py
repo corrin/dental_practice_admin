@@ -133,6 +133,17 @@ def health(
     }
 
 
+@router.get("/banners", response_class=HTMLResponse)
+def banners(
+    request: Request,
+    staff: CurrentStaff,
+    configured: Annotated[Settings, Depends(settings)],
+    store: Annotated[Storage, Depends(storage)],
+) -> HTMLResponse:
+    """The banners alone, as every staff page shows them, for a page left open."""
+    return render(request, "_banners.html", staff, configured, store)
+
+
 @router.get("/history", response_class=HTMLResponse)
 def history(
     request: Request,
