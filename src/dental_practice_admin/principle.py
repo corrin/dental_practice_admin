@@ -114,7 +114,8 @@ SEARCH_LAG = timedelta(seconds=60)
 SEARCH_POLL = timedelta(milliseconds=500)
 
 
-ACCEPTED_WEB_BUILDS = frozenset({"main.ecfbec0077a05029.js", "main.8e7a8bfa2c5bf44c.js"})
+ACCEPTED_WEB_BUILDS = frozenset({"main.ecfbec0077a05029.js", "main.8e7a8bfa2c5bf44c.js",
+                                 "main.fb682a1255949ba4.js"})
 WEB_BUILD_CHECK = "principleWebBuild"
 _ACCEPTED_ID = ",".join(sorted(ACCEPTED_WEB_BUILDS))
 
