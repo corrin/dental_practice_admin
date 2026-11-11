@@ -4,13 +4,17 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Page, expect
 
+from dental_practice_admin.schedules import POLL_SECONDS
 from dental_practice_admin.storage import Coverage, Outcome, Storage
 from tests.test_automation import settings
 
 pytestmark = pytest.mark.e2e
 
+# Milliseconds of page time in which an open page has fetched its banners once.
+AFTER_ONE_CHECK = (POLL_SECONDS + 1) * 1000
 
-def test_a_page_left_open_shows_a_new_problem_within_five_minutes_without_reloading(
+
+def test_a_page_left_open_shows_a_new_problem_within_one_launcher_check_without_reloading(
     page: Page, spine: dict[str, str],
 ) -> None:
     page.clock.install()
@@ -23,7 +27,7 @@ def test_a_page_left_open_shows_a_new_problem_within_five_minutes_without_reload
     try:
         store.finish_run(run_id, Outcome.SUCCEEDED, Coverage.COMPLETE, "1 text did not go",
                          {"for_staff": [{"patient": "Fake Patient", "failed": "today"}]})
-        page.clock.fast_forward("05:01")
+        page.clock.fast_forward(AFTER_ONE_CHECK)
         expect(page.get_by_test_id("staff-attention")).to_contain_text(
             "Text check: 1 for staff to fix")
         expect(page.locator(f'#staff-banners a[href="/runs/{run_id}"]')).to_have_count(1)
@@ -39,8 +43,8 @@ def test_a_page_that_cannot_reach_the_app_says_so_until_it_can_again(
     page.clock.install()
     page.goto(f"{spine['APP_URL']}/history")
     page.route("**/banners", lambda route: route.abort())
-    page.clock.fast_forward("05:01")
+    page.clock.fast_forward(AFTER_ONE_CHECK)
     expect(page.get_by_test_id("banners-stale")).to_be_visible()
     page.unroute("**/banners")
-    page.clock.fast_forward("05:01")
+    page.clock.fast_forward(AFTER_ONE_CHECK)
     expect(page.get_by_test_id("banners-stale")).to_have_count(0)
