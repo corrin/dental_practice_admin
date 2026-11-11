@@ -67,7 +67,7 @@ if (Test-Path $bridgeSettings) {
     $settings = Get-Content $bridgeSettings -Raw | ConvertFrom-Json
     # The first of the addresses it listens on, which is this machine's own.
     $bridge = @{ ADMIN_SMS_BRIDGE_URL = "$($settings.Hosting.ListenUrl)".Split(';')[0]; ADMIN_SMS_BRIDGE_API_KEY = $settings.BRIDGE_API_KEY }
-    if ($bridge.ADMIN_SMS_BRIDGE_URL -match '//(\*|\+|0\.0\.0\.0|\[::\])[:/]') { throw "$bridgeSettings listens first on $($bridge.ADMIN_SMS_BRIDGE_URL), which nothing can connect to: list an address such as http://localhost:5170 first in Hosting.ListenUrl." }
+    if ($bridge.ADMIN_SMS_BRIDGE_URL -match '//(\*|\+|0\.0\.0\.0|\[::\])([:/]|$)') { throw "$bridgeSettings listens first on $($bridge.ADMIN_SMS_BRIDGE_URL), which nothing can connect to: list an address such as http://localhost:5170 first in Hosting.ListenUrl." }
     if (-not $bridge.ADMIN_SMS_BRIDGE_URL -or -not $bridge.ADMIN_SMS_BRIDGE_API_KEY) { throw "$bridgeSettings lacks Hosting.ListenUrl or BRIDGE_API_KEY: reinstall SMS_Bridge, then run this again." }
     # Read as UTF-8, as it is written back: Get-Content would read it in the ANSI codepage and mangle any non-ASCII value.
     $lines = @([IO.File]::ReadAllLines("$root\.env") | Where-Object { $_ -notmatch '^ADMIN_SMS_BRIDGE_(URL|API_KEY)=' }) + @($bridge.Keys | Sort-Object | ForEach-Object { "$_=$($bridge[$_])" })

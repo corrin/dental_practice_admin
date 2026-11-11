@@ -51,9 +51,9 @@ def test_an_answer_without_banners_counts_as_lost_touch_and_later_checks_still_r
 
 
 def test_an_unchanged_banner_is_left_as_it_is(page: Page, spine: dict[str, str]) -> None:
+    """An open "Technical details" stays open: nothing inside an unchanged banner is replaced."""
     page.clock.install()
     page.goto(f"{spine['APP_URL']}/history")
-    """An open "Technical details" stays open: nothing inside an unchanged banner is replaced."""
     page.evaluate("document.getElementById('staff-banners')"
                   ".insertAdjacentHTML('beforeend', '<span data-left=\"yes\"></span>')")
     page.clock.fast_forward(AFTER_ONE_CHECK)
