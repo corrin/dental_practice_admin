@@ -21,7 +21,13 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from dental_practice_admin import akahu, schedules, task_files
-from dental_practice_admin.auth import AccessControl, CurrentStaff, StaffUser, build_oauth
+from dental_practice_admin.auth import (
+    SESSION_MAX_AGE_SECONDS,
+    AccessControl,
+    CurrentStaff,
+    StaffUser,
+    build_oauth,
+)
 from dental_practice_admin.auth import router as auth_router
 from dental_practice_admin.chat import ChatDeps, StaffChatServer, model_for
 from dental_practice_admin.chat_store import SqliteChatStore
@@ -42,10 +48,6 @@ def local_time(stamp: str | None) -> str:
 
 TEMPLATES.env.globals["local_time"] = local_time
 TEMPLATES.env.globals["poll_seconds"] = schedules.POLL_SECONDS
-
-# A signed-in session lasts a working day. Long enough that nobody signs in twice during a shift,
-# short enough that a laptop left at home is not signed in next week.
-SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
 
 settings = current_settings
 

@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from starlette.responses import RedirectResponse
 
+from dental_practice_admin import auth
 from dental_practice_admin.app import create_app
 from dental_practice_admin.config import ConfigurationError, Environment, Settings, SignIn
 from dental_practice_admin.storage import Coverage, Outcome, Storage
@@ -91,6 +92,23 @@ def test_google_login_works_independently_of_principle(
         assert client.get("/").status_code == 200
         assert client.get("/auth/logout", follow_redirects=False).status_code == 307
         assert client.get("/").status_code == 401
+
+
+def test_a_sign_in_ends_a_working_day_after_it_began_however_often_an_open_page_polls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = [1_800_000_000.0]
+    monkeypatch.setattr(auth, "now", lambda: clock[0])
+    app = create_app(configured(tmp_path))
+    app.state.oauth.google.authorize_access_token = AsyncMock(return_value={"userinfo": {
+        "email": "staff@fake.invalid", "email_verified": True, "name": "Fake staff"}})
+    with TestClient(app, base_url="https://testserver") as client:
+        client.get("/auth/callback", follow_redirects=False)
+        while clock[0] < 1_800_000_000.0 + auth.SESSION_MAX_AGE_SECONDS - 300:
+            assert client.get("/banners").status_code == 200
+            clock[0] += 300
+        clock[0] += 600
+        assert client.get("/banners").status_code == 401
 
 
 def test_developer_identity_is_explicit_visible_and_forbidden_in_production(tmp_path: Path) -> None:

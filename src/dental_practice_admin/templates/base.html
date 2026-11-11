@@ -42,14 +42,20 @@
 <script>
 // Reception leaves a page open all day, so the banners are fetched again as often as the
 // launcher checks. Replacing only the banners keeps what staff are typing.
+// The element stays; only its contents change, and only when the app's answer has, so an open
+// "Technical details" stays open.
+const banners = document.getElementById('staff-banners');
+let shown = banners.innerHTML;
 setInterval(async () => {
-  const banners = document.getElementById('staff-banners');
   try {
     const response = await fetch('/banners', {redirect: 'error'});
     if (!response.ok) throw new Error(String(response.status));
-    banners.outerHTML = await response.text();
+    const answer = new DOMParser().parseFromString(await response.text(), 'text/html')
+      .getElementById('staff-banners');
+    if (!answer) throw new Error('no banners in the answer');
+    if (answer.innerHTML !== shown) banners.innerHTML = shown = answer.innerHTML;
   } catch {
-    banners.innerHTML = '<p class="banner" role="alert" data-automation-id="banners-stale">'
+    banners.innerHTML = shown = '<p class="banner" role="alert" data-automation-id="banners-stale">'
       + 'This page has lost touch with the app, so warnings may be missing. Reload it.</p>';
   }
 }, {{ poll_seconds * 1000 }});
