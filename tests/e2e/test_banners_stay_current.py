@@ -33,9 +33,14 @@ def test_a_page_left_open_shows_a_new_problem_within_five_minutes_without_reload
         store.close()
 
 
-def test_a_page_that_cannot_reach_the_app_says_so(page: Page, spine: dict[str, str]) -> None:
+def test_a_page_that_cannot_reach_the_app_says_so_until_it_can_again(
+    page: Page, spine: dict[str, str],
+) -> None:
     page.clock.install()
     page.goto(f"{spine['APP_URL']}/history")
     page.route("**/banners", lambda route: route.abort())
     page.clock.fast_forward("05:01")
     expect(page.get_by_test_id("banners-stale")).to_be_visible()
+    page.unroute("**/banners")
+    page.clock.fast_forward("05:01")
+    expect(page.get_by_test_id("banners-stale")).to_have_count(0)

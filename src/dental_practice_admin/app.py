@@ -41,6 +41,7 @@ def local_time(stamp: str | None) -> str:
 
 
 TEMPLATES.env.globals["local_time"] = local_time
+TEMPLATES.env.globals["poll_seconds"] = schedules.POLL_SECONDS
 
 # A signed-in session lasts a working day. Long enough that nobody signs in twice during a shift,
 # short enough that a laptop left at home is not signed in next week.

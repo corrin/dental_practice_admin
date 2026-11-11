@@ -40,8 +40,8 @@
 {% if staff %}
 {% include "_banners.html" %}
 <script>
-// Reception leaves a page open all day, so the banners are fetched again every five minutes,
-// the launcher's interval. Replacing only the banners keeps what staff are typing.
+// Reception leaves a page open all day, so the banners are fetched again as often as the
+// launcher checks. Replacing only the banners keeps what staff are typing.
 setInterval(async () => {
   const banners = document.getElementById('staff-banners');
   try {
@@ -52,7 +52,7 @@ setInterval(async () => {
     banners.innerHTML = '<p class="banner" role="alert" data-automation-id="banners-stale">'
       + 'This page has lost touch with the app, so warnings may be missing. Reload it.</p>';
   }
-}, 300000);
+}, {{ poll_seconds * 1000 }});
 </script>
 <p class="quiet" style="float:right;font-size:.85rem" data-automation-id="staff-identity">
   {{ staff.name }}{% if not staff.is_fake %} &middot; <a href="/auth/logout">Sign out</a>{% endif %}
