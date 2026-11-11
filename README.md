@@ -410,6 +410,7 @@ The first run of the install script writes `C:\Program Files\DentalPracticeAdmin
 | `PRINCIPLE_FIRESTORE_ROOT_PROD` | Sign in at app.principle.dental in Chrome with that login and open the workspace. In DevTools (F12), Network, filter `firestore`: request paths contain `documents/organisations/<org>/brands/<brand>/`. The setting is `organisations/<org>/brands/<brand>`. |
 | `PRINCIPLE_WORKSPACE_PROD`, `PRINCIPLE_WORKSPACE_SLUG_PROD` | The workspace's name exactly as Principle's workspace list shows it, and the segment after `app.principle.dental/` in its page addresses. |
 | `AKAHU_APP_TOKEN`, `AKAHU_USER_TOKEN` | my.akahu.nz/developers: create a personal app and connect the practice's account; it shows both tokens. |
+| `ADMIN_SMS_BRIDGE_API_KEY` | `BRIDGE_API_KEY` in `C:\ProgramData\SMS_Bridge\install-settings.json`, which [SMS_Bridge](https://github.com/corrin/SMS_Bridge)'s install writes on this server. |
 | `ADMIN_GOOGLE_MAPS_API_KEY` | Google Cloud console: enable the Geocoding API and create an API key. |
 | `ADMIN_TASK_REPOSITORY` | `owner/repository`, the private task repository. |
 | `ADMIN_GITHUB_TOKEN` | GitHub, Settings, Developer settings, fine-grained token for that repository with read and write on Contents and Pull requests. |

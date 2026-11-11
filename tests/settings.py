@@ -27,6 +27,7 @@ from dental_practice_admin.config import (
 )
 from tests.fake_ai import FAKE_AI_KEY
 from tests.fake_akahu import FAKE_AKAHU_SETTINGS
+from tests.fake_sms_bridge import FAKE_SMS_BRIDGE_SETTINGS
 
 API_URLS = {
     Environment.FAKE: FAKE_API_URL,
@@ -51,7 +52,9 @@ FAKE_SETTINGS: dict[str, Any] = {
     "akahu_base_url": "https://fake-akahu.invalid/v1",
     "chatkit_domain_key": "domain_pk_localhost",
     "public_base_url": "",
+    "sms_bridge_url": "https://fake-sms-bridge.invalid",
     **FAKE_AKAHU_SETTINGS,
+    **FAKE_SMS_BRIDGE_SETTINGS,
 }
 
 
