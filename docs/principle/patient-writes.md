@@ -31,6 +31,21 @@ staging's `recordings/measurements.json`.
   holds the old name. The lag after a rename is unmeasured; the recorder's update keeps the name.
 - The fake models it only with `SIMULATE_PRINCIPLE_SPEED=1`; otherwise it indexes at once.
 
+## Uploading a file to a patient
+
+**What:** `uploadPatientFile` (`POST /v1/patients/{patientId}/files`) is multipart: `file` and
+`filename` are required, and `metadata` is an object of string, number or boolean values. The
+specification gives `metadata` the content type `application/json`, but Principle also accepts
+it as a plain text part holding JSON, and stores the same object. Without it, `metadata` reads
+back as `{}`. Numbers stay numbers. Each upload reads back in `listPatientFiles` with its
+filename and metadata.
+**Gotchas:** a request over 32 MB in total, file and form fields together, is refused by
+Principle's hosting before it reaches the API, so the refusal is not one of the documented
+errors and is not Principle's JSON error body (specification, 2026-11-11). This limit is
+documented, not measured.
+**Verified:** staging, 2026-11-11, build `main.fb682a1255949ba4.js`: three uploads to a
+`[TEST] Fake` patient (metadata as JSON, as text, and none), each 201, then read back.
+
 ## The address the website saves
 
 **What:** the website's verified-address picker saves NZ Post order with the country:
