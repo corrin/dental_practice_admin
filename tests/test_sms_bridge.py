@@ -50,11 +50,18 @@ async def test_without_the_bridges_settings_it_is_not_asked_and_the_refusal_name
         settings: Settings, missing: str) -> None:
     unset = settings.model_copy(update={
         missing: SecretStr("") if missing == "sms_bridge_api_key" else ""})
-    async with SmsBridge(unset, transport()) as client:
+    asked: list[str] = []
+
+    async def record(request: httpx.Request) -> httpx.Response:
+        asked.append(request.url.path)
+        return httpx.Response(500)
+
+    async with SmsBridge(unset, httpx.MockTransport(record)) as client:
         with pytest.raises(ConfigurationError, match="ADMIN_SMS_BRIDGE_API_KEY"):
             await client.failed_texts()
         with pytest.raises(ConfigurationError, match="ADMIN_SMS_BRIDGE_URL"):
             await client.phone_status()
+    assert asked == []
 
 
 async def test_a_refused_key_raises(settings: Settings) -> None:
