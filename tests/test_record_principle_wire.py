@@ -16,6 +16,7 @@ from dental_practice_admin.config import (
     Environment,
     Settings,
 )
+from tests.fake_sms_bridge import transport as fake_bridge_transport
 from tests.servers import FakePrincipleServer
 from tests.settings import fake_settings
 
@@ -81,14 +82,19 @@ def sent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
         class Noting(httpx.AsyncBaseTransport):
             def __init__(self) -> None:
                 self.network = httpx.AsyncHTTPTransport()
+                self.bridge = fake_bridge_transport()
 
             async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
                 seen.append((settings.environment.value, request))
-                forwarded = httpx.Request(
-                    request.method,
-                    request.url.copy_with(scheme=fake.scheme, host=fake.host, port=fake.port),
-                    headers=request.headers, content=await request.aread())
-                response = await self.network.handle_async_request(forwarded)
+                if request.url.path.startswith("/smsgateway/"):
+                    response = await self.bridge.handle_async_request(request)
+                else:
+                    forwarded = httpx.Request(
+                        request.method,
+                        request.url.copy_with(scheme=fake.scheme, host=fake.host,
+                                              port=fake.port),
+                        headers=request.headers, content=await request.aread())
+                    response = await self.network.handle_async_request(forwarded)
                 assert isinstance(response.stream, httpx.AsyncByteStream)
                 response.stream = Teed(response.stream)
                 return response
