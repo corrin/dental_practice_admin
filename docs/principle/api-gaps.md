@@ -48,9 +48,9 @@ found for patient: <document path>`. Those patients carry one `contactNumbers` e
 `mobile`, in international form, the same field and label as production patients who receive
 texts; their number is shorter than those patients' (11 characters against 12 or 13). So
 `updateSMSMessageStatus`, which needs a message, cannot be tried on staging.
-**Verified:** [`scripts/sms_status_probe.py`](../../scripts/sms_status_probe.py), staging,
-five `[TEST] Fake` patients, against field names, labels and number lengths of 10 production
-patients with outbound texts, read only.
+**Verified:** [`scripts/sms_status_probe.py`](../../scripts/sms_status_probe.py) on staging,
+2026-11-11. The comparison with production was a read of the Firestore patient documents of
+the next two days' patients who had outbound texts (10), field names, labels and lengths only.
 
 ## Missing from the API, read from Firestore
 
