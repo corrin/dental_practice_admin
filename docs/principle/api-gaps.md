@@ -42,6 +42,16 @@ including anyone who has left. Who has left shows only as their roster ending (s
 they were listed under. **Verified:** 107 of 107 messages across 25 patients from the diary,
 production, 2026-10-25, each response validated by `PrincipleClient` against the interface.
 
+On staging, `createSMSMessage` refuses every message for the recorder's `[TEST] Fake` patients,
+outbound `pending` and inbound `sent` alike: 400 `Error sending SMS Message: No mobile number
+found for patient: <document path>`. Those patients carry one `contactNumbers` entry labelled
+`mobile`, in international form, the same field and label as production patients who receive
+texts; their number is shorter than those patients' (11 characters against 12 or 13). So
+`updateSMSMessageStatus`, which needs a message, cannot be tried on staging.
+**Verified:** [`scripts/sms_status_probe.py`](../../scripts/sms_status_probe.py), staging,
+five `[TEST] Fake` patients, against field names, labels and number lengths of 10 production
+patients with outbound texts, read only.
+
 ## Missing from the API, read from Firestore
 
 Each is visible in Principle's timeline or appointment card. See [firestore.md](firestore.md).
