@@ -3,11 +3,12 @@
     uv run python -m scripts.sms_status_probe
 
 SMS_Bridge sets the status of each text it sends with `updateSMSMessageStatus`: `failed` when
-it gives up, `sent` when the phone sends it. This creates one outbound `pending` text on the
-recorder's `[TEST] Fake` patient, which carries the owner's mobile and email (ADR 0007), sets
-it `failed` and then `sent`, and prints each answer's HTTP status and message status. It
-prints the patient's and message's ids, to find them in the website. If staging's own SMS is
-on, the text goes to the owner's mobile. docs/principle/sms-messages.md records what it showed.
+it gives up, `sent` when the phone sends it. This creates one text on the recorder's
+`[TEST] Fake` patient, which carries the owner's mobile and email (ADR 0007): outbound
+`pending`, or inbound `sent` if Principle refuses that. It sets the text `failed` and then
+`sent`, printing each answer as Principle sent it, so its writes go through httpx rather than
+`PrincipleClient`, which keeps a refusal's wording from the caller. If staging's own SMS is on,
+an outbound text goes to the owner's mobile. docs/principle/api-gaps.md records what it showed.
 """
 from __future__ import annotations
 
